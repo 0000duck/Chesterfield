@@ -36,5 +36,21 @@ namespace YassakawaInterface
         {
             m_cYasnac.SetServoOff();
         }
+
+        /// <summary>
+        /// Set the robot to play mode.
+        /// </summary>
+        public void SetPlayMode()
+        {
+            m_cYasnac.SetPlayMode();
+        }
+
+        /// <summary>
+        /// Set the robot to teach mode.
+        /// </summary>
+        public void SetTeachMode()
+        {
+            m_cYasnac.SetTeachMode();
+        }
     }
 }
