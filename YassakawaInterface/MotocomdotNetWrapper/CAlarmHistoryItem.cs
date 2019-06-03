@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Text;
-http://www.digikey.co.il/product-detail/en/global-specialties/GS-830/BKGS-830-ND/5231309
 namespace MotocomdotNetWrapper
 {
     public class CAlarmHistoryItem:IComparable
