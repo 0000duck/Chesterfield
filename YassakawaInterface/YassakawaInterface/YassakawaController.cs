@@ -90,11 +90,6 @@ namespace YassakawaInterface
             return m_cYasnac.IMov(moveSpeedSelectionSB, speed, framNameSB, toolNumber, ref incrementValue);
         }
 
-        public short GetErrorCodes()
-        {
-            return m_cYasnac.GetErrorCode();
-        }
-
         /// <summary>
         /// Get the alarm list in the robot controller , including the error description.
         /// </summary>

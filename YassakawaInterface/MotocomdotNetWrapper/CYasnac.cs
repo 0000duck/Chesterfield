@@ -256,14 +256,6 @@ namespace MotocomdotNetWrapper
             return alarmlist.Count;
         }
 
-        public short GetErrorCode()
-        {
-            lock (m_YasnacAccessLock)
-            {
-                return CMotocom.BscGetError2(m_Handle);
-            }
-        }
-
         /// <summary>
         /// Resets an alarm
         /// </summary>
