@@ -52,5 +52,12 @@ namespace YassakawaInterface
         {
             m_cYasnac.SetTeachMode();
         }
+
+        public short MovLinear(string moveSpeedSelection, double speed, string frameName, short rconf, short toolNumber, double targetPosition)
+        {
+            StringBuilder moveSpeedSelectionSB = new StringBuilder(moveSpeedSelection);
+            StringBuilder framNameSB = new StringBuilder(frameName);
+            return m_cYasnac.Movl(moveSpeedSelectionSB, speed, framNameSB, rconf, toolNumber, ref targetPosition);
+        }
     }
 }

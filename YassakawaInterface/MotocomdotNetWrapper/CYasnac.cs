@@ -705,11 +705,18 @@ namespace MotocomdotNetWrapper
             }
 
 
-            
+
+        #endregion
+
+        #region moving robot functions
+        public short Movl(StringBuilder moveSpeedSelection, double speed, StringBuilder frameName, short rconf, short toolNo, ref double targetPosition)
+        {
+            return CMotocom.BscMovl(m_Handle, moveSpeedSelection, speed, frameName, rconf, toolNo, ref targetPosition);
+        }
         #endregion
 
         #region event handler
-            void StatusTimer_Tick(object sender, EventArgs e)
+        void StatusTimer_Tick(object sender, EventArgs e)
             {
                 short d1=0, d2=0;
                 try
