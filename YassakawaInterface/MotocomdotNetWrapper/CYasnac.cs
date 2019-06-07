@@ -713,6 +713,11 @@ namespace MotocomdotNetWrapper
         {
             return CMotocom.BscMovl(m_Handle, moveSpeedSelection, speed, frameName, rconf, toolNo, ref targetPosition);
         }
+
+        public short IMov(StringBuilder moveSpeedSelection, double speed, StringBuilder frameName, short toolNo, ref double increamentValue)
+        {
+            return CMotocom.BscImov(m_Handle, moveSpeedSelection, speed, frameName, toolNo, ref increamentValue);
+        }
         #endregion
 
         #region event handler

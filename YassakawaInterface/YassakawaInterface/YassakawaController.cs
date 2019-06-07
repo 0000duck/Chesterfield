@@ -53,11 +53,40 @@ namespace YassakawaInterface
             m_cYasnac.SetTeachMode();
         }
 
+        /// <summary>
+        /// Moving the robot to a target point in linear motion.
+        /// </summary>
+        /// <param name="moveSpeedSelection"></param>
+        /// <param name="speed"></param>
+        /// <param name="frameName"></param>
+        /// <param name="rconf"></param>
+        /// <param name="toolNumber"></param>
+        /// <param name="targetPosition"></param>
+        /// <returns></returns>
         public short MovLinear(string moveSpeedSelection, double speed, string frameName, short rconf, short toolNumber, double targetPosition)
         {
             StringBuilder moveSpeedSelectionSB = new StringBuilder(moveSpeedSelection);
             StringBuilder framNameSB = new StringBuilder(frameName);
+
             return m_cYasnac.Movl(moveSpeedSelectionSB, speed, framNameSB, rconf, toolNumber, ref targetPosition);
+        }
+
+        /// <summary>
+        /// Moving the robot with increamental position value in a linear motion.
+        /// </summary>
+        /// <param name="moveSpeedSelection"></param>
+        /// <param name="speed"></param>
+        /// <param name="frameName"></param>
+        /// <param name="rconf"></param>
+        /// <param name="toolNumber"></param>
+        /// <param name="incrementValue"></param>
+        /// <returns></returns>
+        public short MoveLinearIncrement(string moveSpeedSelection, double speed, string frameName, short rconf, short toolNumber, double incrementValue)
+        {
+            StringBuilder moveSpeedSelectionSB = new StringBuilder(moveSpeedSelection);
+            StringBuilder framNameSB = new StringBuilder(frameName);
+
+            return m_cYasnac.IMov(moveSpeedSelectionSB, speed, framNameSB, toolNumber, ref incrementValue);
         }
     }
 }
