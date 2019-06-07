@@ -711,12 +711,18 @@ namespace MotocomdotNetWrapper
         #region moving robot functions
         public short Movl(StringBuilder moveSpeedSelection, double speed, StringBuilder frameName, short rconf, short toolNo, ref double targetPosition)
         {
-            return CMotocom.BscMovl(m_Handle, moveSpeedSelection, speed, frameName, rconf, toolNo, ref targetPosition);
+            lock (m_YasnacAccessLock)
+            {
+                return CMotocom.BscMovl(m_Handle, moveSpeedSelection, speed, frameName, rconf, toolNo, ref targetPosition);
+            }
         }
 
         public short IMov(StringBuilder moveSpeedSelection, double speed, StringBuilder frameName, short toolNo, ref double increamentValue)
         {
-            return CMotocom.BscImov(m_Handle, moveSpeedSelection, speed, frameName, toolNo, ref increamentValue);
+            lock (m_YasnacAccessLock)
+            {
+                return CMotocom.BscImov(m_Handle, moveSpeedSelection, speed, frameName, toolNo, ref increamentValue);
+            }
         }
         #endregion
 
