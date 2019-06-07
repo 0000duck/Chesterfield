@@ -227,5 +227,23 @@ namespace YassakawaInterface
             return m_cYasnac.WriteIOGroups(startAddress , numOfGroups , ioValues);
         }
         #endregion I/O
+
+        #region VARIABLES
+        /// <summary>
+        /// Write a position variable o the controller memory.
+        /// </summary>
+        /// <param name="index">The index of the variable.</param>
+        /// <param name="posVar">The position variable description.</param>
+        /// <returns></returns>
+        public short WritePositionVariable(short index , CRobPosVar posVar)
+        {
+            return m_cYasnac.WritePositionVariable(index, posVar);
+        }
+
+        public short ReadPositionVariable(short index , out CRobPosVar posVar)
+        {
+            return m_cYasnac.ReadPositionVariable(index, out posVar);
+        }
+        #endregion VARIABLES
     }
 }

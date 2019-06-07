@@ -394,16 +394,20 @@ namespace MotocomdotNetWrapper
         /// </summary>
         /// <param name="Index">Index of variable to read</param>
         /// <param name="PosVar">Object receiving results</param>
-        public void ReadPositionVariable(short Index, CRobPosVar PosVar)
+        public short ReadPositionVariable(short Index, out CRobPosVar PosVar)
         {
             lock (m_YasnacAccessLock)
             {
+                PosVar = new CRobPosVar();
+
                 StringBuilder StringVal = new StringBuilder(256);
                 double[] PosVarArray = new double[12];
                 short ret = CMotocom.BscHostGetVarData(m_Handle, 4, Index, ref PosVarArray[0], StringVal);
                 if (ret != 0)
                     throw new Exception("Error executing BscHostGetVarData");
                 PosVar.HostGetVarDataArray = PosVarArray;
+
+                return ret;
             }
         }
 
@@ -412,7 +416,7 @@ namespace MotocomdotNetWrapper
         /// </summary>
         /// <param name="Index">Index of variable to write</param>
         /// <param name="PosVar">Object containg values to write</param>
-        public void WritePositionVariable(short Index, CRobPosVar PosVar)
+        public short WritePositionVariable(short Index, CRobPosVar PosVar)
         {
             lock (m_YasnacAccessLock)
             {
@@ -421,6 +425,7 @@ namespace MotocomdotNetWrapper
                 short ret = CMotocom.BscHostPutVarData(m_Handle, 4, Index, ref PosVarArray[0], StringVal);
                 if (ret != 0)
                     throw new Exception("Error executing BscHostPutVarData");
+                return ret;
             }
         }
 
