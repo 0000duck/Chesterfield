@@ -12,6 +12,7 @@ namespace YassakawaInterface
     {
         public CYasnac m_cYasnac { get; set; }
 
+        #region CTOR
         /// <summary>
         /// Default construvtor for creating a Yassakawa Robot object.
         /// </summary>
@@ -21,7 +22,9 @@ namespace YassakawaInterface
         {
             m_cYasnac = new CYasnac(IPAddress , path);
         }
+        #endregion CTOR
 
+        #region SERVOS
         /// <summary>
         /// Setting the robot servo on.
         /// </summary>
@@ -37,7 +40,9 @@ namespace YassakawaInterface
         {
             m_cYasnac.SetServoOff();
         }
+        #endregion SERVOS
 
+        #region MODES
         /// <summary>
         /// Set the robot to play mode.
         /// </summary>
@@ -53,7 +58,9 @@ namespace YassakawaInterface
         {
             m_cYasnac.SetTeachMode();
         }
+        #endregion MODES
 
+        #region MOVING_OPERATIONS
         /// <summary>
         /// Moving the robot to a target point in linear motion.
         /// </summary>
@@ -64,7 +71,7 @@ namespace YassakawaInterface
         /// <param name="toolNumber"></param>
         /// <param name="targetPosition"></param>
         /// <returns></returns>
-        public short MovLinear(string moveSpeedSelection, double speed, string frameName, short rconf, short toolNumber, double targetPosition)
+        public short MoveLinear(string moveSpeedSelection, double speed, string frameName, short rconf, short toolNumber, double targetPosition)
         {
             StringBuilder moveSpeedSelectionSB = new StringBuilder(moveSpeedSelection);
             StringBuilder framNameSB = new StringBuilder(frameName);
@@ -90,6 +97,9 @@ namespace YassakawaInterface
             return m_cYasnac.IMov(moveSpeedSelectionSB, speed, framNameSB, toolNumber, ref incrementValue);
         }
 
+        #endregion MOVING_OPERATIONS
+
+        #region ERROR_ALARMS
         /// <summary>
         /// Get the alarm list in the robot controller , including the error description.
         /// </summary>
@@ -109,5 +119,6 @@ namespace YassakawaInterface
         {
             return m_cYasnac.ResetAlarm();
         }
+        #endregion ERROR_ALARMS
     }
 }
