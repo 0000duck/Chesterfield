@@ -259,13 +259,14 @@ namespace MotocomdotNetWrapper
         /// <summary>
         /// Resets an alarm
         /// </summary>
-        public void ResetAlarm()
+        public short ResetAlarm()
         {
             lock (m_YasnacAccessLock)
             {
                 short ret = CMotocom.BscReset(m_Handle);
                 if (ret != 0)
                     throw new Exception("Error executing BscReset");
+                return ret;
             }
         }
 

@@ -100,5 +100,14 @@ namespace YassakawaInterface
         {
             return m_cYasnac.GetAlarm(out error, out alarmList);
         }
+
+        /// <summary>
+        /// Resets the robot alarms list.
+        /// </summary>
+        /// <returns></returns>
+        public short ResetAlarms()
+        {
+            return m_cYasnac.ResetAlarm();
+        }
     }
 }
