@@ -330,13 +330,15 @@ namespace MotocomdotNetWrapper
         /// <summary>
         /// Sets Hold ON
         /// </summary>
-        public void SetHoldOn()
+        public short SetHoldOn()
         {
             lock (m_YasnacAccessLock)
             {
                 short ret = CMotocom.BscHoldOn(m_Handle);
                 if (ret != 0)
                     throw new Exception("Error executing BscHoldOn");
+
+                return ret;
             }
         }
 
@@ -344,13 +346,15 @@ namespace MotocomdotNetWrapper
         /// <summary>
         /// Sets Hold OFF
         /// </summary>
-        public void SetHoldOff()
+        public short SetHoldOff()
         {
             lock (m_YasnacAccessLock)
             {
                 short ret = CMotocom.BscHoldOff(m_Handle);
                 if (ret != 0)
                     throw new Exception("Error executing BscHoldOff");
+
+                return ret;
             }
         }
 
@@ -358,13 +362,15 @@ namespace MotocomdotNetWrapper
         /// <summary>
         /// Starts operation from the current line of current job
         /// </summary>
-        public void Start()
+        public short Start()
         {
             lock (m_YasnacAccessLock)
             {
                 short ret = CMotocom.BscContinueJob(m_Handle);
                 if (ret != 0)
                     throw new Exception("Error executing BscContinueJob");
+
+                return ret;
             }
         }
 
@@ -582,7 +588,7 @@ namespace MotocomdotNetWrapper
 
 
         /// <summary>
-        /// Calls and executes specified jon
+        /// Calls and executes specified job
         /// </summary>
         /// <param name="JobName">Jobname to execute</param>
         public void StartJob(string JobName)

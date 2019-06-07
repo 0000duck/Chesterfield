@@ -141,5 +141,43 @@ namespace YassakawaInterface
             m_cYasnac.ReadFile(fileTitle, dirPath);
         }
         #endregion FILES_OPERATION
+
+        #region JOBS_OPERATION
+        /// <summary>
+        /// Starts a job with specified name (in the controller).
+        /// </summary>
+        /// <param name="jobName">The job name as downloaded to the controller including it's .JBI extension.</param>
+        public void StartJob(string jobName)
+        {
+            m_cYasnac.StartJob(jobName);
+        }
+
+        /// <summary>
+        /// Holds on the current execution.
+        /// </summary>
+        /// <returns>0 for complete operation , others , error codes.</returns>
+        public short HoldOnExecution()
+        {
+            return m_cYasnac.SetHoldOn();
+        }
+
+        /// <summary>
+        /// Holds off the current execution. Need to Call Countinue Job in order to start the job from the last executed line.
+        /// </summary>
+        /// <returns>0 for complete operation , others , error codes.</returns>
+        public short HoldOffExecution()
+        {
+            return m_cYasnac.SetHoldOff();
+        }
+
+        /// <summary>
+        /// Continue job execution after HoldOn and HoldOff calling.
+        /// </summary>
+        /// <returns>0 for complete operation , others , error codes.</returns>
+        public short ContinueExecuting()
+        {
+            return m_cYasnac.Start();
+        }
+        #endregion JOBS_OPERATION
     }
 }
