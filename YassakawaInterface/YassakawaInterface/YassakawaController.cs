@@ -185,7 +185,7 @@ namespace YassakawaInterface
         /// Reads a single I/O address.
         /// </summary>
         /// <param name="address"></param>
-        /// <returns></returns>
+        /// <returns>True if '1' logic , false if '0' logic.</returns>
         public bool ReadIO(int address)
         {
             //todo:check if it returns a byte with 1/0 or a group of 8 buts of 0/1.
@@ -230,20 +230,55 @@ namespace YassakawaInterface
 
         #region VARIABLES
         /// <summary>
-        /// Write a position variable o the controller memory.
+        /// Write a position variable to the controller memory.
         /// </summary>
         /// <param name="index">The index of the variable.</param>
         /// <param name="posVar">The position variable description.</param>
-        /// <returns></returns>
+        /// <returns>0 for complete operation , others , error codes.</returns>
         public short WritePositionVariable(short index , CRobPosVar posVar)
         {
             return m_cYasnac.WritePositionVariable(index, posVar);
         }
 
+        /// <summary>
+        /// Read a position variable from controller memory.
+        /// </summary>
+        /// <param name="index">The index of the variable.</param>
+        /// <param name="posVar">The position variable description.</param>
+        /// <returns>0 for complete operation , others , error codes.</returns>
         public short ReadPositionVariable(short index , out CRobPosVar posVar)
         {
             return m_cYasnac.ReadPositionVariable(index, out posVar);
         }
         #endregion VARIABLES
+
+        #region FEEDBACKS_STATUSES
+        /// <summary>
+        /// Get the current robot position in a choosem frame type.
+        /// </summary>
+        /// <param name="frameName">The frame Type (Base , Robot , UF1....... , UF2......)</param>
+        /// <param name="isExternal">External axis flag.</param>
+        /// <param name="rconf">Form storage</param>
+        /// <param name="toolNumber">Tool number</param>
+        /// <param name="position">Current Position</param>
+        /// <returns>0 for complete operation , others , error codes.</returns>
+        public short GetCurrentPosition(string frameName , bool isExternal , ref short rconf , ref short toolNumber , ref double position)
+        {
+            StringBuilder frameNameSB = new StringBuilder(frameName);
+            return m_cYasnac.GetRobotPosition(frameNameSB, (short)(isExternal?1:0), ref rconf, ref toolNumber, ref position);
+        }
+
+        /// <summary>
+        /// Get the current robot position in a pulse/robot frame type.
+        /// </summary>
+        /// <param name="isPulseOrXYZ">True for pulse frame type , false for XYZ frame type.</param>
+        /// <param name="rconf">Form storage</param>
+        /// <param name="position">Current Position</param>
+        /// <returns>0 for complete operation , others , error codes.</returns>
+        public short GetCurrentPosition(bool isPulseOrXYZ, ref short rconf, ref double position)
+        {
+            return m_cYasnac.GetRobotPosition((short)(isPulseOrXYZ ? 1 : 0), ref rconf, ref position);
+        }
+        #endregion FEEDBACKS_STATUSES
     }
 }

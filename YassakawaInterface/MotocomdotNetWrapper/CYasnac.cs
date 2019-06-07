@@ -749,6 +749,37 @@ namespace MotocomdotNetWrapper
         }
         #endregion
 
+        #region statuses_positions
+        public short GetRobotPosition(StringBuilder frameName, short isEx, ref short rconf, ref short toolNumber, ref double position)
+        {
+            lock (m_YasnacAccessLock)
+            {
+                short ret = CMotocom.BscIsRobotPos(m_Handle, frameName, isEx, ref rconf, ref toolNumber, ref position);
+                if (ret != 0)
+                {
+                    throw new Exception("Error reading position!");
+                }
+
+                return ret;
+            }
+        }
+
+        public short GetRobotPosition(short isPulseOrXYZ, ref short rconf, ref double position)
+        {
+            lock (m_YasnacAccessLock)
+            {
+                short ret = CMotocom.BscIsLoc(m_Handle, isPulseOrXYZ, ref rconf, ref position);
+
+                if (ret != 0)
+                {
+                    throw new Exception("Error reading position!");
+                }
+
+                return ret;
+            }
+        }
+        #endregion statuses_positions
+
         #region event handler
         void StatusTimer_Tick(object sender, EventArgs e)
         {
