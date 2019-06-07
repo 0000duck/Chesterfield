@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -87,6 +88,22 @@ namespace YassakawaInterface
             StringBuilder framNameSB = new StringBuilder(frameName);
 
             return m_cYasnac.IMov(moveSpeedSelectionSB, speed, framNameSB, toolNumber, ref incrementValue);
+        }
+
+        public short GetErrorCodes()
+        {
+            return m_cYasnac.GetErrorCode();
+        }
+
+        /// <summary>
+        /// Get the alarm list in the robot controller , including the error description.
+        /// </summary>
+        /// <param name="error">The error message with the error number.</The>/param>
+        /// <param name="alarmList">The alarm list include alarm sub number and alarm description.</param>
+        /// <returns>The number of alarms in the error data.</returns>
+        public int GetAlarmsList(out CErrorData error , out ArrayList alarmList)
+        {
+            return m_cYasnac.GetAlarm(out error, out alarmList);
         }
     }
 }
