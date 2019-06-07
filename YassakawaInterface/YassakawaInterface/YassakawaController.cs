@@ -120,5 +120,26 @@ namespace YassakawaInterface
             return m_cYasnac.ResetAlarm();
         }
         #endregion ERROR_ALARMS
+
+        #region FILES_OPERATION
+        /// <summary>
+        /// Download file to the controller.
+        /// </summary>
+        /// <param name="fileName"></param>
+        public void WriteFile(string fileName)
+        {
+            m_cYasnac.WriteFile(fileName);
+        }
+
+        /// <summary>
+        /// Upload file from the controller.
+        /// </summary>
+        /// <param name="fileTitle"></param>
+        /// <param name="dirPath"></param>
+        public void ReadFile(string fileTitle , string dirPath)
+        {
+            m_cYasnac.ReadFile(fileTitle, dirPath);
+        }
+        #endregion FILES_OPERATION
     }
 }
