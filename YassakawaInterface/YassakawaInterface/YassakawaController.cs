@@ -254,6 +254,16 @@ namespace YassakawaInterface
 
         #region FEEDBACKS_STATUSES
         /// <summary>
+        /// Getting robot status flags.
+        /// </summary>
+        /// <param name="robotStatus">The robot status flags output.</param>
+        /// <returns>0 for complete operation , others , error codes.</returns>
+        public short GetStatus(out RobotStatus robotStatus)
+        {
+            return m_cYasnac.GetStatus(out robotStatus);
+        }
+
+        /// <summary>
         /// Get the current robot position in a choosem frame type.
         /// </summary>
         /// <param name="frameName">The frame Type (Base , Robot , UF1....... , UF2......)</param>

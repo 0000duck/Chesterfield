@@ -146,6 +146,46 @@ namespace MotocomdotNetWrapper
             UpdateStatus(ref d1, ref d2);
         }
 
+        public short GetStatus(out RobotStatus robotStatus)
+        {
+            robotStatus = new RobotStatus();
+
+            lock (m_YasnacAccessLock)
+            {
+                short d1 = 0;
+                short d2 = 0; ;
+                short ret = CMotocom.BscGetStatus(m_Handle, ref d1, ref d2);
+
+                if (ret != 0)
+                    throw new Exception("Error getting status !");
+                else
+                {
+                    //check bits and set properties
+                    if (d1 != m_oldStatusD1 || d2 != m_oldStatusD2)
+                    {
+                        robotStatus.IsStep = (d1 & (1 << 0)) > 0 ? true : false;
+                        robotStatus.Is1Cycle = (d1 & (1 << 1)) > 0 ? true : false;
+                        robotStatus.IsAuto = (d1 & (1 << 2)) > 0 ? true : false;
+                        robotStatus.IsOperating = (d1 & (1 << 3)) > 0 ? true : false;
+                        robotStatus.IsSafeSpeed = (d1 & (1 << 4)) > 0 ? true : false;
+                        robotStatus.IsTeach = (d1 & (1 << 5)) > 0 ? true : false;
+                        robotStatus.IsPlay = (d1 & (1 << 6)) > 0 ? true : false;
+                        robotStatus.IsCommandRemote = (d1 & (1 << 7)) > 0 ? true : false;
+
+                        robotStatus.IsPlaybackBoxHold = (d2 & (1 << 0)) > 0 ? true : false;
+                        robotStatus.IsPPHold = (d2 & (1 << 1)) > 0 ? true : false;
+                        robotStatus.IsExternalHold = (d2 & (1 << 2)) > 0 ? true : false;
+                        robotStatus.IsCommandHold = (d2 & (1 << 3)) > 0 ? true : false;
+                        robotStatus.IsAlarm = (d2 & (1 << 4)) > 0 ? true : false;
+                        robotStatus.IsError = (d2 & (1 << 5)) > 0 ? true : false;
+                        robotStatus.IsServoOn = (d2 & (1 << 6)) > 0 ? true : false;
+                    }
+                }
+
+                return ret;
+            }
+        }
+
         /// <summary>
         /// Retrieves joblist from controller
         /// </summary>
