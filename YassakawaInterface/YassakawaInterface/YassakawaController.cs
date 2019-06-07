@@ -196,12 +196,35 @@ namespace YassakawaInterface
         /// Read multiple single I/O in groups.
         /// </summary>
         /// <param name="startAddress">The start address to read from.</param>
-        /// <param name="numfOfGroups">The num og 8 bit I/O groups to read.</param>
+        /// <param name="numOfGroups">The num og 8 bit I/O groups to read.</param>
         /// <param name="ioValues">The values of the 8 I/O groups/</param>
         /// <returns>0 for complete execution , otherwise , otherwise , error codes.</returns>
-        public short ReadIO(int startAddress, short numfOfGroups, out short[] ioValues)
+        public short ReadIO(int startAddress, short numOfGroups, out short[] ioValues)
         {
-            return m_cYasnac.ReadIOGroups(startAddress, numfOfGroups, out ioValues);
+            return m_cYasnac.ReadIOGroups(startAddress, numOfGroups, out ioValues);
+        }
+
+        /// <summary>
+        /// Write to a single I/O address.
+        /// </summary>
+        /// <param name="address">The address of the I/O to write to.</param>
+        /// <param name="value">The value to write to the address.</param>
+        /// <returns>0 if complete . otherwise , error codes.</returns>
+        public short WriteIO(int address, bool value)
+        {
+            return m_cYasnac.WriteSingleIO(address, value);
+        }
+
+        /// <summary>
+        /// Write to a I/O address in groups of 8.
+        /// </summary>
+        /// <param name="startAddress">The start address to write the first value.</param>
+        /// <param name="numOfGroups">The number of 8 groups pins to write to.</param>
+        /// <param name="ioValues">The values to write.</param>
+        /// <returns>0 if complete . otherwise , error codes.</returns>
+        public short WriteIO(int startAddress , short numOfGroups , short[] ioValues)
+        {
+            return m_cYasnac.WriteIOGroups(startAddress , numOfGroups , ioValues);
         }
         #endregion I/O
     }

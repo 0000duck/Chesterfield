@@ -479,9 +479,11 @@ namespace MotocomdotNetWrapper
         /// </summary>
         /// <param name="Address">Address of IO</param>
         /// <param name="value">Value of IO</param>
-        public void WriteSingleIO(int Address, bool value)
+        public short WriteSingleIO(int Address, bool value)
         {
-            int BaseAddress = Address / 10 * 10;
+            //todo:check if it returns a byte with 1/0 or a group of 8 buts of 0/1.
+            //todo:check if it should be 8 or 10.
+            int BaseAddress = Address / 8 * 8;
             short iovalue;
             if (value)
                 iovalue = (short)(1 << (Address - BaseAddress));
@@ -492,6 +494,8 @@ namespace MotocomdotNetWrapper
                 short ret = CMotocom.BscWriteIO2(m_Handle, Address, 1, ref iovalue);
                 if (ret != 0)
                     throw new Exception("Error executing BscWriteIO2");
+
+                return ret;
             }
         }
 
@@ -529,9 +533,11 @@ namespace MotocomdotNetWrapper
         /// <param name="StartAddress">Address  of first group</param>
         /// <param name="NumberOfGroups">Number of groups to write</param>
         /// <param name="IOGroupValues">Values of each group</param>
-        public void WriteIOGroups(int StartAddress, short NumberOfGroups, short[] IOGroupValues)
+        public short WriteIOGroups(int StartAddress, short NumberOfGroups, short[] IOGroupValues)
         {
-            int BaseAddress = (int)StartAddress / 10 * 10;
+            //todo:check if it returns a byte with 1/0 or a group of 8 buts of 0/1.
+            //todo:check if it should be 8 or 10.
+            int BaseAddress = (int)StartAddress / 8 * 8;
 
             if (StartAddress != BaseAddress)
                 throw new Exception("Start address has to be first address of a group");
@@ -543,6 +549,8 @@ namespace MotocomdotNetWrapper
                 short ret = CMotocom.BscWriteIO2(m_Handle, StartAddress, (short)(NumberOfGroups * 8), ref IOGroupValues[0]);
                 if (ret != 0)
                     throw new Exception("Error executing BscWriteIO2");
+
+                return ret;
             }
         }
 
