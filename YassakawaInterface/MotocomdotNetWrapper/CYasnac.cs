@@ -501,23 +501,26 @@ namespace MotocomdotNetWrapper
         /// <param name="StartAddress">Address  of first group</param>
         /// <param name="NumberOfGroups">Number of groups to read</param>
         /// <returns>Array of binary codes representing each group</returns>
-        public short[] ReadIOGroups(int StartAddress, short NumberOfGroups)
+        public short ReadIOGroups(int StartAddress, short NumberOfGroups , out short[] ioValues)
         {
-            int BaseAddress = (int)StartAddress / 10 * 10;
+            //todo:check if it returns a byte with 1/0 or a group of 8 buts of 0/1.
+            //todo:check if it should be 8 or 10.
+            int BaseAddress = (int)StartAddress / 8 * 8;
 
             if (StartAddress != BaseAddress)
                 throw new Exception("Start address has to be first address of a group");
             if (NumberOfGroups > 32)
                 throw new Exception("Maximum group number to read is 32");
 
-            short[] ioValues = new short[32];
+            ioValues = new short[32];
             lock (m_YasnacAccessLock)
             {
                 short ret = CMotocom.BscReadIO2(m_Handle, StartAddress, (short)(NumberOfGroups * 8), ref ioValues[0]);
                 if (ret != 0)
                     throw new Exception("Error executing BscReadIO2");
+
+                return ret;
             }
-            return ioValues;
         }
 
         /// <summary>

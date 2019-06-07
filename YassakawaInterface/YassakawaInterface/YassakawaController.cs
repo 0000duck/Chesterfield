@@ -18,9 +18,9 @@ namespace YassakawaInterface
         /// </summary>
         /// <param name="IPAddress">The robot IP address.</param>
         /// <param name="path">The path to the robot directory.</param>
-        public YassakawaController(string IPAddress , string path)
+        public YassakawaController(string IPAddress, string path)
         {
-            m_cYasnac = new CYasnac(IPAddress , path);
+            m_cYasnac = new CYasnac(IPAddress, path);
         }
         #endregion CTOR
 
@@ -106,7 +106,7 @@ namespace YassakawaInterface
         /// <param name="error">The error message with the error number.</The>/param>
         /// <param name="alarmList">The alarm list include alarm sub number and alarm description.</param>
         /// <returns>The number of alarms in the error data.</returns>
-        public int GetAlarmsList(out CErrorData error , out ArrayList alarmList)
+        public int GetAlarmsList(out CErrorData error, out ArrayList alarmList)
         {
             return m_cYasnac.GetAlarm(out error, out alarmList);
         }
@@ -136,7 +136,7 @@ namespace YassakawaInterface
         /// </summary>
         /// <param name="fileTitle"></param>
         /// <param name="dirPath"></param>
-        public void ReadFile(string fileTitle , string dirPath)
+        public void ReadFile(string fileTitle, string dirPath)
         {
             m_cYasnac.ReadFile(fileTitle, dirPath);
         }
@@ -179,5 +179,30 @@ namespace YassakawaInterface
             return m_cYasnac.Start();
         }
         #endregion JOBS_OPERATION
+
+        #region I/O
+        /// <summary>
+        /// Reads a single I/O address.
+        /// </summary>
+        /// <param name="address"></param>
+        /// <returns></returns>
+        public bool ReadIO(int address)
+        {
+            //todo:check if it returns a byte with 1/0 or a group of 8 buts of 0/1.
+            return m_cYasnac.ReadSingleIO(address);
+        }
+
+        /// <summary>
+        /// Read multiple single I/O in groups.
+        /// </summary>
+        /// <param name="startAddress">The start address to read from.</param>
+        /// <param name="numfOfGroups">The num og 8 bit I/O groups to read.</param>
+        /// <param name="ioValues">The values of the 8 I/O groups/</param>
+        /// <returns>0 for complete execution , otherwise , otherwise , error codes.</returns>
+        public short ReadIO(int startAddress, short numfOfGroups, out short[] ioValues)
+        {
+            return m_cYasnac.ReadIOGroups(startAddress, numfOfGroups, out ioValues);
+        }
+        #endregion I/O
     }
 }
