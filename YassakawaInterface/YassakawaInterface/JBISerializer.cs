@@ -40,7 +40,7 @@ namespace YassakawaInterface
         #endregion SETTERS_GETTERS
 
         #region FUNCTIONS
-        public void DecodePosition(string jbiFileName, Position position, double velocity)
+        public void SerializePosition(string jbiFileName, Position position, double velocity)
         {
             StreamWriter _fileStreamWriter = new StreamWriter(_fileName);
 
