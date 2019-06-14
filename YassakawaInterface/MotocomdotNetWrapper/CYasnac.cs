@@ -240,10 +240,14 @@ namespace MotocomdotNetWrapper
                 {
                     ret = CMotocom.BscDeleteJob(m_Handle);
                     if (ret != 0)
+                    {
                         throw new Exception("Error deleting job !");
+                    }
                 }
                 else
+                {
                     throw new Exception("Error selecting job !");
+                }
             }
         }
 

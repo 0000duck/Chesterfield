@@ -140,6 +140,15 @@ namespace YassakawaInterface
         {
             m_cYasnac.ReadFile(fileTitle, dirPath);
         }
+
+        /// <summary>
+        /// Delete file the controller.
+        /// </summary>
+        /// <param name="fileName"></param>
+        public void Deletefile(string fileName)
+        {
+            m_cYasnac.DeleteJob(fileName);
+        }
         #endregion FILES_OPERATION
 
         #region JOBS_OPERATION
