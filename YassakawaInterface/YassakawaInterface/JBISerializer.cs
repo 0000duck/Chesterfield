@@ -159,12 +159,14 @@ namespace YassakawaInterface
 
             _fileStreamWriter.Close();
         }
+        #endregion FUNCTIONS
 
+        #region PRIVATE_FUNCTIONS
         /// <summary>
         /// Reset the Dout Pins 1-13 for the trial data number.
         /// </summary>
         /// <returns>The reset trial data number string.</returns>
-        public string ResetDoutPins()
+        private string ResetDoutPins()
         {
             bool[] binValue = new bool[14];
 
@@ -181,7 +183,7 @@ namespace YassakawaInterface
         /// </summary>
         /// <param name="binValue">The binary value to be sent to the AlphaOmega.</param>
         /// <returns>The string represents the command for the AlphaOmega for the number sending.</returns>
-        public string MakeDoutsPins(bool[] binValue)
+        private string MakeDoutsPins(bool[] binValue)
         {
             int bitIndex = 0;
             StringBuilder sb = new StringBuilder();
@@ -206,9 +208,7 @@ namespace YassakawaInterface
 
             return sb.ToString();
         }
-        #endregion FUNCTIONS
 
-        #region PRIVATE_FUNCTIONS
         /// <summary>
         /// Convert commands of one points in the trajectory to a commands lines in a JBI format.
         /// </summary>
