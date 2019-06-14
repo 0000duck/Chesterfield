@@ -99,7 +99,7 @@ namespace YassakawaInterface
         /// <param name="updateJobType">The robots type to update the job trajectory with.</param>
         /// <param name="returnBackMotion">Indicate if the motion is backword.</param>
         /// </summary>
-        private void DecodeTrajectory(Trajectory traj)
+        private void SerializeTrajectory(Trajectory traj)
         {
             StreamWriter _fileStreamWriter = new StreamWriter(_fileName);
 
