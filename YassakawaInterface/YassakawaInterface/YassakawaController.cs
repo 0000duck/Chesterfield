@@ -40,6 +40,15 @@ namespace YassakawaInterface
         {
             m_cYasnac.SetServoOff();
         }
+
+        /// <summary>
+        /// Gets te servo status.
+        /// </summary>
+        /// <returns>-1 for acquisition failure , 0 for servo off , 1 for servo on.</returns>
+        public short ServoStatus()
+        {
+            return m_cYasnac.IsServo();
+        }
         #endregion SERVOS
 
         #region

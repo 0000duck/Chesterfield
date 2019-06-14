@@ -92,6 +92,8 @@ namespace MotocomdotNetWrapper
         }
 
         #endregion
+
+        #region connections_functions
         public short Connect()
         {
             return CMotocom.BscConnect(m_Handle);
@@ -101,8 +103,6 @@ namespace MotocomdotNetWrapper
         {
             return CMotocom.BscDisConnect(m_Handle);
         }
-        #region connections_functions
-
         #endregion
 
         #region member functions
@@ -380,6 +380,11 @@ namespace MotocomdotNetWrapper
                 if (ret != 0)
                     throw new Exception("Error executing BscServoOff");
             }
+        }
+
+        public short IsServo()
+        {
+            return CMotocom.BscIsServo(m_Handle);
         }
 
 
