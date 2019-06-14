@@ -92,6 +92,18 @@ namespace MotocomdotNetWrapper
         }
 
         #endregion
+        public short Connect()
+        {
+            return CMotocom.BscConnect(m_Handle);
+        }
+
+        public short Disconnect()
+        {
+            return CMotocom.BscDisConnect(m_Handle);
+        }
+        #region connections_functions
+
+        #endregion
 
         #region member functions
         /// <summary>

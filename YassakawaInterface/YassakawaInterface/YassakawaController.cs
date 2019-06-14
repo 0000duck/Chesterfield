@@ -42,6 +42,26 @@ namespace YassakawaInterface
         }
         #endregion SERVOS
 
+        #region
+        /// <summary>
+        /// Connect to the robot controller.
+        /// </summary>
+        /// <returns>0 for error , 1 for normal operation</returns>
+        public short Connect()
+        {
+            return m_cYasnac.Connect();
+        }
+
+        /// <summary>
+        /// Disconnect from the robot controller.
+        /// </summary>
+        /// <returns>0 for error , 1 for normal operation</returns>
+        public short Disconnect()
+        {
+            return m_cYasnac.Disconnect();
+        }
+        #endregion
+
         #region MODES
         /// <summary>
         /// Set the robot to play mode.
