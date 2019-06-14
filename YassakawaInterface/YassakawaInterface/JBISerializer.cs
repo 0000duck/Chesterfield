@@ -33,6 +33,8 @@ namespace YassakawaInterface
         /// Set or get the frequency the JBIFileCreator rely on.
         /// </summary>
         public int Frequency { get { return _frequency; } set { _frequency = value; } }
+
+        public string TargetFileName { get { return _fileName; } set { _fileName = value; } }
         /// <summary>
         /// Get or set the R1 robot trajectory position to be written to the controller JBI file.
         /// </summary>
