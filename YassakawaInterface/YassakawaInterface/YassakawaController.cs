@@ -90,6 +90,7 @@ namespace YassakawaInterface
         #endregion MODES
 
         #region MOVING_OPERATIONS
+        #region LINEAR_MOVING_OPERATIONP
         /// <summary>
         /// Moving the robot to a target point in linear motion in specified frame type.
         /// </summary>
@@ -100,12 +101,162 @@ namespace YassakawaInterface
         /// <param name="toolNumber"></param>
         /// <param name="targetPosition"></param>
         /// <returns></returns>
-        public short MoveLinear(string moveSpeedSelection, double speed, string frameName, short rconf, short toolNumber, double targetPosition)
+        public short MoveLinear(string moveSpeedSelection, double speed, string frameName, short rconf, short toolNumber, ref double targetPosition)
         {
             StringBuilder moveSpeedSelectionSB = new StringBuilder(moveSpeedSelection);
             StringBuilder framNameSB = new StringBuilder(frameName);
 
             return m_cYasnac.Movl(moveSpeedSelectionSB, speed, framNameSB, rconf, toolNumber, ref targetPosition);
+        }
+
+        /// <summary>
+        /// Moving the robot with increamental position in X axis value in a linear motion in specified frame type.
+        /// </summary>
+        /// <param name="moveSpeedSelection"></param>
+        /// <param name="speed"></param>
+        /// <param name="frameName"></param>
+        /// <param name="rconf"></param>
+        /// <param name="toolNumber"></param>
+        /// <param name="incrementValue"></param>
+        /// <returns></returns>
+        public short MoveLinearIncrementX(string moveSpeedSelection, double speed, string frameName, short rconf, short toolNumber, double increamentValue)
+        {
+            double[] increamentArray = new double[]
+            {
+                increamentValue ,
+                0, 
+                0,
+                0,
+                0,
+                0
+            };
+
+            return MoveLinearIncrement(moveSpeedSelection, speed, frameName, rconf, toolNumber, ref increamentArray[0]);
+        }
+        
+        /// <summary>
+        /// Moving the robot with increamental position in Y axis value in a linear motion in specified frame type.
+        /// </summary>
+        /// <param name="moveSpeedSelection"></param>
+        /// <param name="speed"></param>
+        /// <param name="frameName"></param>
+        /// <param name="rconf"></param>
+        /// <param name="toolNumber"></param>
+        /// <param name="incrementValue"></param>
+        /// <returns></returns>
+        public short MoveLinearIncrementY(string moveSpeedSelection, double speed, string frameName, short rconf, short toolNumber, double increamentValue)
+        {
+            double[] increamentArray = new double[]
+            {
+                0 ,
+                increamentValue,
+                0,
+                0,
+                0,
+                0
+            };
+
+            return MoveLinearIncrement(moveSpeedSelection, speed, frameName, rconf, toolNumber, ref increamentArray[0]);
+        }
+
+        /// <summary>
+        /// Moving the robot with increamental position in Z axis value in a linear motion in specified frame type.
+        /// </summary>
+        /// <param name="moveSpeedSelection"></param>
+        /// <param name="speed"></param>
+        /// <param name="frameName"></param>
+        /// <param name="rconf"></param>
+        /// <param name="toolNumber"></param>
+        /// <param name="incrementValue"></param>
+        /// <returns></returns>
+        public short MoveLinearIncrementZ(string moveSpeedSelection, double speed, string frameName, short rconf, short toolNumber, double increamentValue)
+        {
+            double[] increamentArray = new double[]
+            {
+                0 ,
+                0,
+                increamentValue,
+                0,
+                0,
+                0
+            };
+
+            return MoveLinearIncrement(moveSpeedSelection, speed, frameName, rconf, toolNumber, ref increamentArray[0]);
+        }
+
+        /// <summary>
+        /// Moving the robot with increamental position in RX axis value in a linear motion in specified frame type.
+        /// </summary>
+        /// <param name="moveSpeedSelection"></param>
+        /// <param name="speed"></param>
+        /// <param name="frameName"></param>
+        /// <param name="rconf"></param>
+        /// <param name="toolNumber"></param>
+        /// <param name="incrementValue"></param>
+        /// <returns></returns>
+        public short MoveLinearIncrementRX(string moveSpeedSelection, double speed, string frameName, short rconf, short toolNumber, double increamentValue)
+        {
+            double[] increamentArray = new double[]
+            {
+                0 ,
+                0,
+                0,
+                increamentValue,
+                0,
+                0
+            };
+
+            return MoveLinearIncrement(moveSpeedSelection, speed, frameName, rconf, toolNumber, ref increamentArray[0]);
+        }
+
+        /// <summary>
+        /// Moving the robot with increamental position in RY axis value in a linear motion in specified frame type.
+        /// </summary>
+        /// <param name="moveSpeedSelection"></param>
+        /// <param name="speed"></param>
+        /// <param name="frameName"></param>
+        /// <param name="rconf"></param>
+        /// <param name="toolNumber"></param>
+        /// <param name="incrementValue"></param>
+        /// <returns></returns>
+        public short MoveLinearIncrementRY(string moveSpeedSelection, double speed, string frameName, short rconf, short toolNumber, double increamentValue)
+        {
+            double[] increamentArray = new double[]
+            {
+                0 ,
+                0,
+                0,
+                0,
+                increamentValue,
+                0
+            };
+
+            return MoveLinearIncrement(moveSpeedSelection, speed, frameName, rconf, toolNumber, ref increamentArray[0]);
+        }
+
+        /// <summary>
+        /// Moving the robot with increamental position in RZ axis value in a linear motion in specified frame type.
+        /// </summary>
+        /// <param name="moveSpeedSelection"></param>
+        /// <param name="speed"></param>
+        /// <param name="frameName"></param>
+        /// <param name="rconf"></param>
+        /// <param name="toolNumber"></param>
+        /// <param name="incrementValue"></param>
+        /// <returns></returns>
+        public short MoveLinearIncrementRZ(string moveSpeedSelection, double speed, string frameName, short rconf, short toolNumber, double increamentValue)
+        {
+            double[] increamentArray = new double[]
+            {
+                0 ,
+                0,
+                0,
+                0,
+                0,
+                increamentValue,
+            };
+
+            return MoveLinearIncrement(moveSpeedSelection, speed, frameName, rconf, toolNumber, ref increamentArray[0]);
         }
 
         /// <summary>
@@ -118,13 +269,14 @@ namespace YassakawaInterface
         /// <param name="toolNumber"></param>
         /// <param name="incrementValue"></param>
         /// <returns></returns>
-        public short MoveLinearIncrement(string moveSpeedSelection, double speed, string frameName, short rconf, short toolNumber, double incrementValue)
+        public short MoveLinearIncrement(string moveSpeedSelection, double speed, string frameName, short rconf, short toolNumber, ref double incrementValue)
         {
             StringBuilder moveSpeedSelectionSB = new StringBuilder(moveSpeedSelection);
             StringBuilder framNameSB = new StringBuilder(frameName);
 
             return m_cYasnac.IMov(moveSpeedSelectionSB, speed, framNameSB, toolNumber, ref incrementValue);
         }
+        #endregion LINEAR_MOVING_OPERATIONP
 
         #endregion MOVING_OPERATIONS
 
