@@ -91,7 +91,7 @@ namespace YassakawaInterface
 
         #region MOVING_OPERATIONS
         /// <summary>
-        /// Moving the robot to a target point in linear motion.
+        /// Moving the robot to a target point in linear motion in specified frame type.
         /// </summary>
         /// <param name="moveSpeedSelection"></param>
         /// <param name="speed"></param>
@@ -109,7 +109,7 @@ namespace YassakawaInterface
         }
 
         /// <summary>
-        /// Moving the robot with increamental position value in a linear motion.
+        /// Moving the robot with increamental position value in a linear motion in specified frame type.
         /// </summary>
         /// <param name="moveSpeedSelection"></param>
         /// <param name="speed"></param>
