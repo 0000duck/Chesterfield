@@ -181,7 +181,7 @@ namespace YassakawaInterface
                 0
             };
 
-            return MoveLinearIncrement(moveSpeedSelection, speed, frameName, rconf, toolNumber, ref increamentArray[0]);
+            return MoveLinearIncrementCartesian(moveSpeedSelection, speed, frameName, rconf, toolNumber, ref increamentArray[0]);
         }
         
         /// <summary>
@@ -206,7 +206,7 @@ namespace YassakawaInterface
                 0
             };
 
-            return MoveLinearIncrement(moveSpeedSelection, speed, frameName, rconf, toolNumber, ref increamentArray[0]);
+            return MoveLinearIncrementCartesian(moveSpeedSelection, speed, frameName, rconf, toolNumber, ref increamentArray[0]);
         }
 
         /// <summary>
@@ -231,7 +231,7 @@ namespace YassakawaInterface
                 0
             };
 
-            return MoveLinearIncrement(moveSpeedSelection, speed, frameName, rconf, toolNumber, ref increamentArray[0]);
+            return MoveLinearIncrementCartesian(moveSpeedSelection, speed, frameName, rconf, toolNumber, ref increamentArray[0]);
         }
 
         /// <summary>
@@ -256,7 +256,7 @@ namespace YassakawaInterface
                 0
             };
 
-            return MoveLinearIncrement(moveSpeedSelection, speed, frameName, rconf, toolNumber, ref increamentArray[0]);
+            return MoveLinearIncrementCartesian(moveSpeedSelection, speed, frameName, rconf, toolNumber, ref increamentArray[0]);
         }
 
         /// <summary>
@@ -281,7 +281,7 @@ namespace YassakawaInterface
                 0
             };
 
-            return MoveLinearIncrement(moveSpeedSelection, speed, frameName, rconf, toolNumber, ref increamentArray[0]);
+            return MoveLinearIncrementCartesian(moveSpeedSelection, speed, frameName, rconf, toolNumber, ref increamentArray[0]);
         }
 
         /// <summary>
@@ -306,7 +306,7 @@ namespace YassakawaInterface
                 increamentValue,
             };
 
-            return MoveLinearIncrement(moveSpeedSelection, speed, frameName, rconf, toolNumber, ref increamentArray[0]);
+            return MoveLinearIncrementCartesian(moveSpeedSelection, speed, frameName, rconf, toolNumber, ref increamentArray[0]);
         }
 
         /// <summary>
@@ -319,7 +319,7 @@ namespace YassakawaInterface
         /// <param name="toolNumber"></param>
         /// <param name="incrementValue"></param>
         /// <returns></returns>
-        public short MoveLinearIncrement(string moveSpeedSelection, double speed, string frameName, short rconf, short toolNumber, ref double incrementValue)
+        public short MoveLinearIncrementCartesian(string moveSpeedSelection, double speed, string frameName, short rconf, short toolNumber, ref double incrementValue)
         {
             StringBuilder moveSpeedSelectionSB = new StringBuilder(moveSpeedSelection);
             StringBuilder framNameSB = new StringBuilder(frameName);
