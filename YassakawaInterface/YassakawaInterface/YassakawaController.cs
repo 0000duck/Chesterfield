@@ -101,7 +101,7 @@ namespace YassakawaInterface
         /// <param name="toolNumber"></param>
         /// <param name="targetPosition"></param>
         /// <returns></returns>
-        public short MoveLinearCartesian(string moveSpeedSelection, double speed, string frameName, short rconf, short toolNumber, ref double targetPosition)
+        public short MoveLinearCartesianTarget(string moveSpeedSelection, double speed, string frameName, short rconf, short toolNumber, ref double targetPosition)
         {
             StringBuilder moveSpeedSelectionSB = new StringBuilder(moveSpeedSelection);
             StringBuilder framNameSB = new StringBuilder(frameName);
@@ -110,7 +110,7 @@ namespace YassakawaInterface
         }
         
         /// <summary>
-        /// Moving the robot to a target point in linear motion in joint position target.
+        /// Moving the robot to a target point in linear motion with joint position target.
         /// </summary>
         /// <param name="moveSpeedSelection"></param>
         /// <param name="speed"></param>
@@ -119,10 +119,26 @@ namespace YassakawaInterface
         /// <param name="toolNumber"></param>
         /// <param name="targetPosition"></param>
         /// <returns></returns>
-        public short MoveLinearJoint(string moveSpeedSelection, double speed, short toolNumber, ref double targetPosition)
+        public short MoveLinearJointTarget(string moveSpeedSelection, double speed, short toolNumber, ref double targetPosition)
         {
             StringBuilder moveSpeedSelectionStringBuilder = new StringBuilder(moveSpeedSelection);
             return m_cYasnac.MovlJoint(moveSpeedSelectionStringBuilder, speed, toolNumber, ref targetPosition);
+        }
+
+        /// <summary>
+        /// Moving the robot to a target point in joint motion with joint position target.
+        /// </summary>
+        /// <param name="moveSpeedSelection"></param>
+        /// <param name="speed"></param>
+        /// <param name="frameName"></param>
+        /// <param name="rconf"></param>
+        /// <param name="toolNumber"></param>
+        /// <param name="targetPosition"></param>
+        /// <returns></returns>
+        public short MoveJointJointTarget(string moveSpeedSelection, double speed, short toolNumber, ref double targetPosition)
+        {
+            StringBuilder moveSpeedSelectionStringBuilder = new StringBuilder(moveSpeedSelection);
+            return m_cYasnac.MovjJoint(moveSpeedSelectionStringBuilder, speed , toolNumber , ref targetPosition);
         }
 
         /// <summary>
