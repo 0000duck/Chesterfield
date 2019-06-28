@@ -90,7 +90,7 @@ namespace YassakawaInterface
         #endregion MODES
 
         #region MOVING_OPERATIONS
-        #region LINEAR_MOVING_OPERATIONP
+        #region LINEAR_MOVING_OPERATION
         /// <summary>
         /// Moving the robot to a target point in linear motion in specified frame type.
         /// </summary>
@@ -101,12 +101,28 @@ namespace YassakawaInterface
         /// <param name="toolNumber"></param>
         /// <param name="targetPosition"></param>
         /// <returns></returns>
-        public short MoveLinear(string moveSpeedSelection, double speed, string frameName, short rconf, short toolNumber, ref double targetPosition)
+        public short MoveLinearCartesian(string moveSpeedSelection, double speed, string frameName, short rconf, short toolNumber, ref double targetPosition)
         {
             StringBuilder moveSpeedSelectionSB = new StringBuilder(moveSpeedSelection);
             StringBuilder framNameSB = new StringBuilder(frameName);
 
             return m_cYasnac.Movl(moveSpeedSelectionSB, speed, framNameSB, rconf, toolNumber, ref targetPosition);
+        }
+        
+        /// <summary>
+        /// Moving the robot to a target point in linear motion in joint position target.
+        /// </summary>
+        /// <param name="moveSpeedSelection"></param>
+        /// <param name="speed"></param>
+        /// <param name="frameName"></param>
+        /// <param name="rconf"></param>
+        /// <param name="toolNumber"></param>
+        /// <param name="targetPosition"></param>
+        /// <returns></returns>
+        public short MoveLinearJoint(string moveSpeedSelection, double speed, short toolNumber, ref double targetPosition)
+        {
+            StringBuilder moveSpeedSelectionStringBuilder = new StringBuilder(moveSpeedSelection);
+            return m_cYasnac.MovlJoint(moveSpeedSelectionStringBuilder, speed, toolNumber, ref targetPosition);
         }
 
         /// <summary>
@@ -133,6 +149,8 @@ namespace YassakawaInterface
 
             return MoveLinearIncrement(moveSpeedSelection, speed, frameName, rconf, toolNumber, ref increamentArray[0]);
         }
+
+        //public short MoveLinearIncrementS()
         
         /// <summary>
         /// Moving the robot with increamental position in Y axis value in a linear motion in specified frame type.
@@ -276,7 +294,7 @@ namespace YassakawaInterface
 
             return m_cYasnac.IMov(moveSpeedSelectionSB, speed, framNameSB, toolNumber, ref incrementValue);
         }
-        #endregion LINEAR_MOVING_OPERATIONP
+        #endregion LINEAR_MOVING_OPERATION
 
         #endregion MOVING_OPERATIONS
 
