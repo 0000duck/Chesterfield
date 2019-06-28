@@ -801,6 +801,14 @@ namespace MotocomdotNetWrapper
             }
         }
 
+        public short MovJ(double speed, StringBuilder frameName, short rconf, short toolNo, ref double targetPosition)
+        {
+            lock (m_YasnacAccessLock)
+            {
+                return CMotocom.BscMovj(m_Handle, speed, frameName, rconf, toolNo, ref targetPosition);
+            }
+        }
+
         public short MovlJoint(StringBuilder moveSpeedSelection, double speed, short toolNo, ref double targetPosition)
         {
             lock (m_YasnacAccessLock)

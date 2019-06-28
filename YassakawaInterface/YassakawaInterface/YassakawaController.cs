@@ -119,10 +119,28 @@ namespace YassakawaInterface
         /// <param name="toolNumber"></param>
         /// <param name="targetPosition"></param>
         /// <returns></returns>
-        public short MoveLinearJointTarget(string moveSpeedSelection, double speed, short toolNumber, ref double targetPosition)
+        public short MoveLinearPulseTarget(string moveSpeedSelection, double speed, short toolNumber, ref double targetPosition)
         {
             StringBuilder moveSpeedSelectionStringBuilder = new StringBuilder(moveSpeedSelection);
             return m_cYasnac.MovlJoint(moveSpeedSelectionStringBuilder, speed, toolNumber, ref targetPosition);
+        }
+        
+        /// <summary>
+        /// Moving the robot to a target cartesian point in  joint motion.
+        /// </summary>
+        /// <param name="moveSpeedSelection"></param>
+        /// <param name="speed"></param>
+        /// <param name="frameName"></param>
+        /// <param name="rconf"></param>
+        /// <param name="toolNumber"></param>
+        /// <param name="targetPosition"></param>
+        /// <returns></returns>
+        public short MoveJointCartesianTarget(string moveSpeedSelection, double speed, string frameName, short rconf, short toolNumber, ref double targetPosition)
+        {
+            StringBuilder moveSpeedSelectionSB = new StringBuilder(moveSpeedSelection);
+            StringBuilder framNameSB = new StringBuilder(frameName);
+
+            return m_cYasnac.MovJ(speed, framNameSB, rconf, toolNumber, ref targetPosition);
         }
 
         /// <summary>
@@ -135,7 +153,7 @@ namespace YassakawaInterface
         /// <param name="toolNumber"></param>
         /// <param name="targetPosition"></param>
         /// <returns></returns>
-        public short MoveJointJointTarget(string moveSpeedSelection, double speed, short toolNumber, ref double targetPosition)
+        public short MoveJointPulseTarget(string moveSpeedSelection, double speed, short toolNumber, ref double targetPosition)
         {
             StringBuilder moveSpeedSelectionStringBuilder = new StringBuilder(moveSpeedSelection);
             return m_cYasnac.MovjJoint(moveSpeedSelectionStringBuilder, speed , toolNumber , ref targetPosition);
@@ -165,8 +183,6 @@ namespace YassakawaInterface
 
             return MoveLinearIncrement(moveSpeedSelection, speed, frameName, rconf, toolNumber, ref increamentArray[0]);
         }
-
-        //public short MoveLinearIncrementS()
         
         /// <summary>
         /// Moving the robot with increamental position in Y axis value in a linear motion in specified frame type.
