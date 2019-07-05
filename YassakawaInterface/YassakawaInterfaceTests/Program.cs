@@ -16,11 +16,13 @@ namespace YassakawaInterfaceTests
 
             Servo_ON_Test(yassakawaController);
 
-            //Moving_Linear_X_Test(yassakawaController);
+            //Moving_Linear_Z_Test(yassakawaController);
 
             //Moving_Linear_Increament_Cartesian_Test(yassakawaController);
 
-            Get_Current_Posision_Test(yassakawaController);
+            //Get_Current_Posision_Test(yassakawaController);
+
+            Move_Joint_Cartesian_Target_Test(yassakawaController);
 
             Thread.Sleep(2000);
 
@@ -67,7 +69,7 @@ namespace YassakawaInterfaceTests
         }
         public static void Moving_Linear_Z_Test(YassakawaController yassakawaController)
         {
-            short result = yassakawaController.MoveLinearIncrementZ("V", 10, "ROBOT", 0, 0, 5); ;
+            short result = yassakawaController.MoveLinearIncrementZ("V", 10, "ROBOT", 0, 0, 50); ;
 
             Console.WriteLine($"{result}");
         }
@@ -111,28 +113,20 @@ namespace YassakawaInterfaceTests
         #endregion MOVING_LINEAR_OPERATIONS_TESTS
 
         #region PULSE_JOINT_MOVING_TESTS
-        /*public static void Move_Joint_Cartesian_Target_Test(YassakawaController yassakawaController)
+        public static void Move_Joint_Cartesian_Target_Test(YassakawaController yassakawaController)
         {
-            double[] increamentValue = new double[]
-            {
-                1,
-                1,
-                1,
-                1,
-                1,
-                1,
-                0,
-                0,
-                0,
-                0,
-                0,
-                0
-            };
+            double[] targetPosition = new double[12];
+            short rconf = 0;
+            yassakawaController.GetCurrentPosition(false, ref rconf, ref targetPosition[0]);
 
-            short result = yassakawaController.MoveLinearIncrementCartesian("V", 5, "ROBOT", 0, 0, ref increamentValue[0]);
+            targetPosition[0] += 50;
+            targetPosition[0] += 50;
+            targetPosition[0] += 50;
+
+            short result = yassakawaController.MoveJointCartesianTarget("V", 1, "ROBOT", 0, 0, ref targetPosition[0]);
 
             Console.WriteLine($"{result}");
-        }*/
+        }
         #endregion PULSE_JOINT_MOVING_TESTS
 
         #region FEEDBACK_STATUSES_TESTS
