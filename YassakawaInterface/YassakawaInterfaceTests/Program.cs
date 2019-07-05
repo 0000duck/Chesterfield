@@ -130,6 +130,7 @@ namespace YassakawaInterfaceTests
         #region PULSE_JOINT_MOVING_TESTS
         public static void Moving_Joint_Cartesian_Target_Test(YassakawaController yassakawaController)
         {
+            //todo:check this - may be wrong
             double[] currentCartesianPosition = new double[12];
             short rconf = 0;
             yassakawaController.GetCurrentPosition(false, ref rconf, ref currentCartesianPosition[0]);
@@ -144,6 +145,7 @@ namespace YassakawaInterfaceTests
         }
         public static void Moving_Joint_Pulse_Target(YassakawaController yassakawaController)
         {
+            //todo:check this - may be wrong
             double[] currentPulsePosition = new double[12];
             short rconf = 0;
             yassakawaController.GetCurrentPosition(true, ref rconf, ref currentPulsePosition[0]);
