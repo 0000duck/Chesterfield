@@ -24,7 +24,9 @@ namespace YassakawaInterfaceTests
 
             //Move_Joint_Cartesian_Target_Test(yassakawaController);
 
-            Moving_Linear_Pulse_Target_Test(yassakawaController);
+            //Moving_Linear_Pulse_Target_Test(yassakawaController);
+
+            Hold_On_Test(yassakawaController);
 
             Thread.Sleep(2000);
 
@@ -168,5 +170,16 @@ namespace YassakawaInterfaceTests
             Console.WriteLine($"Current position: {position[0]} , {position[1]} , {position[2]} , {position[3]} , {position[4]} , {position[5]}");
         }
         #endregion FEEDBACK_STATUSES_TESTS
+
+        #region JOBS_OPERATION_TESTS
+        public static void Hold_On_Test(YassakawaController yassakawaController)
+        {
+            yassakawaController.MoveLinearIncrementX("V", 50, "ROBOT", 0, 0, 80);
+            Thread.Sleep(500);
+            yassakawaController.HoldOnExecution();
+            yassakawaController.HoldOffExecution();
+            yassakawaController.MoveLinearIncrementX("V", 50, "ROBOT", 0, 0, 80);
+        }
+        #endregion JOBS_OPERATION_TESTS
     }
 }
