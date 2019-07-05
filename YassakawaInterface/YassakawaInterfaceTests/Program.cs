@@ -18,13 +18,13 @@ namespace YassakawaInterfaceTests
 
             Moving_Linear_X_Test(yassakawaController);
 
-            Thread.Sleep(5000);
+            Thread.Sleep(2000);
 
             Servo_OFF_Test(yassakawaController);
 
             Disconnect_Test(yassakawaController);
 
-            Console.ReadLine();
+            //Console.ReadLine();
         }
 
         public static void Connect_Test(YassakawaController yassakawaController)
@@ -50,6 +50,36 @@ namespace YassakawaInterfaceTests
         public static void Moving_Linear_X_Test(YassakawaController yassakawaController)
         {
             short result = yassakawaController.MoveLinearIncrementX("V" , 10 , "ROBOT" , 0 , 0 , 5); ;
+
+            Console.WriteLine($"{result}");
+        }
+        public static void Moving_Linear_Y_Test(YassakawaController yassakawaController)
+        {
+            short result = yassakawaController.MoveLinearIncrementY("V", 10, "ROBOT", 0, 0, 5); ;
+
+            Console.WriteLine($"{result}");
+        }
+        public static void Moving_Linear_Z_Test(YassakawaController yassakawaController)
+        {
+            short result = yassakawaController.MoveLinearIncrementZ("V", 10, "ROBOT", 0, 0, 5); ;
+
+            Console.WriteLine($"{result}");
+        }
+        public static void Moving_Linear_RX_Test(YassakawaController yassakawaController)
+        {
+            short result = yassakawaController.MoveLinearIncrementRX("V", 10, "ROBOT", 0, 0, 5); ;
+
+            Console.WriteLine($"{result}");
+        }
+        public static void Moving_Linear_RY_Test(YassakawaController yassakawaController)
+        {
+            short result = yassakawaController.MoveLinearIncrementRY("V", 10, "ROBOT", 0, 0, 5); ;
+
+            Console.WriteLine($"{result}");
+        }
+        public static void Moving_Linear_RZ_Test(YassakawaController yassakawaController)
+        {
+            short result = yassakawaController.MoveLinearIncrementRZ("V", 10, "ROBOT", 0, 0, 5); ;
 
             Console.WriteLine($"{result}");
         }
