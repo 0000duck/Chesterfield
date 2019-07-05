@@ -51,7 +51,7 @@ namespace YassakawaInterface
         }
         #endregion SERVOS
 
-        #region
+        #region CONNECTIONS
         /// <summary>
         /// Connect to the robot controller.
         /// </summary>
@@ -69,7 +69,7 @@ namespace YassakawaInterface
         {
             return m_cYasnac.Disconnect();
         }
-        #endregion
+        #endregion CONNECTIONS
 
         #region MODES
         /// <summary>
@@ -156,7 +156,7 @@ namespace YassakawaInterface
         public short MoveJointPulseTarget(string moveSpeedSelection, double speed, short toolNumber, ref double targetPosition)
         {
             StringBuilder moveSpeedSelectionStringBuilder = new StringBuilder(moveSpeedSelection);
-            return m_cYasnac.MovjJoint(moveSpeedSelectionStringBuilder, speed , toolNumber , ref targetPosition);
+            return m_cYasnac.MovjJoint(speed , toolNumber , ref targetPosition);
         }
 
         /// <summary>
@@ -171,10 +171,17 @@ namespace YassakawaInterface
         /// <returns></returns>
         public short MoveLinearIncrementX(string moveSpeedSelection, double speed, string frameName, short rconf, short toolNumber, double increamentValue)
         {
-            double[] increamentArray = new double[]
+            double[] increamentArray = new double[12]
             {
                 increamentValue ,
                 0, 
+                0,
+                0,
+                0,
+                0,
+                //axis pulse numbers - zeros
+                0,
+                0,
                 0,
                 0,
                 0,
@@ -203,6 +210,13 @@ namespace YassakawaInterface
                 0,
                 0,
                 0,
+                0,
+                //axis pulse numbers - zeros
+                0,
+                0,
+                0,
+                0,
+                0,
                 0
             };
 
@@ -226,6 +240,13 @@ namespace YassakawaInterface
                 0 ,
                 0,
                 increamentValue,
+                0,
+                0,
+                0,
+                //axis pulse numbers - zeros
+                0,
+                0,
+                0,
                 0,
                 0,
                 0
@@ -253,6 +274,13 @@ namespace YassakawaInterface
                 0,
                 increamentValue,
                 0,
+                0,
+                //axis pulse numbers - zeros
+                0,
+                0,
+                0,
+                0,
+                0,
                 0
             };
 
@@ -278,6 +306,13 @@ namespace YassakawaInterface
                 0,
                 0,
                 increamentValue,
+                0,
+                //axis pulse numbers - zeros
+                0,
+                0,
+                0,
+                0,
+                0,
                 0
             };
 
@@ -304,6 +339,13 @@ namespace YassakawaInterface
                 0,
                 0,
                 increamentValue,
+                //axis pulse numbers - zeros
+                0,
+                0,
+                0,
+                0,
+                0,
+                0
             };
 
             return MoveLinearIncrementCartesian(moveSpeedSelection, speed, frameName, rconf, toolNumber, ref increamentArray[0]);
