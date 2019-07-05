@@ -51,7 +51,7 @@ namespace YassakawaInterface
         }
         #endregion SERVOS
 
-        #region
+        #region CONNECTIONS
         /// <summary>
         /// Connect to the robot controller.
         /// </summary>
@@ -69,7 +69,7 @@ namespace YassakawaInterface
         {
             return m_cYasnac.Disconnect();
         }
-        #endregion
+        #endregion CONNECTIONS
 
         #region MODES
         /// <summary>
