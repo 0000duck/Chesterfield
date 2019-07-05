@@ -171,10 +171,17 @@ namespace YassakawaInterface
         /// <returns></returns>
         public short MoveLinearIncrementX(string moveSpeedSelection, double speed, string frameName, short rconf, short toolNumber, double increamentValue)
         {
-            double[] increamentArray = new double[]
+            double[] increamentArray = new double[12]
             {
                 increamentValue ,
                 0, 
+                0,
+                0,
+                0,
+                0,
+
+                0,
+                0,
                 0,
                 0,
                 0,
