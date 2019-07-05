@@ -128,7 +128,7 @@ namespace YassakawaInterfaceTests
         #endregion MOVING_LINEAR_OPERATIONS_TESTS
 
         #region PULSE_JOINT_MOVING_TESTS
-        public static void Move_Joint_Cartesian_Target_Test(YassakawaController yassakawaController)
+        public static void Moving_Joint_Cartesian_Target_Test(YassakawaController yassakawaController)
         {
             double[] currentCartesianPosition = new double[12];
             short rconf = 0;
@@ -141,6 +141,14 @@ namespace YassakawaInterfaceTests
             short result = yassakawaController.MoveJointCartesianTarget("V", 1, "ROBOT", 0, 0, ref currentCartesianPosition[0]);
 
             Console.WriteLine($"{result}");
+        }
+        public static void Moving_Joint_Pulse_Target(YassakawaController yassakawaController)
+        {
+            double[] currentPulsePosition = new double[12];
+            short rconf = 0;
+            yassakawaController.GetCurrentPosition(true, ref rconf, ref currentPulsePosition[0]);
+
+            yassakawaController.MoveJointPulseTarget("V", 10, 0, ref currentPulsePosition[0]);
         }
         #endregion PULSE_JOINT_MOVING_TESTS
 

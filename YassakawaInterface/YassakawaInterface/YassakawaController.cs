@@ -156,7 +156,7 @@ namespace YassakawaInterface
         public short MoveJointPulseTarget(string moveSpeedSelection, double speed, short toolNumber, ref double targetPosition)
         {
             StringBuilder moveSpeedSelectionStringBuilder = new StringBuilder(moveSpeedSelection);
-            return m_cYasnac.MovjJoint(moveSpeedSelectionStringBuilder, speed , toolNumber , ref targetPosition);
+            return m_cYasnac.MovjJoint(speed , toolNumber , ref targetPosition);
         }
 
         /// <summary>
