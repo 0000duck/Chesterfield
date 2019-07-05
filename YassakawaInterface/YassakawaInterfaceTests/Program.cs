@@ -18,7 +18,9 @@ namespace YassakawaInterfaceTests
 
             //Moving_Linear_X_Test(yassakawaController);
 
-            Moving_Linear_Increament_Cartesian_Test(yassakawaController);
+            //Moving_Linear_Increament_Cartesian_Test(yassakawaController);
+
+            Get_Current_Posision_Test(yassakawaController);
 
             Thread.Sleep(2000);
 
@@ -26,7 +28,7 @@ namespace YassakawaInterfaceTests
 
             Disconnect_Test(yassakawaController);
 
-            //Console.ReadLine();
+            Console.ReadLine();
         }
 
         public static void Connect_Test(YassakawaController yassakawaController)
@@ -55,6 +57,8 @@ namespace YassakawaInterfaceTests
 
             Console.WriteLine($"{result}");
         }
+
+        #region MOVING_LINEAR_OPERATIONS_TESTS
         public static void Moving_Linear_Y_Test(YassakawaController yassakawaController)
         {
             short result = yassakawaController.MoveLinearIncrementY("V", 10, "ROBOT", 0, 0, 5); ;
@@ -104,5 +108,46 @@ namespace YassakawaInterfaceTests
             };
             yassakawaController.MoveLinearIncrementCartesian("V", 5, "ROBOT", 0, 0, ref increamentValue[0]);
         }
+        #endregion MOVING_LINEAR_OPERATIONS_TESTS
+
+        #region PULSE_JOINT_MOVING_TESTS
+        /*public static void Move_Joint_Cartesian_Target_Test(YassakawaController yassakawaController)
+        {
+            double[] increamentValue = new double[]
+            {
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0
+            };
+
+            short result = yassakawaController.MoveLinearIncrementCartesian("V", 5, "ROBOT", 0, 0, ref increamentValue[0]);
+
+            Console.WriteLine($"{result}");
+        }*/
+        #endregion PULSE_JOINT_MOVING_TESTS
+
+        #region FEEDBACK_STATUSES_TESTS
+        public static void Get_Current_Posision_Test(YassakawaController yassakawaController)
+        {
+            double[] position = new double[12];
+            short rconf = 0;
+            yassakawaController.GetCurrentPosition(false, ref rconf, ref position[0]);
+            Console.WriteLine($"Current position: {position[0]} , {position[1]} , {position[2]} , {position[3]} , {position[4]} , {position[5]}");
+            yassakawaController.MoveLinearIncrementX("V", 10, "ROBOT", 1, 1, 1);
+            //wait for the movement to end.
+            Thread.Sleep(5000);
+            yassakawaController.GetCurrentPosition(false, ref rconf, ref position[0]);
+            Console.WriteLine($"Current position: {position[0]} , {position[1]} , {position[2]} , {position[3]} , {position[4]} , {position[5]}");
+        }
+        #endregion FEEDBACK_STATUSES_TESTS
     }
 }
