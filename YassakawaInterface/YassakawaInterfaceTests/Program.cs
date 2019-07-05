@@ -16,7 +16,9 @@ namespace YassakawaInterfaceTests
 
             Servo_ON_Test(yassakawaController);
 
-            Moving_Linear_X_Test(yassakawaController);
+            //Moving_Linear_X_Test(yassakawaController);
+
+            Moving_Linear_Increament_Cartesian_Test(yassakawaController);
 
             Thread.Sleep(2000);
 
@@ -49,7 +51,7 @@ namespace YassakawaInterfaceTests
 
         public static void Moving_Linear_X_Test(YassakawaController yassakawaController)
         {
-            short result = yassakawaController.MoveLinearIncrementX("V" , 10 , "ROBOT" , 0 , 0 , 5); ;
+            short result = yassakawaController.MoveLinearIncrementX("V" , 50 , "ROBOT" , 0 , 0 , -40); ;
 
             Console.WriteLine($"{result}");
         }
@@ -82,6 +84,25 @@ namespace YassakawaInterfaceTests
             short result = yassakawaController.MoveLinearIncrementRZ("V", 10, "ROBOT", 0, 0, 5); ;
 
             Console.WriteLine($"{result}");
+        }
+        public static void Moving_Linear_Increament_Cartesian_Test(YassakawaController yassakawaController)
+        {
+            double[] increamentValue = new double[]
+            {
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0
+            };
+            yassakawaController.MoveLinearIncrementCartesian("V", 5, "ROBOT", 0, 0, ref increamentValue[0]);
         }
     }
 }
