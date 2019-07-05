@@ -179,7 +179,7 @@ namespace YassakawaInterface
                 0,
                 0,
                 0,
-
+                //axis pulse numbers - zeros
                 0,
                 0,
                 0,
@@ -210,6 +210,13 @@ namespace YassakawaInterface
                 0,
                 0,
                 0,
+                0,
+                //axis pulse numbers - zeros
+                0,
+                0,
+                0,
+                0,
+                0,
                 0
             };
 
@@ -233,6 +240,13 @@ namespace YassakawaInterface
                 0 ,
                 0,
                 increamentValue,
+                0,
+                0,
+                0,
+                //axis pulse numbers - zeros
+                0,
+                0,
+                0,
                 0,
                 0,
                 0
@@ -260,6 +274,13 @@ namespace YassakawaInterface
                 0,
                 increamentValue,
                 0,
+                0,
+                //axis pulse numbers - zeros
+                0,
+                0,
+                0,
+                0,
+                0,
                 0
             };
 
@@ -285,6 +306,13 @@ namespace YassakawaInterface
                 0,
                 0,
                 increamentValue,
+                0,
+                //axis pulse numbers - zeros
+                0,
+                0,
+                0,
+                0,
+                0,
                 0
             };
 
@@ -311,6 +339,13 @@ namespace YassakawaInterface
                 0,
                 0,
                 increamentValue,
+                //axis pulse numbers - zeros
+                0,
+                0,
+                0,
+                0,
+                0,
+                0
             };
 
             return MoveLinearIncrementCartesian(moveSpeedSelection, speed, frameName, rconf, toolNumber, ref increamentArray[0]);
