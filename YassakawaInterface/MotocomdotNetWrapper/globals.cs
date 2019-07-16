@@ -1,9 +1,11 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Text;
+using System.Runtime.InteropServices;
 
-namespace MotocomdotNetWrapper
+namespace MotoCom32Net
 {
+    [ComVisible(true)]
     public enum FrameType : byte
     {
         Base = 0,
@@ -19,18 +21,25 @@ namespace MotocomdotNetWrapper
         Tool,
         MasterTool
     }
-
+    [ComVisible(true)]
     public enum VarType : byte
     {
-        Byte=0,
+        Byte = 0,
         Integer,
         Double,
         Real
     }
-
+    [ComVisible(true)]
     public enum PosVarType : byte
     {
-        Pulse=0,
+        Pulse = 0,
         XYZ
-    } 
+    }
+    [ComVisible(true)]
+    public enum CommunicationType : short
+    {
+        SERIAL = 0x01,
+        ETHERNET = 0x10,
+        ETHERNET_SERVER = 0x100
+    }
 }

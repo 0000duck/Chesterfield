@@ -12,7 +12,7 @@ namespace YassakawaInterface {
     
     
     [global::System.Runtime.CompilerServices.CompilerGeneratedAttribute()]
-    [global::System.CodeDom.Compiler.GeneratedCodeAttribute("Microsoft.VisualStudio.Editors.SettingsDesigner.SettingsSingleFileGenerator", "15.0.1.0")]
+    [global::System.CodeDom.Compiler.GeneratedCodeAttribute("Microsoft.VisualStudio.Editors.SettingsDesigner.SettingsSingleFileGenerator", "14.0.0.0")]
     internal sealed partial class YASSAKAWA_SETTINGS : global::System.Configuration.ApplicationSettingsBase {
         
         private static YASSAKAWA_SETTINGS defaultInstance = ((YASSAKAWA_SETTINGS)(global::System.Configuration.ApplicationSettingsBase.Synchronized(new YASSAKAWA_SETTINGS())));

@@ -4,13 +4,13 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using MotocomdotNetWrapper;
+using MotoCom32Net;
 
 namespace YassakawaInterface
 {
     public class YassakawaController
     {
-        public CYasnac m_cYasnac { get; set; }
+        public DX200 m_cDX200 { get; set; }
 
         #region CTOR
         /// <summary>
@@ -20,7 +20,7 @@ namespace YassakawaInterface
         /// <param name="path">The path to the robot directory.</param>
         public YassakawaController(string IPAddress, string path)
         {
-            m_cYasnac = new CYasnac(IPAddress, path);
+            m_cDX200 = new DX200(IPAddress, path);
         }
         #endregion CTOR
 
@@ -30,7 +30,7 @@ namespace YassakawaInterface
         /// </summary>
         public void ServoOn()
         {
-            m_cYasnac.SetServoOn();
+            m_cDX200.SetServoOn();
         }
 
         /// <summary>
@@ -38,7 +38,7 @@ namespace YassakawaInterface
         /// </summary>
         public void ServoOff()
         {
-            m_cYasnac.SetServoOff();
+            m_cDX200.SetServoOff();
         }
 
         /// <summary>
@@ -47,7 +47,7 @@ namespace YassakawaInterface
         /// <returns>-1 for acquisition failure , 0 for servo off , 1 for servo on.</returns>
         public short ServoStatus()
         {
-            return m_cYasnac.IsServo();
+            return m_cDX200.IsServo();
         }
         #endregion SERVOS
 
@@ -58,7 +58,7 @@ namespace YassakawaInterface
         /// <returns>0 for error , 1 for normal operation</returns>
         public short Connect()
         {
-            return m_cYasnac.Connect();
+            return m_cDX200.Connect();
         }
 
         /// <summary>
@@ -67,7 +67,7 @@ namespace YassakawaInterface
         /// <returns>0 for error , 1 for normal operation</returns>
         public short Disconnect()
         {
-            return m_cYasnac.Disconnect();
+            return m_cDX200.Disconnect();
         }
         #endregion CONNECTIONS
 
@@ -77,7 +77,7 @@ namespace YassakawaInterface
         /// </summary>
         public void SetPlayMode()
         {
-            m_cYasnac.SetPlayMode();
+            m_cDX200.SetPlayMode();
         }
 
         /// <summary>
@@ -85,7 +85,7 @@ namespace YassakawaInterface
         /// </summary>
         public void SetTeachMode()
         {
-            m_cYasnac.SetTeachMode();
+            m_cDX200.SetTeachMode();
         }
         #endregion MODES
 
@@ -106,7 +106,7 @@ namespace YassakawaInterface
             StringBuilder moveSpeedSelectionSB = new StringBuilder(moveSpeedSelection);
             StringBuilder framNameSB = new StringBuilder(frameName);
 
-            return m_cYasnac.Movl(moveSpeedSelectionSB, speed, framNameSB, rconf, toolNumber, ref targetPosition);
+            return m_cDX200.Movl(moveSpeedSelectionSB, speed, framNameSB, rconf, toolNumber, ref targetPosition);
         }
         
         /// <summary>
@@ -122,7 +122,7 @@ namespace YassakawaInterface
         public short MoveLinearPulseTarget(string moveSpeedSelection, double speed, short toolNumber, ref double targetPosition)
         {
             StringBuilder moveSpeedSelectionStringBuilder = new StringBuilder(moveSpeedSelection);
-            return m_cYasnac.MovlJoint(moveSpeedSelectionStringBuilder, speed, toolNumber, ref targetPosition);
+            return m_cDX200.MovlJoint(moveSpeedSelectionStringBuilder, speed, toolNumber, ref targetPosition);
         }
         
         /// <summary>
@@ -140,7 +140,7 @@ namespace YassakawaInterface
             StringBuilder moveSpeedSelectionSB = new StringBuilder(moveSpeedSelection);
             StringBuilder framNameSB = new StringBuilder(frameName);
 
-            return m_cYasnac.MovJ(speed, framNameSB, rconf, toolNumber, ref targetPosition);
+            return m_cDX200.MovJ(speed, framNameSB, rconf, toolNumber, ref targetPosition);
         }
 
         /// <summary>
@@ -156,7 +156,7 @@ namespace YassakawaInterface
         public short MoveJointPulseTarget(string moveSpeedSelection, double speed, short toolNumber, ref double targetPosition)
         {
             StringBuilder moveSpeedSelectionStringBuilder = new StringBuilder(moveSpeedSelection);
-            return m_cYasnac.MovjJoint(speed , toolNumber , ref targetPosition);
+            return m_cDX200.MovjJoint(speed , toolNumber , ref targetPosition);
         }
 
         /// <summary>
@@ -366,7 +366,7 @@ namespace YassakawaInterface
             StringBuilder moveSpeedSelectionSB = new StringBuilder(moveSpeedSelection);
             StringBuilder framNameSB = new StringBuilder(frameName);
 
-            return m_cYasnac.IMov(moveSpeedSelectionSB, speed, framNameSB, toolNumber, ref incrementValue);
+            return m_cDX200.IMov(moveSpeedSelectionSB, speed, framNameSB, toolNumber, ref incrementValue);
         }
         #endregion LINEAR_MOVING_OPERATION
 
@@ -379,9 +379,9 @@ namespace YassakawaInterface
         /// <param name="error">The error message with the error number.</The>/param>
         /// <param name="alarmList">The alarm list include alarm sub number and alarm description.</param>
         /// <returns>The number of alarms in the error data.</returns>
-        public int GetAlarmsList(out CErrorData error, out ArrayList alarmList)
+        public int GetAlarmsList(out ErrorData error, out ArrayList alarmList)
         {
-            return m_cYasnac.GetAlarm(out error, out alarmList);
+            return m_cDX200.GetAlarm(out error, out alarmList);
         }
 
         /// <summary>
@@ -390,7 +390,7 @@ namespace YassakawaInterface
         /// <returns></returns>
         public short ResetAlarms()
         {
-            return m_cYasnac.ResetAlarm();
+            return m_cDX200.ResetAlarm();
         }
         #endregion ERROR_ALARMS
 
@@ -401,7 +401,7 @@ namespace YassakawaInterface
         /// <param name="fileName"></param>
         public void WriteFile(string fileName)
         {
-            m_cYasnac.WriteFile(fileName);
+            m_cDX200.WriteFile(fileName);
         }
 
         /// <summary>
@@ -411,7 +411,7 @@ namespace YassakawaInterface
         /// <param name="dirPath"></param>
         public void ReadFile(string fileTitle, string dirPath)
         {
-            m_cYasnac.ReadFile(fileTitle, dirPath);
+            m_cDX200.ReadFile(fileTitle, dirPath);
         }
 
         /// <summary>
@@ -420,7 +420,7 @@ namespace YassakawaInterface
         /// <param name="fileName"></param>
         public void Deletefile(string fileName)
         {
-            m_cYasnac.DeleteJob(fileName);
+            m_cDX200.DeleteJob(fileName);
         }
         #endregion FILES_OPERATION
 
@@ -431,7 +431,7 @@ namespace YassakawaInterface
         /// <param name="jobName">The job name as downloaded to the controller including it's .JBI extension.</param>
         public void StartJob(string jobName)
         {
-            m_cYasnac.StartJob(jobName);
+            m_cDX200.StartJob(jobName);
         }
 
         /// <summary>
@@ -440,7 +440,7 @@ namespace YassakawaInterface
         /// <returns>0 for complete operation , others , error codes.</returns>
         public short HoldOnExecution()
         {
-            return m_cYasnac.SetHoldOn();
+            return m_cDX200.SetHoldOn();
         }
 
         /// <summary>
@@ -449,7 +449,7 @@ namespace YassakawaInterface
         /// <returns>0 for complete operation , others , error codes.</returns>
         public short HoldOffExecution()
         {
-            return m_cYasnac.SetHoldOff();
+            return m_cDX200.SetHoldOff();
         }
 
         /// <summary>
@@ -458,7 +458,7 @@ namespace YassakawaInterface
         /// <returns>0 for complete operation , others , error codes.</returns>
         public short ContinueExecuting()
         {
-            return m_cYasnac.Start();
+            return m_cDX200.Start();
         }
         #endregion JOBS_OPERATION
 
@@ -471,7 +471,7 @@ namespace YassakawaInterface
         public bool ReadIO(int address)
         {
             //todo:check if it returns a byte with 1/0 or a group of 8 buts of 0/1.
-            return m_cYasnac.ReadSingleIO(address);
+            return m_cDX200.ReadSingleIO(address);
         }
 
         /// <summary>
@@ -483,7 +483,7 @@ namespace YassakawaInterface
         /// <returns>0 for complete execution , otherwise , otherwise , error codes.</returns>
         public short ReadIO(int startAddress, short numOfGroups, out short[] ioValues)
         {
-            return m_cYasnac.ReadIOGroups(startAddress, numOfGroups, out ioValues);
+            return m_cDX200.ReadIOGroups(startAddress, numOfGroups, out ioValues);
         }
 
         /// <summary>
@@ -494,7 +494,7 @@ namespace YassakawaInterface
         /// <returns>0 if complete . otherwise , error codes.</returns>
         public short WriteIO(int address, bool value)
         {
-            return m_cYasnac.WriteSingleIO(address, value);
+            return m_cDX200.WriteSingleIO(address, value);
         }
 
         /// <summary>
@@ -506,7 +506,7 @@ namespace YassakawaInterface
         /// <returns>0 if complete . otherwise , error codes.</returns>
         public short WriteIO(int startAddress , short numOfGroups , short[] ioValues)
         {
-            return m_cYasnac.WriteIOGroups(startAddress , numOfGroups , ioValues);
+            return m_cDX200.WriteIOGroups(startAddress , numOfGroups , ioValues);
         }
         #endregion I/O
 
@@ -517,9 +517,9 @@ namespace YassakawaInterface
         /// <param name="index">The index of the variable.</param>
         /// <param name="posVar">The position variable description.</param>
         /// <returns>0 for complete operation , others , error codes.</returns>
-        public short WritePositionVariable(short index , CRobPosVar posVar)
+        public short WritePositionVariable(short index , RobPosVar posVar)
         {
-            return m_cYasnac.WritePositionVariable(index, posVar);
+            return m_cDX200.WritePositionVariable(index, posVar);
         }
 
         /// <summary>
@@ -528,9 +528,9 @@ namespace YassakawaInterface
         /// <param name="index">The index of the variable.</param>
         /// <param name="posVar">The position variable description.</param>
         /// <returns>0 for complete operation , others , error codes.</returns>
-        public short ReadPositionVariable(short index , out CRobPosVar posVar)
+        public short ReadPositionVariable(short index , out RobPosVar posVar)
         {
-            return m_cYasnac.ReadPositionVariable(index, out posVar);
+            return m_cDX200.ReadPositionVariable(index, out posVar);
         }
         #endregion VARIABLES
 
@@ -542,7 +542,7 @@ namespace YassakawaInterface
         /// <returns>0 for complete operation , others , error codes.</returns>
         public short GetStatus(out RobotStatus robotStatus)
         {
-            return m_cYasnac.GetStatus(out robotStatus);
+            return m_cDX200.GetStatus(out robotStatus);
         }
 
         /// <summary>
@@ -557,7 +557,7 @@ namespace YassakawaInterface
         public short GetCurrentPosition(string frameName , bool isExternal , ref short rconf , ref short toolNumber , ref double position)
         {
             StringBuilder frameNameSB = new StringBuilder(frameName);
-            return m_cYasnac.GetRobotPosition(frameNameSB, (short)(isExternal?1:0), ref rconf, ref toolNumber, ref position);
+            return m_cDX200.GetRobotPosition(frameNameSB, (short)(isExternal?1:0), ref rconf, ref toolNumber, ref position);
         }
 
         /// <summary>
@@ -569,7 +569,7 @@ namespace YassakawaInterface
         /// <returns>0 for complete operation , others , error codes.</returns>
         public short GetCurrentPosition(bool isPulseOrXYZ, ref short rconf, ref double position)
         {
-            return m_cYasnac.GetRobotPosition((short)(isPulseOrXYZ ? 1 : 0), ref rconf, ref position);
+            return m_cDX200.GetRobotPosition((short)(isPulseOrXYZ ? 1 : 0), ref rconf, ref position);
         }
         #endregion FEEDBACKS_STATUSES
     }

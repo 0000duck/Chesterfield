@@ -47,15 +47,65 @@ namespace YassakawaInterface
 
         public int Count => (X != null) ? X.Count : 0;
 
-        public object SyncRoot => throw new NotImplementedException();
+        public object SyncRoot
+        {
+            get
+            {
+                throw new NotImplementedException();
+            }
+            set
+            {
+                throw new NotImplementedException();
+            }
+        }
 
-        public bool IsSynchronized => throw new NotImplementedException();
+        public bool IsSynchronized
+        {
+            get
+            {
+                throw new NotImplementedException();
+            }
+            set
+            {
+                throw new NotImplementedException();
+            }
+        }
 
-        public bool IsReadOnly => throw new NotImplementedException();
+        public bool IsReadOnly
+        {
+            get
+            {
+                throw new NotImplementedException();
+            }
+            set
+            {
+                throw new NotImplementedException();
+            }
+        }
 
-        public bool IsFixedSize => throw new NotImplementedException();
+        public bool IsFixedSize
+        {
+            get
+            {
+                throw new NotImplementedException();
+            }
+            set
+            {
+                throw new NotImplementedException();
+            }
+        }
 
-        Position IList<Position>.this[int index] { get => throw new NotImplementedException(); set => throw new NotImplementedException(); }
+        Position IList<Position>.this[int index]
+        {
+            get
+            {
+                throw new NotImplementedException();
+            }
+            set
+            {
+                throw new NotImplementedException();
+            }
+        }
         public Position this[int index]
         {
             get => new Position()
@@ -66,7 +116,7 @@ namespace YassakawaInterface
                 RX = RX[index],
                 RY = RY[index],
                 RZ = RZ[index],
-            };
+            }
             set
             {
                 X[index] = value.X;
@@ -76,9 +126,9 @@ namespace YassakawaInterface
                 RY[index] = value.RY;
                 RZ[index] = value.RZ;
             }
-        }
+            }
         #endregion ROTATION_TRAJECTORIES
-        #endregion MEMBERS
+            #endregion MEMBERS
 
         public Trajectory()
         {

@@ -8,9 +8,10 @@
     <OutputType>Exe</OutputType>
     <RootNamespace>YassakawaInterface</RootNamespace>
     <AssemblyName>YassakawaInterface</AssemblyName>
-    <TargetFrameworkVersion>v4.5.2</TargetFrameworkVersion>
+    <TargetFrameworkVersion>v4.6.1</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
     <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
+    <TargetFrameworkProfile />
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
     <PlatformTarget>AnyCPU</PlatformTarget>
@@ -68,10 +69,20 @@
     </None>
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\MotocomdotNetWrapper\MotocomdotNetWrapper.csproj">
+    <ProjectReference Include="..\MotocomdotNetWrapper\MotoCom32Net.csproj">
       <Project>{25010a89-4d18-4607-adaf-32553d6d343a}</Project>
-      <Name>MotocomdotNetWrapper</Name>
+      <Name>MotoCom32Net</Name>
     </ProjectReference>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+  <PropertyGroup>
+    <PostBuildEvent>copy /Y "$(ProjectDir)Hslsrv32.exe" "$(TargetDir)Hslsrv32.exe"
+copy /Y "$(ProjectDir)MotoCom32.dll" "$(TargetDir)MotoCom32.dll"
+copy /Y "$(ProjectDir)MotoLdk.dll" "$(TargetDir)MotoLdk.dll"
+copy /Y "$(ProjectDir)MotoLdk1.dll" "$(TargetDir)MotoLdk1.dll"
+copy /Y "$(ProjectDir)MotoLk.dll" "$(TargetDir)MotoLk.dll"
+copy /Y "$(ProjectDir)MotoLke.dll" "$(TargetDir)MotoLke.dll"
+copy /Y "$(ProjectDir)MotoLkr.dll" "$(TargetDir)MotoLkr.dll"
+copy /Y "$(ProjectDir)vrp32.dll" "$(TargetDir)vrp32.dll"</PostBuildEvent>
+  </PropertyGroup>
 </Project>

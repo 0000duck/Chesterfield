@@ -1,11 +1,11 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio 15
-VisualStudioVersion = 15.0.26228.9
+# Visual Studio 14
+VisualStudioVersion = 14.0.25420.1
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "YassakawaInterface", "YassakawaInterface\YassakawaInterface.csproj", "{78267914-EFC2-4424-BF42-4FEFB1E4FE05}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MotocomdotNetWrapper", "MotocomdotNetWrapper\MotocomdotNetWrapper.csproj", "{25010A89-4D18-4607-ADAF-32553D6D343A}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MotoCom32Net", "MotocomdotNetWrapper\MotoCom32Net.csproj", "{25010A89-4D18-4607-ADAF-32553D6D343A}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "YassakawaInterfaceTests", "YassakawaInterfaceTests\YassakawaInterfaceTests.csproj", "{0777D502-5F29-48AA-8FA8-DF1747703333}"
 EndProject
