@@ -32,7 +32,6 @@ namespace YassakawaInterface
         {
             m_cDX200.SetServoOn();
         }
-
         /// <summary>
         /// Setting the robot servo off.
         /// </summary>
@@ -40,7 +39,6 @@ namespace YassakawaInterface
         {
             m_cDX200.SetServoOff();
         }
-
         /// <summary>
         /// Gets te servo status.
         /// </summary>
@@ -60,7 +58,6 @@ namespace YassakawaInterface
         {
             return m_cDX200.Connect();
         }
-
         /// <summary>
         /// Disconnect from the robot controller.
         /// </summary>
@@ -79,7 +76,6 @@ namespace YassakawaInterface
         {
             m_cDX200.SetPlayMode();
         }
-
         /// <summary>
         /// Set the robot to teach mode.
         /// </summary>
@@ -108,7 +104,7 @@ namespace YassakawaInterface
 
             return m_cDX200.Movl(moveSpeedSelectionSB, speed, framNameSB, rconf, toolNumber, ref targetPosition);
         }
-        
+
         /// <summary>
         /// Moving the robot to a target point in linear motion with joint position target.
         /// </summary>
@@ -124,7 +120,7 @@ namespace YassakawaInterface
             StringBuilder moveSpeedSelectionStringBuilder = new StringBuilder(moveSpeedSelection);
             return m_cDX200.MovlJoint(moveSpeedSelectionStringBuilder, speed, toolNumber, ref targetPosition);
         }
-        
+
         /// <summary>
         /// Moving the robot to a target cartesian point in  joint motion.
         /// </summary>
@@ -156,7 +152,7 @@ namespace YassakawaInterface
         public short MoveJointPulseTarget(string moveSpeedSelection, double speed, short toolNumber, ref double targetPosition)
         {
             StringBuilder moveSpeedSelectionStringBuilder = new StringBuilder(moveSpeedSelection);
-            return m_cDX200.MovjJoint(speed , toolNumber , ref targetPosition);
+            return m_cDX200.MovjJoint(speed, toolNumber, ref targetPosition);
         }
 
         /// <summary>
@@ -174,7 +170,7 @@ namespace YassakawaInterface
             double[] increamentArray = new double[12]
             {
                 increamentValue ,
-                0, 
+                0,
                 0,
                 0,
                 0,
@@ -190,7 +186,7 @@ namespace YassakawaInterface
 
             return MoveLinearIncrementCartesian(moveSpeedSelection, speed, frameName, rconf, toolNumber, ref increamentArray[0]);
         }
-        
+
         /// <summary>
         /// Moving the robot with increamental position in Y axis value in a linear motion in specified frame type.
         /// </summary>
@@ -504,9 +500,9 @@ namespace YassakawaInterface
         /// <param name="numOfGroups">The number of 8 groups pins to write to.</param>
         /// <param name="ioValues">The values to write.</param>
         /// <returns>0 if complete . otherwise , error codes.</returns>
-        public short WriteIO(int startAddress , short numOfGroups , short[] ioValues)
+        public short WriteIO(int startAddress, short numOfGroups, short[] ioValues)
         {
-            return m_cDX200.WriteIOGroups(startAddress , numOfGroups , ioValues);
+            return m_cDX200.WriteIOGroups(startAddress, numOfGroups, ioValues);
         }
         #endregion I/O
 
@@ -517,7 +513,7 @@ namespace YassakawaInterface
         /// <param name="index">The index of the variable.</param>
         /// <param name="posVar">The position variable description.</param>
         /// <returns>0 for complete operation , others , error codes.</returns>
-        public short WritePositionVariable(short index , RobPosVar posVar)
+        public short WritePositionVariable(short index, RobotPositionVariable posVar)
         {
             return m_cDX200.WritePositionVariable(index, posVar);
         }
@@ -528,7 +524,7 @@ namespace YassakawaInterface
         /// <param name="index">The index of the variable.</param>
         /// <param name="posVar">The position variable description.</param>
         /// <returns>0 for complete operation , others , error codes.</returns>
-        public short ReadPositionVariable(short index , out RobPosVar posVar)
+        public short ReadPositionVariable(short index, out RobotPositionVariable posVar)
         {
             return m_cDX200.ReadPositionVariable(index, out posVar);
         }
@@ -554,10 +550,10 @@ namespace YassakawaInterface
         /// <param name="toolNumber">Tool number</param>
         /// <param name="position">Current Position</param>
         /// <returns>0 for complete operation , others , error codes.</returns>
-        public short GetCurrentPosition(string frameName , bool isExternal , ref short rconf , ref short toolNumber , ref double position)
+        public short GetCurrentPosition(string frameName, bool isExternal, ref short rconf, ref short toolNumber, ref double position)
         {
             StringBuilder frameNameSB = new StringBuilder(frameName);
-            return m_cDX200.GetRobotPosition(frameNameSB, (short)(isExternal?1:0), ref rconf, ref toolNumber, ref position);
+            return m_cDX200.GetRobotPosition(frameNameSB, (short)(isExternal ? 1 : 0), ref rconf, ref toolNumber, ref position);
         }
 
         /// <summary>

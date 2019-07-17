@@ -22,15 +22,19 @@ namespace MotoCom32Net
         MasterTool
     }
     [ComVisible(true)]
-    public enum VarType : byte
+    public enum VariableType : short
     {
         Byte = 0,
         Integer,
         Double,
-        Real
+        Real,
+        RobotAxisPosition,
+        BaseAxisPosition,
+        StationAxisPosition,
+        String
     }
     [ComVisible(true)]
-    public enum PosVarType : byte
+    public enum PositionVariableType : byte
     {
         Pulse = 0,
         XYZ
@@ -41,5 +45,36 @@ namespace MotoCom32Net
         SERIAL = 0x01,
         ETHERNET = 0x10,
         ETHERNET_SERVER = 0x100
+    }
+    [ComVisible(true)]
+    public enum ModeType : short
+    {
+        TEACH = 1,
+        PLAY = 2
+    }
+    [ComVisible(true)]
+    public enum MotionType : short
+    {
+        Joint = 1,
+        Linear = 2
+    }
+    [ComVisible(true)]
+    public enum MoveSpeedSelectionType : short
+    {
+        ControlPoint = 1,
+        PositionAngular = 2,
+        JointSpeed=3
+    }
+    [ComVisible(true)]
+    public enum FunctionReturnType_1 : short
+    {
+        AcquisitionFailure = -1,
+        NormalCompletion = 0
+    }
+    [ComVisible(true)]
+    public enum FunctionReturnType_2 : short
+    {
+        Other = -1,
+        NormalCompletion = 0
     }
 }

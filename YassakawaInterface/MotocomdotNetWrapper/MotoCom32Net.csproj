@@ -104,7 +104,8 @@
     <Compile Include="Configuration.cs" />
     <Compile Include="ErrorData.cs" />
     <Compile Include="Motocom.cs" />
-    <Compile Include="RobPosVar.cs" />
+    <Compile Include="RobotPositionVariable.cs" />
+    <Compile Include="RobotPosition.cs" />
     <Compile Include="SimpleTypeVarList.cs" />
     <Compile Include="DiagnosticException.cs" />
     <Compile Include="DX200.cs" />

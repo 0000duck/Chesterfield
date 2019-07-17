@@ -11,10 +11,10 @@ namespace MotoCom32Net
     [ComVisible(true)]
     [Guid("BE5A1B4B-3E12-4806-9E1D-1A7ACA14EFBE")]
     [InterfaceType(ComInterfaceType.InterfaceIsDual)]
-    public interface IRobPosVar
+    public interface IRobotPositionVariable
     {
         #region Properties
-        PosVarType DataType
+        PositionVariableType DataType
         {
             get;
             set;
@@ -104,7 +104,7 @@ namespace MotoCom32Net
             get;
             set;
         }
-        double[] HostGetVarDataArray
+        double[] NumVarStorArea
         {
             get;
             set;
@@ -117,15 +117,15 @@ namespace MotoCom32Net
         #endregion
     }
     [ComVisible(true)]
-    public class RobPosVar
+    public class RobotPositionVariable : IRobotPositionVariable
     {
-        double[] m_HostGetVarDataArray = new double[12];
-        public RobPosVar() : this(PosVarType.XYZ)
+        double[] _numericVariableStorageArea = new double[12];
+        public RobotPositionVariable() : this(PositionVariableType.XYZ)
         {
         }
-        public RobPosVar(int saxis, int laxis, int uaxis, int raxis, int baxis, int taxis, int e7axis, int e8axis, short toolno)
+        public RobotPositionVariable(int saxis, int laxis, int uaxis, int raxis, int baxis, int taxis, int e7axis, int e8axis, short toolno)
         {
-            DataType = PosVarType.Pulse;
+            DataType = PositionVariableType.Pulse;
             SAxis = saxis;
             LAxis = laxis;
             UAxis = uaxis;
@@ -136,9 +136,9 @@ namespace MotoCom32Net
             E8Axis = e8axis;
             ToolNo = toolno;
         }
-        public RobPosVar(FrameType frame, double x, double y, double z, double rx, double ry, double rz, short formcode, short toolno)
+        public RobotPositionVariable(FrameType frame, double x, double y, double z, double rx, double ry, double rz, short formcode, short toolno)
         {
-            DataType = PosVarType.XYZ;
+            DataType = PositionVariableType.XYZ;
             Frame = frame;
             X = x;
             Y = y;
@@ -149,10 +149,10 @@ namespace MotoCom32Net
             Formcode = formcode;
             ToolNo = toolno;
         }
-        public RobPosVar(PosVarType datatype)
+        public RobotPositionVariable(PositionVariableType datatype)
         {
             DataType = datatype;
-            if (datatype == PosVarType.Pulse)
+            if (datatype == PositionVariableType.Pulse)
             {
                 SAxis = 0;
                 LAxis = 0;
@@ -177,111 +177,109 @@ namespace MotoCom32Net
                 ToolNo = 0;
             }
         }
-        public RobPosVar(double[] HostGetVarDataArray)
+        public RobotPositionVariable(double[] HostGetVarDataArray)
         {
-            HostGetVarDataArray.CopyTo(m_HostGetVarDataArray, 0);
+            HostGetVarDataArray.CopyTo(_numericVariableStorageArea, 0);
         }
-        public PosVarType DataType
+        public PositionVariableType DataType
         {
-            get { return (PosVarType)m_HostGetVarDataArray[0]; }
-            set { m_HostGetVarDataArray[0] = (double)value; }
+            get { return (PositionVariableType)_numericVariableStorageArea[0]; }
+            set { _numericVariableStorageArea[0] = (double)value; }
         }
         public int SAxis
         {
-            get { return (int)m_HostGetVarDataArray[1]; }
-            set { m_HostGetVarDataArray[1] = (double)value; }
+            get { return (int)_numericVariableStorageArea[1]; }
+            set { _numericVariableStorageArea[1] = (double)value; }
         }
         public FrameType Frame
         {
-            get { return (FrameType)m_HostGetVarDataArray[1]; }
-            set { m_HostGetVarDataArray[1] = (double)value; }
+            get { return (FrameType)_numericVariableStorageArea[1]; }
+            set { _numericVariableStorageArea[1] = (double)value; }
         }
         public int LAxis
         {
-            get { return (int)m_HostGetVarDataArray[2]; }
-            set { m_HostGetVarDataArray[2] = (double)value; }
+            get { return (int)_numericVariableStorageArea[2]; }
+            set { _numericVariableStorageArea[2] = (double)value; }
         }
         public double X
         {
-            get { return m_HostGetVarDataArray[2]; }
-            set { m_HostGetVarDataArray[2] = value; }
+            get { return _numericVariableStorageArea[2]; }
+            set { _numericVariableStorageArea[2] = value; }
         }
         public int UAxis
         {
-            get { return (int)m_HostGetVarDataArray[3]; }
-            set { m_HostGetVarDataArray[3] = (double)value; }
+            get { return (int)_numericVariableStorageArea[3]; }
+            set { _numericVariableStorageArea[3] = (double)value; }
         }
         public double Y
         {
-            get { return m_HostGetVarDataArray[3]; }
-            set { m_HostGetVarDataArray[3] = value; }
+            get { return _numericVariableStorageArea[3]; }
+            set { _numericVariableStorageArea[3] = value; }
         }
         public int RAxis
         {
-            get { return (int)m_HostGetVarDataArray[4]; }
-            set { m_HostGetVarDataArray[4] = (double)value; }
+            get { return (int)_numericVariableStorageArea[4]; }
+            set { _numericVariableStorageArea[4] = (double)value; }
         }
         public double Z
         {
-            get { return m_HostGetVarDataArray[4]; }
-            set { m_HostGetVarDataArray[4] = value; }
+            get { return _numericVariableStorageArea[4]; }
+            set { _numericVariableStorageArea[4] = value; }
         }
         public int BAxis
         {
-            get { return (int)m_HostGetVarDataArray[5]; }
-            set { m_HostGetVarDataArray[5] = (double)value; }
+            get { return (int)_numericVariableStorageArea[5]; }
+            set { _numericVariableStorageArea[5] = (double)value; }
         }
         public double Rx
         {
-            get { return m_HostGetVarDataArray[5]; }
-            set { m_HostGetVarDataArray[5] = value; }
+            get { return _numericVariableStorageArea[5]; }
+            set { _numericVariableStorageArea[5] = value; }
         }
         public int TAxis
         {
-            get { return (int)m_HostGetVarDataArray[6]; }
-            set { m_HostGetVarDataArray[6] = (double)value; }
+            get { return (int)_numericVariableStorageArea[6]; }
+            set { _numericVariableStorageArea[6] = (double)value; }
         }
         public double Ry
         {
-            get { return m_HostGetVarDataArray[6]; }
-            set { m_HostGetVarDataArray[6] = value; }
+            get { return _numericVariableStorageArea[6]; }
+            set { _numericVariableStorageArea[6] = value; }
         }
         public int E7Axis
         {
-            get { return (int)m_HostGetVarDataArray[7]; }
-            set { m_HostGetVarDataArray[7] = (double)value; }
+            get { return (int)_numericVariableStorageArea[7]; }
+            set { _numericVariableStorageArea[7] = (double)value; }
         }
         public double Rz
         {
-            get { return m_HostGetVarDataArray[7]; }
-            set { m_HostGetVarDataArray[7] = value; }
+            get { return _numericVariableStorageArea[7]; }
+            set { _numericVariableStorageArea[7] = value; }
         }
         public int E8Axis
         {
-            get { return (int)m_HostGetVarDataArray[8]; }
-            set { m_HostGetVarDataArray[8] = (double)value; }
+            get { return (int)_numericVariableStorageArea[8]; }
+            set { _numericVariableStorageArea[8] = (double)value; }
         }
         public short Formcode
         {
-            get { return (short)m_HostGetVarDataArray[8]; }
-            set { m_HostGetVarDataArray[8] = (double)value; }
+            get { return (short)_numericVariableStorageArea[8]; }
+            set { _numericVariableStorageArea[8] = (double)value; }
         }
         public short ToolNo
         {
-            get { return (short)m_HostGetVarDataArray[9]; }
-            set { m_HostGetVarDataArray[9] = (double)value; }
+            get { return (short)_numericVariableStorageArea[9]; }
+            set { _numericVariableStorageArea[9] = (double)value; }
         }
-        public double[] HostGetVarDataArray
+        public double[] NumVarStorArea
         {
             get
             {
-
-                return m_HostGetVarDataArray;
+                return _numericVariableStorageArea;
             }
-
             set
             {
-                m_HostGetVarDataArray = value;
+                _numericVariableStorageArea = value;
             }
         }
     }
