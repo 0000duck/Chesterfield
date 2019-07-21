@@ -6,8 +6,13 @@ MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "YassakawaInterface", "YassakawaInterface\YassakawaInterface.csproj", "{78267914-EFC2-4424-BF42-4FEFB1E4FE05}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MotoCom32Net", "MotocomdotNetWrapper\MotoCom32Net.csproj", "{25010A89-4D18-4607-ADAF-32553D6D343A}"
+	ProjectSection(ProjectDependencies) = postProject
+		{6626B272-DCF7-4EA6-8CA8-C822E92F421D} = {6626B272-DCF7-4EA6-8CA8-C822E92F421D}
+	EndProjectSection
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "YassakawaInterfaceTests", "YassakawaInterfaceTests\YassakawaInterfaceTests.csproj", "{0777D502-5F29-48AA-8FA8-DF1747703333}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RoboDKLibrary", "RoboDKLibrary\RoboDKLibrary.csproj", "{6626B272-DCF7-4EA6-8CA8-C822E92F421D}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -41,6 +46,14 @@ Global
 		{0777D502-5F29-48AA-8FA8-DF1747703333}.Release|Any CPU.Build.0 = Release|Any CPU
 		{0777D502-5F29-48AA-8FA8-DF1747703333}.Release|x86.ActiveCfg = Release|Any CPU
 		{0777D502-5F29-48AA-8FA8-DF1747703333}.Release|x86.Build.0 = Release|Any CPU
+		{6626B272-DCF7-4EA6-8CA8-C822E92F421D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{6626B272-DCF7-4EA6-8CA8-C822E92F421D}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{6626B272-DCF7-4EA6-8CA8-C822E92F421D}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{6626B272-DCF7-4EA6-8CA8-C822E92F421D}.Debug|x86.Build.0 = Debug|Any CPU
+		{6626B272-DCF7-4EA6-8CA8-C822E92F421D}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{6626B272-DCF7-4EA6-8CA8-C822E92F421D}.Release|Any CPU.Build.0 = Release|Any CPU
+		{6626B272-DCF7-4EA6-8CA8-C822E92F421D}.Release|x86.ActiveCfg = Release|Any CPU
+		{6626B272-DCF7-4EA6-8CA8-C822E92F421D}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

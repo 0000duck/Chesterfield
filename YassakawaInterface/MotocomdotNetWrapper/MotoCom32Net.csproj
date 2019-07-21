@@ -43,6 +43,7 @@
     <WarningLevel>4</WarningLevel>
     <DocumentationFile>bin\Debug\MotoCom32Net.xml</DocumentationFile>
     <Prefer32Bit>false</Prefer32Bit>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
     <DebugType>pdbonly</DebugType>
@@ -113,6 +114,7 @@
     <Compile Include="Mat.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="RobotStatus.cs" />
+    <Compile Include="UserCoordinateSystem.cs" />
   </ItemGroup>
   <ItemGroup>
     <BootstrapperPackage Include="Microsoft.Net.Client.3.5">
@@ -145,7 +147,23 @@
     <None Include="MotoCom32Net.pfx" />
     <None Include="packages.config" />
   </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\RoboDKLibrary\RoboDKLibrary.csproj">
+      <Project>{6626b272-dcf7-4ea6-8ca8-c822e92f421d}</Project>
+      <Name>RoboDKLibrary</Name>
+    </ProjectReference>
+  </ItemGroup>
   <Import Project="$(MSBuildBinPath)\Microsoft.CSharp.targets" />
+  <PropertyGroup>
+    <PostBuildEvent>copy /Y "$(ProjectDir)Hslsrv32.exe" "$(TargetDir)Hslsrv32.exe"
+copy /Y "$(ProjectDir)MotoCom32.dll" "$(TargetDir)MotoCom32.dll"
+copy /Y "$(ProjectDir)MotoLdk.dll" "$(TargetDir)MotoLdk.dll"
+copy /Y "$(ProjectDir)MotoLdk1.dll" "$(TargetDir)MotoLdk1.dll"
+copy /Y "$(ProjectDir)MotoLk.dll" "$(TargetDir)MotoLk.dll"
+copy /Y "$(ProjectDir)MotoLke.dll" "$(TargetDir)MotoLke.dll"
+copy /Y "$(ProjectDir)MotoLkr.dll" "$(TargetDir)MotoLkr.dll"
+copy /Y "$(ProjectDir)vrp32.dll" "$(TargetDir)vrp32.dll"</PostBuildEvent>
+  </PropertyGroup>
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
        Other similar extension points exist, see Microsoft.Common.targets.
   <Target Name="BeforeBuild">

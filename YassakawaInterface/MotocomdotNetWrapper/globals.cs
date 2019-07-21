@@ -6,7 +6,7 @@ using System.Runtime.InteropServices;
 namespace MotoCom32Net
 {
     [ComVisible(true)]
-    public enum FrameType : byte
+    public enum RobotFrameType : byte
     {
         Base = 0,
         Robot,
@@ -22,7 +22,7 @@ namespace MotoCom32Net
         MasterTool
     }
     [ComVisible(true)]
-    public enum VariableType : short
+    public enum RobotVariableType : short
     {
         Byte = 0,
         Integer,
@@ -34,45 +34,45 @@ namespace MotoCom32Net
         String
     }
     [ComVisible(true)]
-    public enum PositionVariableType : byte
+    public enum RobotPositionVariableType : byte
     {
         Pulse = 0,
         XYZ
     }
     [ComVisible(true)]
-    public enum CommunicationType : short
+    public enum RobotCommunicationType : short
     {
         SERIAL = 0x01,
         ETHERNET = 0x10,
         ETHERNET_SERVER = 0x100
     }
     [ComVisible(true)]
-    public enum ModeType : short
+    public enum RobotModeType : short
     {
         TEACH = 1,
         PLAY = 2
     }
     [ComVisible(true)]
-    public enum MotionType : short
+    public enum RobotMotionType : short
     {
         Joint = 1,
         Linear = 2
     }
     [ComVisible(true)]
-    public enum MoveSpeedSelectionType : short
+    public enum RobotMoveSpeedSelectionType : short
     {
         ControlPoint = 1,
         PositionAngular = 2,
         JointSpeed=3
     }
     [ComVisible(true)]
-    public enum FunctionReturnType_1 : short
+    public enum RobotFunctionReturnType_1 : short
     {
         AcquisitionFailure = -1,
         NormalCompletion = 0
     }
     [ComVisible(true)]
-    public enum FunctionReturnType_2 : short
+    public enum RobotFunctionReturnType_2 : short
     {
         Other = -1,
         NormalCompletion = 0

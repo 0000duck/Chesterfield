@@ -10,14 +10,14 @@ namespace MotoCom32Net
         {
         }
 
-        public SimpleTypeVarList(VariableType vartype,short listsize,short startindex)
+        public SimpleTypeVarList(RobotVariableType vartype,short listsize,short startindex)
         {
             VarType = vartype;
             ListSize = listsize;
             StartIndex = startindex;
         }
 
-        public SimpleTypeVarList(VariableType vartype,short listsize,short startindex,double[] varlistarray)
+        public SimpleTypeVarList(RobotVariableType vartype,short listsize,short startindex,double[] varlistarray)
         {
             VarType=vartype;
             ListSize = listsize;
@@ -25,8 +25,8 @@ namespace MotoCom32Net
             varlistarray.CopyTo(VarListArray,0);
         }
   
-        VariableType m_VarType;
-        public VariableType VarType {
+        RobotVariableType m_VarType;
+        public RobotVariableType VarType {
             get
             {
                 return m_VarType;

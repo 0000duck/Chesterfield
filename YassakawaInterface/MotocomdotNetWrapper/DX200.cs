@@ -38,7 +38,7 @@ namespace MotoCom32Net
             get;
             set;
         }
-        FrameType ActualReferenceFrame
+        RobotFrameType ActualReferenceFrame
         {
             get;
             set;
@@ -48,7 +48,7 @@ namespace MotoCom32Net
             get;
             set;
         }
-        ModeType ActualMode
+        RobotModeType ActualMode
         {
             get;
             set;
@@ -123,13 +123,13 @@ namespace MotoCom32Net
             set;
         }
 
-        MoveSpeedSelectionType ActualMoveSpeedSelection
+        RobotMoveSpeedSelectionType ActualMoveSpeedSelection
         {
             get;
             set;
         }
 
-        MotionType ActualMotionType
+        RobotMotionType ActualMotionType
         {
             get;
             set;
@@ -140,6 +140,7 @@ namespace MotoCom32Net
             get;
             set;
         }
+
         #endregion
 
         #region Methods
@@ -149,6 +150,11 @@ namespace MotoCom32Net
         short SetServer();
         void SetServoOn();
         void SetServoOff();
+        short JointMove(double speed);
+
+        void SelectRoboDKRobot();
+        void RoboDKSimulatorRun(bool run);
+
         #endregion
     }
     /// <summary>
@@ -168,90 +174,90 @@ namespace MotoCom32Net
         private string _commDir;
         private string _path;
         private string _ipAddress = "";
-        private FrameType _actualReferenceFrame = FrameType.Base;
-        private Dictionary<FrameType, string> _frameDictionary = new Dictionary<FrameType, string>()
+        private RobotFrameType _actualReferenceFrame = RobotFrameType.Base;
+        private Dictionary<RobotFrameType, string> _frameDictionary = new Dictionary<RobotFrameType, string>()
         {
             #region
-		    {FrameType.Base,"BASE"},
-            {FrameType.Robot,"ROBOT"},
-            {FrameType.User1,"UF1"},
-            {FrameType.User2,"UF2"},
-            {FrameType.User3,"UF3"},
-            {FrameType.User4,"UF4"},
-            {FrameType.User5,"UF5"},
-            {FrameType.User6,"UF6"},
-            {FrameType.User7,"UF7"},
-            {FrameType.User8,"UF8"},
-            {FrameType.User9,"UF9"},
-            {FrameType.User10,"UF10"},
-            {FrameType.User11,"UF11"},
-            {FrameType.User12,"UF12"},
-            {FrameType.User13,"UF13"},
-            {FrameType.User14,"UF14"},
-            {FrameType.User15,"UF15"},
-            {FrameType.User16,"UF16"},
-            {FrameType.User17,"UF17"},
-            {FrameType.User18,"UF18"},
-            {FrameType.User19,"UF19"},
-            {FrameType.User20,"UF20"},
-            {FrameType.User21,"UF21"},
-            {FrameType.User22,"UF22"},
-            {FrameType.User23,"UF23"},
-            {FrameType.User24,"UF24"},
-            {FrameType.User25,"UF25"},
-            {FrameType.User26,"UF26"},
-            {FrameType.User27,"UF27"},
-            {FrameType.User28,"UF28"},
-            {FrameType.User29,"UF29"},
-            {FrameType.User30,"UF30"},
-            {FrameType.User31,"UF31"},
-            {FrameType.User32,"UF32"},
-            {FrameType.User33,"UF33"},
-            {FrameType.User34,"UF34"},
-            {FrameType.User35,"UF35"},
-            {FrameType.User36,"UF36"},
-            {FrameType.User37,"UF37"},
-            {FrameType.User38,"UF38"},
-            {FrameType.User39,"UF39"},
-            {FrameType.User40,"UF40"},
-            {FrameType.User41,"UF41"},
-            {FrameType.User42,"UF42"},
-            {FrameType.User43,"UF43"},
-            {FrameType.User44,"UF44"},
-            {FrameType.User45,"UF45"},
-            {FrameType.User46,"UF46"},
-            {FrameType.User47,"UF47"},
-            {FrameType.User48,"UF48"},
-            {FrameType.User49,"UF49"},
-            {FrameType.User50,"UF50"},
-            {FrameType.User51,"UF51"},
-            {FrameType.User52,"UF52"},
-            {FrameType.User53,"UF53"},
-            {FrameType.User54,"UF54"},
-            {FrameType.User55,"UF55"},
-            {FrameType.User56,"UF56"},
-            {FrameType.User57,"UF57"},
-            {FrameType.User58,"UF58"},
-            {FrameType.User59,"UF59"},
-            {FrameType.User60,"UF60"},
-            {FrameType.User61,"UF61"},
-            {FrameType.User62,"UF62"} ,
-            {FrameType.User63,"UF63"} ,
-            {FrameType.User64,"UF64"} ,
-            {FrameType.Tool,"TOOL"} ,
-            {FrameType.MasterTool,"MASTERTOOL"} 
+		    {RobotFrameType.Base,"BASE"},
+            {RobotFrameType.Robot,"ROBOT"},
+            {RobotFrameType.User1,"UF1"},
+            {RobotFrameType.User2,"UF2"},
+            {RobotFrameType.User3,"UF3"},
+            {RobotFrameType.User4,"UF4"},
+            {RobotFrameType.User5,"UF5"},
+            {RobotFrameType.User6,"UF6"},
+            {RobotFrameType.User7,"UF7"},
+            {RobotFrameType.User8,"UF8"},
+            {RobotFrameType.User9,"UF9"},
+            {RobotFrameType.User10,"UF10"},
+            {RobotFrameType.User11,"UF11"},
+            {RobotFrameType.User12,"UF12"},
+            {RobotFrameType.User13,"UF13"},
+            {RobotFrameType.User14,"UF14"},
+            {RobotFrameType.User15,"UF15"},
+            {RobotFrameType.User16,"UF16"},
+            {RobotFrameType.User17,"UF17"},
+            {RobotFrameType.User18,"UF18"},
+            {RobotFrameType.User19,"UF19"},
+            {RobotFrameType.User20,"UF20"},
+            {RobotFrameType.User21,"UF21"},
+            {RobotFrameType.User22,"UF22"},
+            {RobotFrameType.User23,"UF23"},
+            {RobotFrameType.User24,"UF24"},
+            {RobotFrameType.User25,"UF25"},
+            {RobotFrameType.User26,"UF26"},
+            {RobotFrameType.User27,"UF27"},
+            {RobotFrameType.User28,"UF28"},
+            {RobotFrameType.User29,"UF29"},
+            {RobotFrameType.User30,"UF30"},
+            {RobotFrameType.User31,"UF31"},
+            {RobotFrameType.User32,"UF32"},
+            {RobotFrameType.User33,"UF33"},
+            {RobotFrameType.User34,"UF34"},
+            {RobotFrameType.User35,"UF35"},
+            {RobotFrameType.User36,"UF36"},
+            {RobotFrameType.User37,"UF37"},
+            {RobotFrameType.User38,"UF38"},
+            {RobotFrameType.User39,"UF39"},
+            {RobotFrameType.User40,"UF40"},
+            {RobotFrameType.User41,"UF41"},
+            {RobotFrameType.User42,"UF42"},
+            {RobotFrameType.User43,"UF43"},
+            {RobotFrameType.User44,"UF44"},
+            {RobotFrameType.User45,"UF45"},
+            {RobotFrameType.User46,"UF46"},
+            {RobotFrameType.User47,"UF47"},
+            {RobotFrameType.User48,"UF48"},
+            {RobotFrameType.User49,"UF49"},
+            {RobotFrameType.User50,"UF50"},
+            {RobotFrameType.User51,"UF51"},
+            {RobotFrameType.User52,"UF52"},
+            {RobotFrameType.User53,"UF53"},
+            {RobotFrameType.User54,"UF54"},
+            {RobotFrameType.User55,"UF55"},
+            {RobotFrameType.User56,"UF56"},
+            {RobotFrameType.User57,"UF57"},
+            {RobotFrameType.User58,"UF58"},
+            {RobotFrameType.User59,"UF59"},
+            {RobotFrameType.User60,"UF60"},
+            {RobotFrameType.User61,"UF61"},
+            {RobotFrameType.User62,"UF62"} ,
+            {RobotFrameType.User63,"UF63"} ,
+            {RobotFrameType.User64,"UF64"} ,
+            {RobotFrameType.Tool,"TOOL"} ,
+            {RobotFrameType.MasterTool,"MASTERTOOL"} 
 	#endregion
         };
-        private Dictionary<MoveSpeedSelectionType, string> _moveSpeedSelectionDictionary = new Dictionary<MoveSpeedSelectionType, string>()
+        private Dictionary<RobotMoveSpeedSelectionType, string> _moveSpeedSelectionDictionary = new Dictionary<RobotMoveSpeedSelectionType, string>()
         {
-            {MoveSpeedSelectionType.ControlPoint,"V"},
-            {MoveSpeedSelectionType.PositionAngular,"VR"},
-            {MoveSpeedSelectionType.JointSpeed,"VJ"}
+            {RobotMoveSpeedSelectionType.ControlPoint,"V"},
+            {RobotMoveSpeedSelectionType.PositionAngular,"VR"},
+            {RobotMoveSpeedSelectionType.JointSpeed,"VJ"}
         };
-        private Dictionary<MotionType, string> _motionDictionary = new Dictionary<MotionType, string>()
+        private Dictionary<RobotMotionType, string> _motionDictionary = new Dictionary<RobotMotionType, string>()
         {
-            {MotionType.Joint,"MOVJ"},
-            {MotionType.Linear,"MOVL"}
+            {RobotMotionType.Joint,"MOVJ"},
+            {RobotMotionType.Linear,"MOVL"}
         };
 
         private Configuration _actualRConf = new Configuration(0);
@@ -263,7 +269,7 @@ namespace MotoCom32Net
         private static Object _FileAccessDirLock = new Object();
         private Object _DX200AccessLock = new Object();
 
-        private ModeType _actualMode = ModeType.TEACH;
+        private RobotModeType _actualMode = RobotModeType.TEACH;
 
         private RobotPositionVariable _actualRobotPositionVariable = new RobotPositionVariable();
         private RobotPositionVariable _desiredRobotPositionVariable = new RobotPositionVariable();
@@ -284,8 +290,10 @@ namespace MotoCom32Net
         private ObservableCollection<RobotPositionVariable> _variableTrajectory = new ObservableCollection<RobotPositionVariable>();
         private ObservableCollection<RobotPosition> _positionTrajectory = new ObservableCollection<RobotPosition>();
 
-        MoveSpeedSelectionType _actualMoveSpeedSelection = MoveSpeedSelectionType.ControlPoint;
-        MotionType _actualMotionType = MotionType.Linear;
+        RobotMoveSpeedSelectionType _actualMoveSpeedSelection = RobotMoveSpeedSelectionType.ControlPoint;
+        RobotMotionType _actualMotionType = RobotMotionType.Linear;
+
+        UserCoordinateSystem _userCoordinateSystem_1 = new UserCoordinateSystem();
 
         private bool _autoStatusUpdate = false;
 
@@ -295,6 +303,16 @@ namespace MotoCom32Net
 
         private short _toolNumber = 0;
 
+        #endregion
+
+        #region RoboDK fields
+        // RDK holds the main object to interact with RoboDK.
+        // The RoboDK application starts when a RoboDK object is created.
+        RoboDK RDK = null;
+        // Keep the ROBOT item as a global variable
+        RoboDK.Item _roboDKRobot = null;
+        // Define if the robot movements will be blocking
+        const bool MOVE_BLOCKING = false;
         #endregion
 
         #region Properties
@@ -335,7 +353,7 @@ namespace MotoCom32Net
                 OnNotifyPropertyChanged();
             }
         }
-        public FrameType ActualReferenceFrame
+        public RobotFrameType ActualReferenceFrame
         {
             get
             {
@@ -371,7 +389,7 @@ namespace MotoCom32Net
                 OnNotifyPropertyChanged();
             }
         }
-        public ModeType ActualMode
+        public RobotModeType ActualMode
         {
             get
             {
@@ -537,7 +555,7 @@ namespace MotoCom32Net
             }
         }
 
-        public MoveSpeedSelectionType ActualMoveSpeedSelection
+        public RobotMoveSpeedSelectionType ActualMoveSpeedSelection
         {
             get
             {
@@ -550,7 +568,7 @@ namespace MotoCom32Net
             }
         }
 
-        public MotionType ActualMotionType
+        public RobotMotionType ActualMotionType
         {
             get
             {
@@ -651,8 +669,12 @@ namespace MotoCom32Net
                 }
 
                 _statusTimer = new System.Threading.Timer(StatusTimerTick, null, Timeout.Infinite, Timeout.Infinite);//timer disabled
-                //_statusTimer.Change(Timeout.Infinite, Timeout.Infinite);//timer disabled
-                //_statusTimer.Change(0, 50); //enable timer
+                                                                                                                     //_statusTimer.Change(Timeout.Infinite, Timeout.Infinite);//timer disabled
+                                                                                                                     //_statusTimer.Change(0, 50); //enable timer
+
+                #region RoboDK implementation
+                RoboDKSimulatorRun(true);
+                #endregion
             }
             catch (Exception ex)
             {
@@ -744,7 +766,7 @@ namespace MotoCom32Net
             try
             {
                 //try to get a handle
-                _handle = Motocom.BscOpen(_commDir, (short)CommunicationType.ETHERNET_SERVER);
+                _handle = Motocom.BscOpen(_commDir, (short)RobotCommunicationType.ETHERNET_SERVER);
 
                 if (_handle >= 0 && _ipAddress != null)
                 {
@@ -759,10 +781,10 @@ namespace MotoCom32Net
                     returnValue = 0;
                 }
 
-                ActualMoveSpeedSelection = MoveSpeedSelectionType.ControlPoint;
+                ActualMoveSpeedSelection = RobotMoveSpeedSelectionType.ControlPoint;
                 ActualSpeed = 0.0;
-                ActualMode = ModeType.TEACH;
-                ActualReferenceFrame = FrameType.Base;
+                ActualMode = RobotModeType.TEACH;
+                ActualReferenceFrame = RobotFrameType.Base;
                 DesiredRobotPosition.RobotPositions.Initialize();
                 DesiredRobotIncrementPosition.RobotPositions.Initialize();
             }
@@ -790,7 +812,7 @@ namespace MotoCom32Net
                     _commDir = _commDir + "\\";
                 }
 
-                _handle = Motocom.BscOpen(_commDir, (short)CommunicationType.ETHERNET_SERVER);
+                _handle = Motocom.BscOpen(_commDir, (short)RobotCommunicationType.ETHERNET_SERVER);
 
                 returnValue = (_handle != -1 && _handle != -8);
             }
@@ -1156,7 +1178,7 @@ namespace MotoCom32Net
 
                 StringBuilder StringVal = new StringBuilder(256);
                 double[] PosVarArray = new double[12];
-                short returnValue = Motocom.BscHostGetVarData(_handle, (short)VariableType.RobotAxisPosition, Index, ref PosVarArray[0], StringVal);
+                short returnValue = Motocom.BscHostGetVarData(_handle, (short)RobotVariableType.RobotAxisPosition, Index, ref PosVarArray[0], StringVal);
                 PosVar.NumVarStorArea = (returnValue == 0) ? PosVarArray : PosVar.NumVarStorArea;
 
                 return returnValue;
@@ -1544,7 +1566,7 @@ namespace MotoCom32Net
         /// <param name="toolNo"></param>
         /// <param name="incrementValue"></param>
         /// <returns></returns>
-        public short IncrementMove(MoveSpeedSelectionType moveSpeedSelection, double speed, FrameType frameName, short toolNo)
+        public short IncrementMove(RobotMoveSpeedSelectionType moveSpeedSelection, double speed, RobotFrameType frameName, short toolNo)
         {
             lock (_DX200AccessLock)
             {
@@ -1561,7 +1583,7 @@ namespace MotoCom32Net
         /// <param name="toolNo"></param>
         /// <param name="incrementValue"></param>
         /// <returns></returns>
-        public short IncrementMove(MoveSpeedSelectionType moveSpeedSelection, double speed)
+        public short IncrementMove(RobotMoveSpeedSelectionType moveSpeedSelection, double speed)
         {
             lock (_DX200AccessLock)
             {
@@ -1576,13 +1598,13 @@ namespace MotoCom32Net
         /// <returns></returns>
         public short IncrementMove(double speed)
         {
-            FunctionReturnType_2 returnValue = FunctionReturnType_2.Other;
+            RobotFunctionReturnType_2 returnValue = RobotFunctionReturnType_2.Other;
 
             try
             {
                 lock (_DX200AccessLock)
                 {
-                    returnValue = (FunctionReturnType_2)(Motocom.BscImov(_handle, new StringBuilder(_moveSpeedSelectionDictionary[ActualMoveSpeedSelection]),
+                    returnValue = (RobotFunctionReturnType_2)(Motocom.BscImov(_handle, new StringBuilder(_moveSpeedSelectionDictionary[ActualMoveSpeedSelection]),
                         speed, new StringBuilder(_frameDictionary[ActualReferenceFrame]), ToolNumber, ref _desiredRobotIncrementPosition.RobotPositions[0]));
                 }
             }
@@ -1600,15 +1622,22 @@ namespace MotoCom32Net
         /// <returns></returns>
         public short JointMove(double speed)
         {
-            FunctionReturnType_2 returnValue = FunctionReturnType_2.Other;
+            RobotFunctionReturnType_2 returnValue = RobotFunctionReturnType_2.Other;
+            StringBuilder movtype = null;
+            StringBuilder vtype = null;
 
             try
             {
-                lock (_DX200AccessLock)
-                {
-                    returnValue = (FunctionReturnType_2)(Motocom.BscPMov(_handle, new StringBuilder(_motionDictionary[ActualMotionType]),
-                       new StringBuilder(_moveSpeedSelectionDictionary[ActualMoveSpeedSelection]), speed, ToolNumber, ref _desiredRobotJointPosition.RobotPositions[0]));
-                }
+                //lock (_DX200AccessLock)
+                //{
+                    movtype = new StringBuilder(_motionDictionary[ActualMotionType]);
+                    vtype = new StringBuilder(_moveSpeedSelectionDictionary[ActualMoveSpeedSelection]);
+
+                    //returnValue = (RobotFunctionReturnType_2)(Motocom.BscPMov(_handle, movtype, vtype, speed, ToolNumber,
+                        //ref _desiredRobotJointPosition.RobotPositions[0]));
+
+                    IncrementalJointMoveRoboDK(0);
+               // }
             }
             catch (Exception ex)
             {
@@ -1662,11 +1691,11 @@ namespace MotoCom32Net
         /// <returns></returns>
         public short GetRobotPosition(StringBuilder frameName, short isEx, ref short rconf, ref short toolNumber, ref double positions)
         {
-            FunctionReturnType_1 returnValue = FunctionReturnType_1.AcquisitionFailure;
+            RobotFunctionReturnType_1 returnValue = RobotFunctionReturnType_1.AcquisitionFailure;
 
             lock (_DX200AccessLock)
             {
-                returnValue = (FunctionReturnType_1)(Motocom.BscIsRobotPos(_handle, frameName, isEx, ref rconf, ref toolNumber, ref positions));
+                returnValue = (RobotFunctionReturnType_1)(Motocom.BscIsRobotPos(_handle, frameName, isEx, ref rconf, ref toolNumber, ref positions));
             }
 
             return (short)returnValue;
@@ -1682,13 +1711,13 @@ namespace MotoCom32Net
         /// <returns></returns>
         public short GetRobotPosition(StringBuilder frameName, short isEx, ref short rconf, ref short toolNumber)
         {
-            FunctionReturnType_1 returnValue = FunctionReturnType_1.AcquisitionFailure;
+            RobotFunctionReturnType_1 returnValue = RobotFunctionReturnType_1.AcquisitionFailure;
             double[] positions = new double[12];
 
             lock (_DX200AccessLock)
             {
-                returnValue = (FunctionReturnType_1)(Motocom.BscIsRobotPos(_handle, frameName, isEx, ref rconf, ref toolNumber, ref positions[0]));
-                if (returnValue == FunctionReturnType_1.NormalCompletion)
+                returnValue = (RobotFunctionReturnType_1)(Motocom.BscIsRobotPos(_handle, frameName, isEx, ref rconf, ref toolNumber, ref positions[0]));
+                if (returnValue == RobotFunctionReturnType_1.NormalCompletion)
                 {
                     positions.CopyTo(ActualRobotPosition.RobotPositions, 0);
                 }
@@ -1720,6 +1749,295 @@ namespace MotoCom32Net
 
         #endregion
 
+        #endregion
+
+        #region RoboDK methods
+        /// <summary>
+        /// Check if the RDK object is ready.
+        /// Returns True if the RoboDK API is available or False if the RoboDK API is not available.
+        /// </summary>
+        /// <returns></returns>
+        public bool Check_RDK()
+        {
+            bool returnedValue = false;
+
+            try
+            {
+                // check if the RDK object has been initialised:
+                if (RDK != null)
+                {
+                    returnedValue = true;
+                    // Check if the RDK API is connected
+                    if (!RDK.Connected())
+                    {
+                        // Attempt to connect to the RDK API
+                        if (!RDK.Connect())
+                        {
+                            returnedValue = false;
+                            DiagnosticException.ExceptionHandler("Problems using the RoboDK API. The RoboDK API is not available...");
+                        }
+                    }
+                }
+                else
+                {
+                    returnedValue = false;
+                    DiagnosticException.ExceptionHandler("RoboDK has not been started");
+                }
+            }
+            catch (Exception ex)
+            {
+                returnedValue = false;
+                DiagnosticException.ExceptionHandler(ex.Message);
+            }
+
+            return returnedValue;
+        }
+        /// <summary>
+        /// Update the ROBOT variable by choosing the robot available in the currently open station
+        /// If more than one robot is available, a popup will be displayed
+        /// </summary>
+        public void SelectRoboDKRobot()
+        {
+            try
+            {
+                if (!Check_RDK())
+                {
+                    _roboDKRobot = null;
+                    return;
+                }
+                // select robot among available robots
+                //ROBOT = RL.getItem("ABB IRB120", ITEM_TYPE_ROBOT); // select by name
+                //ITEM = RL.ItemUserPick("Select an item"); // Select any item in the station
+                _roboDKRobot = RDK.ItemUserPick("Select a robot", RoboDK.ITEM_TYPE_ROBOT);
+                if (_roboDKRobot.Valid())
+                {
+                    // This will create a new communication link (another instance of the RoboDK API), this is useful if we are moving 2 robots at the same time. 
+                    _roboDKRobot.NewLink();
+                    string _robotName = _roboDKRobot.Name();
+                }
+                else
+                {
+                    DiagnosticException.ExceptionHandler("Robot not available. Load a file first");
+                }
+            }
+            catch (Exception ex)
+            {
+                DiagnosticException.ExceptionHandler(ex.Message);
+            }
+        }
+        /// <summary>
+        ///   void ShowRoboDKForm()
+        /// </summary>
+        public void ShowRoboDKForm()
+        {
+            // Check RoboDK connection
+
+            if (!Check_RDK()) { return; }
+
+            RDK.setWindowState(RoboDK.WINDOWSTATE_NORMAL); // removes Cinema mode and shows the screen
+            RDK.setWindowState(RoboDK.WINDOWSTATE_MAXIMIZED); // shows maximized
+            RDK.setWindowState(RoboDK.WINDOWSTATE_CINEMA); // shows maximized
+        }
+        /// <summary>
+        /// Move the the robot relative to the TCP
+        /// </summary>
+        /// <param name="movement"></param>
+        private void IncrementalJointMoveRoboDK(double position)
+        {
+            if (!Check_RobotDKRobot()) { return; }
+
+            //notifybar.Text = "Button selected: " + button_name;
+
+            //if (button_name.Length < 3)
+            //{
+            //    notifybar.Text = "Internal problem! Button name should be like +J1, -Tx, +Rz or similar";
+            //    return;
+            //}
+
+            // get the the sense of motion the first character as '+' or '-'
+            double move_step = 10.0;
+            //if (button_name[0] == '+')
+            //{
+            //    move_step = +Convert.ToDouble(numStep.Value);
+            //}
+            //else if (button_name[0] == '-')
+            //{
+            //    move_step = -Convert.ToDouble(numStep.Value);
+            //}
+            //else
+            //{
+            //    notifybar.Text = "Internal problem! Unexpected button name";
+            //    return;
+            //}
+
+            //////////////////////////////////////////////
+            //////// if we are moving in the joint space:
+            //if (rad_Move_Joints.Checked)
+            //{
+            double[] joints = _roboDKRobot.Joints();
+
+            // get the moving axis (1, 2, 3, 4, 5 or 6)
+            int joint_id = 0;// Convert.ToInt32(button_name[2].ToString()) - 1; // important, double array starts at 0
+
+            //joints[joint_id] = position;// joints[joint_id] + move_step;
+
+            for(int index=0;index<joints.Length;index++)
+            {
+                joints[index] = _desiredRobotJointPosition.RobotPositions[index];
+            }
+
+            try
+            {
+                _roboDKRobot.MoveJ(joints, MOVE_BLOCKING);
+                Debug.WriteLine("position= " + _desiredRobotJointPosition.RobotPositions[0].ToString());
+                //ROBOT.MoveL(joints, MOVE_BLOCKING);
+            }
+            catch (RoboDK.RDKException rdkex)
+            {
+                //notifybar.Text = "The robot can't move to the target joints: " + rdkex.Message;
+                //MessageBox.Show("The robot can't move to " + new_pose.ToString());
+                //  }
+                //}
+                //else
+                //{
+                #region
+                ////////////////////////////////////////////////
+                ////////// if we are moving in the cartesian space
+                //// Button name examples: +Tx, -Tz, +Rx, +Ry, +Rz
+
+                //int move_id = 0;
+
+                //string[] move_types = new string[6] { "Tx", "Ty", "Tz", "Rx", "Ry", "Rz" };
+
+                //for (int i = 0; i < 6; i++)
+                //{
+                //    if (button_name.EndsWith(move_types[i]))
+                //    {
+                //        move_id = i;
+                //        break;
+                //    }
+                //}
+                //double[] move_xyzwpr = new double[6] { 0, 0, 0, 0, 0, 0 };
+                //move_xyzwpr[move_id] = move_step;
+                //Mat movement_pose = Mat.FromTxyzRxyz(move_xyzwpr);
+
+                //// the the current position of the robot (as a 4x4 matrix)
+                //Mat robot_pose = ROBOT.Pose();
+
+                //// Calculate the new position of the robot
+                //Mat new_robot_pose;
+                //bool is_TCP_relative_move = rad_Move_wrt_Tool.Checked;
+                //if (is_TCP_relative_move)
+                //{
+                //    // if the movement is relative to the TCP we must POST MULTIPLY the movement
+                //    new_robot_pose = robot_pose * movement_pose;
+                //}
+                //else
+                //{
+                //    // if the movement is relative to the reference frame we must PRE MULTIPLY the XYZ translation:
+                //    // new_robot_pose = movement_pose * robot_pose;
+                //    // Note: Rotation applies from the robot axes.
+
+                //    Mat transformation_axes = new Mat(robot_pose);
+                //    transformation_axes.setPos(0, 0, 0);
+                //    Mat movement_pose_aligned = transformation_axes.inv() * movement_pose * transformation_axes;
+                //    new_robot_pose = robot_pose * movement_pose_aligned;
+                //}
+
+                //// Then, we can do the movement:
+                //try
+                //{
+                //    ROBOT.MoveJ(new_robot_pose, MOVE_BLOCKING);
+                //}
+                //catch (RoboDK.RDKException rdkex)
+                //{
+                //    notifybar.Text = "The robot can't move to " + new_robot_pose.ToString();
+                //    //MessageBox.Show("The robot can't move to " + new_pose.ToString());
+                //}
+
+
+                //// Some tips:
+                //// retrieve the current pose of the robot: the active TCP with respect to the current reference frame
+                //// Tip 1: use
+                //// ROBOT.setFrame()
+                //// to set a reference frame (object link or pose)
+                ////
+                //// Tip 2: use
+                //// ROBOT.setTool()
+                //// to set a tool frame (object link or pose)
+                ////
+                //// Tip 3: use
+                //// ROBOT.MoveL_Collision(j1, new_move)
+                //// to test if a movement is feasible by the robot before doing the movement
+                //// 
+                #endregion
+                //}
+            }
+        }
+        /// <summary>
+        /// Check if the ROBOT object is available and valid. It will make sure that we can operate with the ROBOT object.
+        /// </summary>
+        /// <returns></returns>
+        public bool Check_RobotDKRobot(bool ignore_busy_status = false)
+        {
+            if (!Check_RDK())
+            {
+                return false;
+            }
+            if (_roboDKRobot == null || !_roboDKRobot.Valid())
+            {
+                //notifybar.Text = "A robot has not been selected. Load a station or a robot file first.";
+                return false;
+            }
+            try
+            {
+                //notifybar.Text = "Using robot: " + ROBOT.Name();
+            }
+            catch (RoboDK.RDKException rdkex)
+            {
+                //notifybar.Text = "The robot has been deleted: " + rdkex.Message;
+                return false;
+            }
+
+            // Safe check: If we are doing non blocking movements, we can check if the robot is doing other movements with the Busy command
+            if (!MOVE_BLOCKING && (!ignore_busy_status && _roboDKRobot.Busy()))
+            {
+                //notifybar.Text = "The robot is busy!! Try later...";
+                return false;
+            }
+            return true;
+        }
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="run"></param>
+        public void RoboDKSimulatorRun(bool run)
+        {
+            try
+            {
+                if (run == true)
+                {
+                    RDK = new RoboDK();
+
+                    // Check if RoboDK started properly
+                    if (Check_RDK())
+                    {
+                        // attempt to auto select the robot:
+                        SelectRoboDKRobot();
+                    }
+
+                    ShowRoboDKForm();
+                }
+                else
+                {
+                    RDK.CloseRoboDK();
+                }
+            }
+            catch (Exception ex)
+            {
+                DiagnosticException.ExceptionHandler(ex.Message);
+            }
+        }
         #endregion
 
         #region Event handler

@@ -14,7 +14,7 @@ namespace MotoCom32Net
     public interface IRobotPositionVariable
     {
         #region Properties
-        PositionVariableType DataType
+        RobotPositionVariableType DataType
         {
             get;
             set;
@@ -24,7 +24,7 @@ namespace MotoCom32Net
             get;
             set;
         }
-        FrameType Frame
+        RobotFrameType Frame
         {
             get;
             set;
@@ -120,12 +120,12 @@ namespace MotoCom32Net
     public class RobotPositionVariable : IRobotPositionVariable
     {
         double[] _numericVariableStorageArea = new double[12];
-        public RobotPositionVariable() : this(PositionVariableType.XYZ)
+        public RobotPositionVariable() : this(RobotPositionVariableType.XYZ)
         {
         }
         public RobotPositionVariable(int saxis, int laxis, int uaxis, int raxis, int baxis, int taxis, int e7axis, int e8axis, short toolno)
         {
-            DataType = PositionVariableType.Pulse;
+            DataType = RobotPositionVariableType.Pulse;
             SAxis = saxis;
             LAxis = laxis;
             UAxis = uaxis;
@@ -136,9 +136,9 @@ namespace MotoCom32Net
             E8Axis = e8axis;
             ToolNo = toolno;
         }
-        public RobotPositionVariable(FrameType frame, double x, double y, double z, double rx, double ry, double rz, short formcode, short toolno)
+        public RobotPositionVariable(RobotFrameType frame, double x, double y, double z, double rx, double ry, double rz, short formcode, short toolno)
         {
-            DataType = PositionVariableType.XYZ;
+            DataType = RobotPositionVariableType.XYZ;
             Frame = frame;
             X = x;
             Y = y;
@@ -149,10 +149,10 @@ namespace MotoCom32Net
             Formcode = formcode;
             ToolNo = toolno;
         }
-        public RobotPositionVariable(PositionVariableType datatype)
+        public RobotPositionVariable(RobotPositionVariableType datatype)
         {
             DataType = datatype;
-            if (datatype == PositionVariableType.Pulse)
+            if (datatype == RobotPositionVariableType.Pulse)
             {
                 SAxis = 0;
                 LAxis = 0;
@@ -166,7 +166,7 @@ namespace MotoCom32Net
             }
             else
             {
-                Frame = FrameType.Robot;
+                Frame = RobotFrameType.Robot;
                 X = 0.0;
                 Y = 0.0;
                 Z = 0.0;
@@ -181,9 +181,9 @@ namespace MotoCom32Net
         {
             HostGetVarDataArray.CopyTo(_numericVariableStorageArea, 0);
         }
-        public PositionVariableType DataType
+        public RobotPositionVariableType DataType
         {
-            get { return (PositionVariableType)_numericVariableStorageArea[0]; }
+            get { return (RobotPositionVariableType)_numericVariableStorageArea[0]; }
             set { _numericVariableStorageArea[0] = (double)value; }
         }
         public int SAxis
@@ -191,9 +191,9 @@ namespace MotoCom32Net
             get { return (int)_numericVariableStorageArea[1]; }
             set { _numericVariableStorageArea[1] = (double)value; }
         }
-        public FrameType Frame
+        public RobotFrameType Frame
         {
-            get { return (FrameType)_numericVariableStorageArea[1]; }
+            get { return (RobotFrameType)_numericVariableStorageArea[1]; }
             set { _numericVariableStorageArea[1] = (double)value; }
         }
         public int LAxis
