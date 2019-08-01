@@ -1423,6 +1423,9 @@ public class RoboDK
         { }
     }
 
+    static readonly object objReads = new object();
+    static readonly object objWrites = new object();
+
     // Tree item types
     public const int ITEM_TYPE_ANY = -1;
     public const int ITEM_TYPE_STATION = 1;
@@ -1660,7 +1663,7 @@ public class RoboDK
     string ARGUMENTS = "";                  // arguments to provide to RoboDK on startup
     int SAFE_MODE = 1;                      // checks that provided items exist in memory
     int AUTO_UPDATE = 0;                    // if AUTO_UPDATE is zero, the scene is rendered after every function call  
-    int _TIMEOUT = 10 * 1000;               // timeout for communication, in seconds
+    int _TIMEOUT = 10 * 10;               // timeout for communication, in seconds
     Socket _COM = null;                     // tcpip com
     Socket _COM_EVT = null;                 // tcpip com for events (separate channel)
     string IP = "localhost";                // IP address of the simulator (localhost if it is the same computer), otherwise, use RL = Robolink('yourip') to set to a different IP
@@ -1717,6 +1720,7 @@ public class RoboDK
         LAST_STATUS_MESSAGE = "";
         if (status > 0 && status < 10)
         {
+            #region
             LAST_STATUS_MESSAGE = "Unknown error";
             if (status == 1)
             {
@@ -1739,7 +1743,8 @@ public class RoboDK
                 LAST_STATUS_MESSAGE = "Invalid license. Contact us at: info@robodk.com";
             }
             //print(strproblems);
-            throw new RDKException(LAST_STATUS_MESSAGE); //raise Exception(strproblems)
+            throw new RDKException(LAST_STATUS_MESSAGE); //raise Exception(strproblems) 
+            #endregion
         }
         else if (status == 0)
         {
@@ -1748,7 +1753,7 @@ public class RoboDK
         }
         else
         {
-            throw new RDKException("Problems running function"); //raise Exception('Problems running function');
+            //throw new RDKException("Problems running function"); //raise Exception('Problems running function');
         }
         return status;
     }
@@ -2005,6 +2010,7 @@ public class RoboDK
             Array.Reverse(onedouble);
             Array.Copy(onedouble, 0, bytesarray, i * 8, 8);
         }
+
         _COM.Send(bytesarray, 8 * nvalues, SocketFlags.None);
     }
 
@@ -2129,7 +2135,7 @@ public class RoboDK
     // private move type, to be used by public methods (MoveJ  and MoveL)
     void moveX(Item target, double[] joints, Mat mat_target, Item itemrobot, int movetype, bool blocking = true)
     {
-        itemrobot.WaitMove();
+        //itemrobot.WaitMove();
         _send_Line("MoveX");
         _send_Int(movetype);
         if (target != null)
@@ -2142,6 +2148,7 @@ public class RoboDK
         {
             _send_Int(1);
             _send_Array(joints);
+            //Debug.WriteLine("position= " + joints[0].ToString());
             _send_Item(null);
         }
         else if (mat_target != null && mat_target.IsHomogeneous())
@@ -2155,7 +2162,7 @@ public class RoboDK
             throw new RDKException("Invalid target type"); //raise Exception('Problems running function');
         }
         _send_Item(itemrobot);
-        _check_status();
+        //_check_status();
         if (blocking)
         {
             itemrobot.WaitMove();
@@ -2380,8 +2387,8 @@ public class RoboDK
             {
                 _COM = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.IP);
                 //_COM = new Socket(SocketType.Stream, ProtocolType.IPv4);
-                _COM.SendTimeout = 1000;
-                _COM.ReceiveTimeout = 1000;
+                _COM.SendTimeout = 100;
+                _COM.ReceiveTimeout = 100;
                 try
                 {
                     _COM.Connect(IP, port);
@@ -5174,11 +5181,16 @@ public class RoboDK
         /// <returns>double x n -> joints matrix</returns>
         public double[] Joints()
         {
-            link._check_connection();
-            link._send_Line("G_Thetas");
-            link._send_Item(this);
-            double[] joints = link._recv_Array();
-            link._check_status();
+            double[] joints = null;
+            lock (objReads)
+            {
+                //link._check_connection();
+                link._send_Line("G_Thetas");
+                link._send_Item(this);
+                joints = link._recv_Array();
+                //link._check_status();
+            }
+
             return joints;
         }
 

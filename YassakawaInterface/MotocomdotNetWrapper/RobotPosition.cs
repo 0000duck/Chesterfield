@@ -120,7 +120,10 @@ namespace MotoCom32Net
     [ComVisible(true)]
     public class RobotPosition : IRobotPosition
     {
-        double[] _robotPositions = new double[12];
+        volatile double[] _robotPositions = new double[12];
+
+        readonly object _sAxisLocker = new object();
+        readonly object _robotPositionsLocker = new object();
 
         public RobotPosition(double e1axis, double e2axis, double e3axis, double e4axis, double e5axis, double e6axis)
         {
@@ -203,11 +206,17 @@ namespace MotoCom32Net
         {
             get
             {
-                return _robotPositions[0];
+                lock (_sAxisLocker)
+                {
+                    return _robotPositions[0];
+                }
             }
             set
             {
-                _robotPositions[0] = value;
+                lock (_sAxisLocker)
+                {
+                    _robotPositions[0] = value;
+                }
             }
         }
         public double LAxis
@@ -402,11 +411,17 @@ namespace MotoCom32Net
         {
             get
             {
-                return _robotPositions;
+                lock (_robotPositionsLocker)
+                {
+                    return _robotPositions;
+                }
             }
             set
             {
-                _robotPositions = value;
+                lock (_robotPositionsLocker)
+                {
+                    _robotPositions = value;
+                }
             }
         }
     }

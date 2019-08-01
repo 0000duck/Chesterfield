@@ -12,6 +12,11 @@ using System.Runtime.CompilerServices;
 using Microsoft.Win32;
 using System.Collections.ObjectModel;
 
+using RoboDk;
+using RoboDk.API;
+using RoboDk.API.Model;
+using RoboDk.API.Exceptions;
+
 namespace MotoCom32Net
 {
     /// <summary>
@@ -101,7 +106,13 @@ namespace MotoCom32Net
             get;
             set;
         }
-        RobotPosition ReportedRobotJointPosition
+        double[] ReportedRobotJointPosition
+        {
+            get;
+            set;
+        }
+
+        double ReportedSJointPosition
         {
             get;
             set;
@@ -271,6 +282,11 @@ namespace MotoCom32Net
 
         private RobotModeType _actualMode = RobotModeType.TEACH;
 
+        readonly object _desiredRobotJointPositionLocker = new object();
+        readonly object _reportedRobotJointPositionLocker = new object();
+        readonly object _reportedRobotCartesianPositionLocker = new object();
+        readonly object _reportedSJointPositionLocker = new object();
+
         private RobotPositionVariable _actualRobotPositionVariable = new RobotPositionVariable();
         private RobotPositionVariable _desiredRobotPositionVariable = new RobotPositionVariable();
         private RobotPositionVariable _reportedRobotPositionVariable = new RobotPositionVariable();
@@ -280,8 +296,10 @@ namespace MotoCom32Net
         private RobotPosition _reportedRobotPosition = new RobotPosition();
 
         private RobotPosition _actualRobotJointPosition = new RobotPosition();
-        private RobotPosition _desiredRobotJointPosition = new RobotPosition();
-        private RobotPosition _reportedRobotJointPosition = new RobotPosition();
+        private volatile RobotPosition _desiredRobotJointPosition = new RobotPosition();
+        private volatile double[] _reportedRobotJointPosition = new double[12];
+        private volatile double[] _reportedRobotCartesianPosition = new double[6];
+        private double _reportedSJointPosition = 0.0;
 
         private RobotPosition _actualRobotIncrementPosition = new RobotPosition();
         private RobotPosition _desiredRobotIncrementPosition = new RobotPosition();
@@ -310,7 +328,7 @@ namespace MotoCom32Net
         // The RoboDK application starts when a RoboDK object is created.
         RoboDK RDK = null;
         // Keep the ROBOT item as a global variable
-        RoboDK.Item _roboDKRobot = null;
+        IItem _roboDKRobot = null;
         // Define if the robot movements will be blocking
         const bool MOVE_BLOCKING = false;
         #endregion
@@ -428,6 +446,7 @@ namespace MotoCom32Net
             set
             {
                 _desiredRobotPositionVariable = value;
+
                 OnNotifyPropertyChanged();
             }
         }
@@ -497,24 +516,75 @@ namespace MotoCom32Net
         {
             get
             {
-                return _desiredRobotJointPosition;
+                lock (_desiredRobotJointPositionLocker)
+                {
+                    Debug.WriteLine("C# module desired get:position= " + _desiredRobotJointPosition.RobotPositions[0].ToString());
+                    return _desiredRobotJointPosition;
+                }
             }
             set
             {
-                _desiredRobotJointPosition = value;
-                OnNotifyPropertyChanged();
+                lock (_desiredRobotJointPositionLocker)
+                {
+                    _desiredRobotJointPosition = value;
+                    Debug.WriteLine("C# module desired set:position= " + _desiredRobotJointPosition.RobotPositions[0].ToString());
+                    OnNotifyPropertyChanged();
+                }
             }
         }
-        public RobotPosition ReportedRobotJointPosition
+        public double[] ReportedRobotJointPosition
         {
             get
             {
-                return _reportedRobotJointPosition;
+                lock (_reportedRobotJointPositionLocker)
+                {
+                    return _reportedRobotJointPosition;
+                }
             }
             set
             {
-                _reportedRobotJointPosition = value;
-                OnNotifyPropertyChanged();
+                lock (_reportedRobotJointPositionLocker)
+                {
+                    _reportedRobotJointPosition = value;
+                    OnNotifyPropertyChanged();
+                }
+            }
+        }
+        public double[] ReportedRobotCartesianPosition
+        {
+            get
+            {
+                lock (_reportedRobotCartesianPositionLocker)
+                {
+                    return _reportedRobotCartesianPosition;
+                }
+            }
+            set
+            {
+                lock (_reportedRobotCartesianPositionLocker)
+                {
+                    _reportedRobotCartesianPosition = value;
+                    OnNotifyPropertyChanged();
+                }
+            }
+        }
+
+        public double ReportedSJointPosition
+        {
+            get
+            {
+                lock (_reportedSJointPositionLocker)
+                {
+                    return _reportedSJointPosition;
+                }
+            }
+            set
+            {
+                lock (_reportedSJointPositionLocker)
+                {
+                    _reportedSJointPosition = value;
+                    OnNotifyPropertyChanged();
+                }
             }
         }
 
@@ -1628,16 +1698,17 @@ namespace MotoCom32Net
 
             try
             {
-                //lock (_DX200AccessLock)
-                //{
+                lock (_DX200AccessLock)
+                {
                     movtype = new StringBuilder(_motionDictionary[ActualMotionType]);
                     vtype = new StringBuilder(_moveSpeedSelectionDictionary[ActualMoveSpeedSelection]);
 
                     //returnValue = (RobotFunctionReturnType_2)(Motocom.BscPMov(_handle, movtype, vtype, speed, ToolNumber,
-                        //ref _desiredRobotJointPosition.RobotPositions[0]));
+                    //ref _desiredRobotJointPosition.RobotPositions[0]));
 
-                    IncrementalJointMoveRoboDK(0);
-               // }
+                    //TODO:Use with flag (_isSimulatorRoboDKUsed)
+                    IncrementalJointMoveRoboDK();
+                }
             }
             catch (Exception ex)
             {
@@ -1751,7 +1822,7 @@ namespace MotoCom32Net
 
         #endregion
 
-        #region RoboDK methods
+       #region RoboDK methods
         /// <summary>
         /// Check if the RDK object is ready.
         /// Returns True if the RoboDK API is available or False if the RoboDK API is not available.
@@ -1763,7 +1834,7 @@ namespace MotoCom32Net
 
             try
             {
-                // check if the RDK object has been initialised:
+                // check if the RDK object has been initialized:
                 if (RDK != null)
                 {
                     returnedValue = true;
@@ -1800,19 +1871,14 @@ namespace MotoCom32Net
         {
             try
             {
-                if (!Check_RDK())
-                {
-                    _roboDKRobot = null;
-                    return;
-                }
                 // select robot among available robots
                 //ROBOT = RL.getItem("ABB IRB120", ITEM_TYPE_ROBOT); // select by name
                 //ITEM = RL.ItemUserPick("Select an item"); // Select any item in the station
-                _roboDKRobot = RDK.ItemUserPick("Select a robot", RoboDK.ITEM_TYPE_ROBOT);
+                _roboDKRobot = RDK.ItemUserPick("Select a robot", ItemType.Robot);
                 if (_roboDKRobot.Valid())
                 {
                     // This will create a new communication link (another instance of the RoboDK API), this is useful if we are moving 2 robots at the same time. 
-                    _roboDKRobot.NewLink();
+                    //_roboDKRobot.NewLink();
                     string _robotName = _roboDKRobot.Name();
                 }
                 else
@@ -1830,131 +1896,80 @@ namespace MotoCom32Net
         /// </summary>
         public void ShowRoboDKForm()
         {
-            // Check RoboDK connection
-
-            if (!Check_RDK()) { return; }
-
-            RDK.setWindowState(RoboDK.WINDOWSTATE_NORMAL); // removes Cinema mode and shows the screen
-            RDK.setWindowState(RoboDK.WINDOWSTATE_MAXIMIZED); // shows maximized
-            RDK.setWindowState(RoboDK.WINDOWSTATE_CINEMA); // shows maximized
+            RDK.SetWindowState(WindowState.Normal); // removes Cinema mode and shows the screen
+            //RDK.SetWindowState(WindowState.Maximized); // shows maximized
+            RDK.SetWindowState(WindowState.Cinema); // shows maximized
         }
         /// <summary>
-        /// Move the the robot relative to the TCP
+        /// Move TCP robot.
         /// </summary>
-        /// <param name="movement"></param>
-        private void IncrementalJointMoveRoboDK(double position)
+        private void IncrementalJointMoveRoboDK()
         {
-            if (!Check_RobotDKRobot()) { return; }
-
-            //notifybar.Text = "Button selected: " + button_name;
-
-            //if (button_name.Length < 3)
-            //{
-            //    notifybar.Text = "Internal problem! Button name should be like +J1, -Tx, +Rz or similar";
-            //    return;
-            //}
-
-            // get the the sense of motion the first character as '+' or '-'
-            double move_step = 10.0;
-            //if (button_name[0] == '+')
-            //{
-            //    move_step = +Convert.ToDouble(numStep.Value);
-            //}
-            //else if (button_name[0] == '-')
-            //{
-            //    move_step = -Convert.ToDouble(numStep.Value);
-            //}
-            //else
-            //{
-            //    notifybar.Text = "Internal problem! Unexpected button name";
-            //    return;
-            //}
-
-            //////////////////////////////////////////////
-            //////// if we are moving in the joint space:
-            //if (rad_Move_Joints.Checked)
-            //{
-            double[] joints = _roboDKRobot.Joints();
-
-            // get the moving axis (1, 2, 3, 4, 5 or 6)
-            int joint_id = 0;// Convert.ToInt32(button_name[2].ToString()) - 1; // important, double array starts at 0
-
-            //joints[joint_id] = position;// joints[joint_id] + move_step;
-
-            for(int index=0;index<joints.Length;index++)
-            {
-                joints[index] = _desiredRobotJointPosition.RobotPositions[index];
-            }
+            double[] joints = new double[6] { 0, 0, 0, 0, 0, 0 };
 
             try
             {
+                //TODO:Check.Problem with speed.
+                //if (!Check_RobotDKRobot()) { return; }
+
+                // get the moving axis (1, 2, 3, 4, 5 or 6)
+
+                for (int index = 0; index < joints.Length; index++)
+                {
+                    joints[index] = DesiredRobotJointPosition.RobotPositions[index];
+                }
+
                 _roboDKRobot.MoveJ(joints, MOVE_BLOCKING);
-                Debug.WriteLine("position= " + _desiredRobotJointPosition.RobotPositions[0].ToString());
-                //ROBOT.MoveL(joints, MOVE_BLOCKING);
             }
-            catch (RoboDK.RDKException rdkex)
+            catch (Exception ex)
             {
-                //notifybar.Text = "The robot can't move to the target joints: " + rdkex.Message;
-                //MessageBox.Show("The robot can't move to " + new_pose.ToString());
-                //  }
-                //}
-                //else
-                //{
+                DiagnosticException.ExceptionHandler(ex.Message);
+            }
+        }
+        /// <summary>
+        /// Move TCP
+        /// </summary>
+        /// <param name="relativeMove"></param>
+        private void IncrementalTCPMoveRoboDK(bool relativeMove)
+        {
+            double[] move_xyzwpr = new double[6] { 0, 0, 0, 0, 0, 0 };
+
+            try
+            {
                 #region
-                ////////////////////////////////////////////////
-                ////////// if we are moving in the cartesian space
-                //// Button name examples: +Tx, -Tz, +Rx, +Ry, +Rz
 
-                //int move_id = 0;
+                for (int index = 0; index < move_xyzwpr.Length; index++)
+                {
+                    move_xyzwpr[index] = _desiredRobotPosition.RobotPositions[index];
+                }
 
-                //string[] move_types = new string[6] { "Tx", "Ty", "Tz", "Rx", "Ry", "Rz" };
+                Mat movement_pose = Mat.FromTxyzRxyz(move_xyzwpr);
 
-                //for (int i = 0; i < 6; i++)
-                //{
-                //    if (button_name.EndsWith(move_types[i]))
-                //    {
-                //        move_id = i;
-                //        break;
-                //    }
-                //}
-                //double[] move_xyzwpr = new double[6] { 0, 0, 0, 0, 0, 0 };
-                //move_xyzwpr[move_id] = move_step;
-                //Mat movement_pose = Mat.FromTxyzRxyz(move_xyzwpr);
+                // the the current position of the robot (as a 4x4 matrix)
+                Mat robot_pose = _roboDKRobot.Pose();
 
-                //// the the current position of the robot (as a 4x4 matrix)
-                //Mat robot_pose = ROBOT.Pose();
+                // Calculate the new position of the robot
+                Mat new_robot_pose;
+                if (relativeMove)
+                {
+                    // if the movement is relative to the TCP we must POST MULTIPLY the movement
+                    new_robot_pose = robot_pose * movement_pose;
+                }
+                else
+                {
+                    // if the movement is relative to the reference frame we must PRE MULTIPLY the XYZ translation:
+                    // new_robot_pose = movement_pose * robot_pose;
+                    // Note: Rotation applies from the robot axes.
 
-                //// Calculate the new position of the robot
-                //Mat new_robot_pose;
-                //bool is_TCP_relative_move = rad_Move_wrt_Tool.Checked;
-                //if (is_TCP_relative_move)
-                //{
-                //    // if the movement is relative to the TCP we must POST MULTIPLY the movement
-                //    new_robot_pose = robot_pose * movement_pose;
-                //}
-                //else
-                //{
-                //    // if the movement is relative to the reference frame we must PRE MULTIPLY the XYZ translation:
-                //    // new_robot_pose = movement_pose * robot_pose;
-                //    // Note: Rotation applies from the robot axes.
+                    Mat transformation_axes = new Mat(robot_pose);
+                    transformation_axes.setPos(0, 0, 0);
+                    Mat movement_pose_aligned = transformation_axes.inv() * movement_pose * transformation_axes;
+                    new_robot_pose = robot_pose * movement_pose_aligned;
+                }
 
-                //    Mat transformation_axes = new Mat(robot_pose);
-                //    transformation_axes.setPos(0, 0, 0);
-                //    Mat movement_pose_aligned = transformation_axes.inv() * movement_pose * transformation_axes;
-                //    new_robot_pose = robot_pose * movement_pose_aligned;
-                //}
+                // Then, we can do the movement:
 
-                //// Then, we can do the movement:
-                //try
-                //{
-                //    ROBOT.MoveJ(new_robot_pose, MOVE_BLOCKING);
-                //}
-                //catch (RoboDK.RDKException rdkex)
-                //{
-                //    notifybar.Text = "The robot can't move to " + new_robot_pose.ToString();
-                //    //MessageBox.Show("The robot can't move to " + new_pose.ToString());
-                //}
-
+                _roboDKRobot.MoveJ(new_robot_pose, MOVE_BLOCKING);
 
                 //// Some tips:
                 //// retrieve the current pose of the robot: the active TCP with respect to the current reference frame
@@ -1972,6 +1987,10 @@ namespace MotoCom32Net
                 //// 
                 #endregion
                 //}
+            }
+            catch (Exception ex)
+            {
+                DiagnosticException.ExceptionHandler(ex.Message);
             }
         }
         /// <summary>
@@ -1993,7 +2012,7 @@ namespace MotoCom32Net
             {
                 //notifybar.Text = "Using robot: " + ROBOT.Name();
             }
-            catch (RoboDK.RDKException rdkex)
+            catch (RdkException rdkex)
             {
                 //notifybar.Text = "The robot has been deleted: " + rdkex.Message;
                 return false;
@@ -2022,11 +2041,15 @@ namespace MotoCom32Net
                     // Check if RoboDK started properly
                     if (Check_RDK())
                     {
+                        RDK.SetRunMode(RunMode.Simulate);
+
                         // attempt to auto select the robot:
                         SelectRoboDKRobot();
                     }
 
                     ShowRoboDKForm();
+
+                    _statusTimer.Change(0, 500); //enable timer
                 }
                 else
                 {
@@ -2038,7 +2061,7 @@ namespace MotoCom32Net
                 DiagnosticException.ExceptionHandler(ex.Message);
             }
         }
-        #endregion
+        #endregion                      
 
         #region Event handler
         /// <summary>
@@ -2050,11 +2073,36 @@ namespace MotoCom32Net
             short d1 = 0;
             short d2 = 0;
 
+            double[] joints = new double[6] { 0, 0, 0, 0, 0, 0 };
+            Mat pose = null;
+
             try
             {
                 lock (_lockStatusTimer)
                 {
-                    UpdateStatus(ref d1, ref d2);
+                    //UpdateStatus(ref d1, ref d2);
+
+                    joints = _roboDKRobot.Joints();
+
+                    if (joints != null)
+                    {
+                        for (int index = 0; index < joints.Length; index++)
+                        {
+                            ReportedRobotJointPosition[index] = joints[index];
+                        }
+                        ReportedSJointPosition = ReportedRobotJointPosition[0];
+                        //Debug.WriteLine("C# module message:position= " + ReportedRobotJointPosition[0].ToString());
+                    }
+
+                    pose = _roboDKRobot.PoseTool();
+                
+                    if (pose != null)
+                    {
+                        // update the pose as xyzwpr
+                        ReportedRobotCartesianPosition = pose.ToTxyzRxyz();
+                    }
+
+                    RDK.FlushReceiveBuffer();
                 }
             }
             catch (Exception ex)

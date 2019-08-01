@@ -7,12 +7,14 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "YassakawaInterface", "Yassa
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MotoCom32Net", "MotocomdotNetWrapper\MotoCom32Net.csproj", "{25010A89-4D18-4607-ADAF-32553D6D343A}"
 	ProjectSection(ProjectDependencies) = postProject
-		{6626B272-DCF7-4EA6-8CA8-C822E92F421D} = {6626B272-DCF7-4EA6-8CA8-C822E92F421D}
+		{04A95C1B-05AA-4688-AC2E-035F08CCF33B} = {04A95C1B-05AA-4688-AC2E-035F08CCF33B}
 	EndProjectSection
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "YassakawaInterfaceTests", "YassakawaInterfaceTests\YassakawaInterfaceTests.csproj", "{0777D502-5F29-48AA-8FA8-DF1747703333}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RoboDKLibrary", "RoboDKLibrary\RoboDKLibrary.csproj", "{6626B272-DCF7-4EA6-8CA8-C822E92F421D}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RoboDkApi", "RoboDKAPI\RoboDkApi.csproj", "{04A95C1B-05AA-4688-AC2E-035F08CCF33B}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -54,6 +56,14 @@ Global
 		{6626B272-DCF7-4EA6-8CA8-C822E92F421D}.Release|Any CPU.Build.0 = Release|Any CPU
 		{6626B272-DCF7-4EA6-8CA8-C822E92F421D}.Release|x86.ActiveCfg = Release|Any CPU
 		{6626B272-DCF7-4EA6-8CA8-C822E92F421D}.Release|x86.Build.0 = Release|Any CPU
+		{04A95C1B-05AA-4688-AC2E-035F08CCF33B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{04A95C1B-05AA-4688-AC2E-035F08CCF33B}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{04A95C1B-05AA-4688-AC2E-035F08CCF33B}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{04A95C1B-05AA-4688-AC2E-035F08CCF33B}.Debug|x86.Build.0 = Debug|Any CPU
+		{04A95C1B-05AA-4688-AC2E-035F08CCF33B}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{04A95C1B-05AA-4688-AC2E-035F08CCF33B}.Release|Any CPU.Build.0 = Release|Any CPU
+		{04A95C1B-05AA-4688-AC2E-035F08CCF33B}.Release|x86.ActiveCfg = Release|Any CPU
+		{04A95C1B-05AA-4688-AC2E-035F08CCF33B}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
