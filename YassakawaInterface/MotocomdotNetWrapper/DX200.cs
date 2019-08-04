@@ -111,6 +111,11 @@ namespace MotoCom32Net
             get;
             set;
         }
+        double[] ReportedRobotCartesianPosition
+        {
+            get;
+            set;
+        }
 
         double ReportedSJointPosition
         {
@@ -1822,7 +1827,7 @@ namespace MotoCom32Net
 
         #endregion
 
-       #region RoboDK methods
+        #region RoboDK methods
         /// <summary>
         /// Check if the RDK object is ready.
         /// Returns True if the RoboDK API is available or False if the RoboDK API is not available.
@@ -2049,7 +2054,7 @@ namespace MotoCom32Net
 
                     ShowRoboDKForm();
 
-                    _statusTimer.Change(0, 500); //enable timer
+                    _statusTimer.Change(0, 100); //enable timer
                 }
                 else
                 {
@@ -2094,15 +2099,15 @@ namespace MotoCom32Net
                         //Debug.WriteLine("C# module message:position= " + ReportedRobotJointPosition[0].ToString());
                     }
 
-                    pose = _roboDKRobot.PoseTool();
-                
+                    pose = _roboDKRobot.Pose();
+
                     if (pose != null)
                     {
                         // update the pose as xyzwpr
                         ReportedRobotCartesianPosition = pose.ToTxyzRxyz();
                     }
 
-                    RDK.FlushReceiveBuffer();
+                    //RDK.FlushReceiveBuffer();
                 }
             }
             catch (Exception ex)
