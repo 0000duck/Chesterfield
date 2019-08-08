@@ -1,0 +1,173 @@
+﻿<Controls:MetroWindow
+    x:Class="ChesterfieldWpfApplication.Views.MainWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:Controls="clr-namespace:MahApps.Metro.Controls;assembly=MahApps.Metro"
+    xmlns:Conversions="clr-namespace:ChesterfieldWpfApplication.Models"
+    xmlns:ViewModels="clr-namespace:ChesterfieldWpfApplication.ModelViews"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:i="clr-namespace:System.Windows.Interactivity;assembly=System.Windows.Interactivity"
+    xmlns:languages="clr-namespace:ChesterfieldWpfApplication.Languages"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    Title="Test MH24 robot"
+    Width="600"
+    Height="700"
+    MinWidth="600"
+    MinHeight="700"
+    MaxWidth="600"
+    MaxHeight="700"
+    TitleForeground="White"
+    TitlebarHeight="30"
+    Topmost="True"
+    WindowCloseButtonStyle="{DynamicResource CleanCloseWindowButtonStyle}"
+    WindowMaxButtonStyle="{DynamicResource CleanCloseWindowButtonStyle}"
+    WindowMinButtonStyle="{DynamicResource CleanCloseWindowButtonStyle}"
+    WindowStartupLocation="CenterScreen"
+    mc:Ignorable="d">
+
+    <Window.DataContext>
+        <ViewModels:MainWindowModelView />
+    </Window.DataContext>
+
+    <Window.Resources>
+        <Conversions:DivisionConverter x:Key="DivisionConverter" />
+        <Conversions:SwapSignConverter x:Key="SwapSignConverter" />
+    </Window.Resources>
+
+    <Controls:MetroWindow.RightWindowCommands>
+        <Controls:WindowCommands>
+            <Button Content="Option One" />
+            <Button>
+                <StackPanel Orientation="Horizontal">
+                    <Rectangle Fill="{Binding RelativeSource={RelativeSource AncestorType=Button}, Path=Foreground}">
+                        <Rectangle.OpacityMask>
+                            <VisualBrush Stretch="Fill" />
+                        </Rectangle.OpacityMask>
+                    </Rectangle>
+                    <TextBlock
+                        Margin="4,0,0,0"
+                        VerticalAlignment="Center"
+                        Text="Option Two" />
+                </StackPanel>
+            </Button>
+        </Controls:WindowCommands>
+    </Controls:MetroWindow.RightWindowCommands>
+
+    <Grid ShowGridLines="False">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="2*" />
+            <RowDefinition Height="1*" />
+        </Grid.RowDefinitions>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="1*" />
+        </Grid.ColumnDefinitions>
+
+        <GroupBox
+            Grid.Row="0"
+            Margin="3"
+            Header="View">
+            <Frame VerticalAlignment="Stretch" />
+        </GroupBox>
+
+        <TabControl Grid.Row="1" Margin="3">
+            <TabItem Header="Communication">
+                <Grid ShowGridLines="True">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="1*" />
+                        <RowDefinition Height="1*" />
+                        <RowDefinition Height="1*" />
+                        <RowDefinition Height="1*" />
+                        <RowDefinition Height="1*" />
+                    </Grid.RowDefinitions>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="1*" />
+                        <ColumnDefinition Width="1*" />
+                        <ColumnDefinition Width="1*" />
+                    </Grid.ColumnDefinitions>
+                    <TextBox
+                        Grid.Row="0"
+                        Grid.Column="0"
+                        HorizontalAlignment="Stretch"
+                        VerticalAlignment="Stretch"
+                        Text="192.168.2.11"
+                        TextAlignment="Center" />
+                    <Button
+                        Grid.Row="0"
+                        Grid.Column="1"
+                        HorizontalAlignment="Stretch"
+                        VerticalAlignment="Stretch">
+                        Connect
+                    </Button>
+                </Grid>
+            </TabItem>
+            <TabItem Header="Motion">
+                <Grid ShowGridLines="True">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="1*" />
+                        <RowDefinition Height="1*" />
+                        <RowDefinition Height="1*" />
+                        <RowDefinition Height="1*" />
+                    </Grid.RowDefinitions>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="1*" />
+                        <ColumnDefinition Width="1*" />
+                        <ColumnDefinition Width="1*" />
+                    </Grid.ColumnDefinitions>
+                    <Button
+                        Grid.Row="0"
+                        Grid.Column="0"
+                        Margin="3">
+                        X
+                    </Button>
+                    <RepeatButton
+                        Grid.Row="0"
+                        Grid.Column="2"
+                        HorizontalAlignment="Stretch"
+                        VerticalAlignment="Stretch"
+                        Background="Aqua"
+                        Content="Repeat" />
+                    <Button
+                        Grid.Row="0"
+                        Grid.Column="1"
+                        Margin="3">
+                        Rx
+                    </Button>
+                    <Button
+                        Grid.Row="1"
+                        Grid.Column="0"
+                        Margin="3">
+                        Y
+                    </Button>
+                    <Button
+                        Grid.Row="1"
+                        Grid.Column="1"
+                        Margin="3">
+                        Ry
+                    </Button>
+                    <Button
+                        Grid.Row="1"
+                        Grid.Column="2"
+                        Margin="3" />
+                    <Button
+                        Grid.Row="2"
+                        Grid.Column="0"
+                        Margin="3">
+                        Z
+                    </Button>
+                    <Button
+                        Grid.Row="2"
+                        Grid.Column="1"
+                        Margin="3">
+                        Rz
+                    </Button>
+                    <Button
+                        Grid.Row="2"
+                        Grid.Column="2"
+                        Margin="3" />
+                </Grid>
+            </TabItem>
+        </TabControl>
+
+    </Grid>
+
+</Controls:MetroWindow>

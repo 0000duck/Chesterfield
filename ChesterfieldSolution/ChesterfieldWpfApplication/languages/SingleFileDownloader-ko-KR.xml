@@ -1,0 +1,31 @@
+﻿<?xml version="1.0" encoding="utf-8" ?>
+<Dictionary>
+  <Value Id="SingleFileDownloader.Connect" Text="연결" />
+  <Value Id="SingleFileDownloader.EnterIpAddress" Text="IP 주소를 입력하십시오." />
+  <Value Id="SingleFileDownloader.Status" Text="상태:" />
+  <Value Id="SingleFileDownloader.Connecting" Text="연결 중, 잠시 기다려 주십시오 ...." />
+  <Value Id="SingleFileDownloader.Version"  Text="버전:" />
+  <Value Id="SingleFileDownloader.CPU" Text="CPU:" />
+  <Value Id="SingleFileDownloader.TestDate"  Text="테스트일:" />
+  <Value Id="SingleFileDownloader.Browse" Text="찾아보기" />
+  <Value Id="SingleFileDownloader.Download"  Text="다운로드" />
+  <Value Id="SingleFileDownloader.ErrorList" Text="오류 목록" />
+  <Value Id="SingleFileDownloader.ErrorFilePath"  Text="오류 파일 경로" />
+  <Value Id="SingleFileDownloader.ConnectMessage" Text="접속되어 있는지 확인하십시오" />
+  <Value Id="SingleFileDownloader.Success" Text="성공" />
+  <Value Id="SingleFileDownloader.Reset" Text="재설정" />
+  <Value Id="SingleFileDownloader.LoginFailed"  Text="로그인 실패. 다시 시도하십시오." />
+  <Value Id="SingleFileDownloader.Disconnect" Text="연결 해제" />
+  <Value Id="SingleFileDownloader.NotConnect" Text="연결되지 않았습니다." />
+  <Value Id="SingleFileDownloader.ConnectedTo"  Text="연결된 대상: " />
+  <Value Id="SingleFileDownloader.Error" Text="오류" />
+  <Value Id="SingleFileDownloader.PleaseEnterAValidFileName" Text="올바른 파일 이름을 입력하십시오." />
+  <Value Id="SingleFileDownloader.Instruction1Label" Text="1. IP 주소를 입력하십시오." />
+  <Value Id="SingleFileDownloader.Instruction2Label" Text="2. 연결을 클릭하십시오." />
+  <Value Id="SingleFileDownloader.Instruction3Label" Text="3. 다운로드할 파일로 찾아가십시오." />
+  <Value Id="SingleFileDownloader.Instruction4Label" Text="4. 다운로드를 클릭하십시오." />
+  <Value Id="SingleFileDownloader.Instruction5Label" Text="5. 필드를 재설정하려면 재설정을 클릭하십시오." />
+  <Value Id="SingleFileDownloader.Instruction6Label" Text="6. 다운로드된 파일에 오류가 있는 경우 오류 목록 상자에 오류가 표시되며, 모든 오류가 들어있는 오류 파일의 경로도 표시될 것입니다." />
+  <Value Id="SingleFileDownloader.Instruction" Text="지침" />
+  <Value Id="SingleFileDownloader.SelectFileToDownload" Text="다운로드할 파일 선택:" />
+</Dictionary>

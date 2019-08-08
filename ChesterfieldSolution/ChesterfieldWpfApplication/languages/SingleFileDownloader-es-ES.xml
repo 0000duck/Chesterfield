@@ -1,0 +1,31 @@
+﻿<?xml version="1.0" encoding="utf-8" ?>
+<Dictionary>
+  <Value Id="SingleFileDownloader.Connect" Text="Conectar" />
+  <Value Id="SingleFileDownloader.EnterIpAddress" Text="Introduzca la dirección IP" />
+  <Value Id="SingleFileDownloader.Status" Text="Estado:" />
+  <Value Id="SingleFileDownloader.Connecting" Text="Conectando, espere..." />
+  <Value Id="SingleFileDownloader.Version"  Text="Versión:" />
+  <Value Id="SingleFileDownloader.CPU" Text="CPU:" />
+  <Value Id="SingleFileDownloader.TestDate"  Text="Fecha de la prueba:" />
+  <Value Id="SingleFileDownloader.Browse" Text="Examinar" />
+  <Value Id="SingleFileDownloader.Download"  Text="Descargar" />
+  <Value Id="SingleFileDownloader.ErrorList" Text="Lista de errores" />
+  <Value Id="SingleFileDownloader.ErrorFilePath"  Text="Ruta de archivo de error" />
+  <Value Id="SingleFileDownloader.ConnectMessage" Text="Asegúrese de que está conectado" />
+  <Value Id="SingleFileDownloader.Success" Text="Correcto" />
+  <Value Id="SingleFileDownloader.Reset" Text="Reset" />
+  <Value Id="SingleFileDownloader.LoginFailed"  Text="Error de inicio de sesión. Inténtelo de nuevo" />
+  <Value Id="SingleFileDownloader.Disconnect" Text="Desconectar" />
+  <Value Id="SingleFileDownloader.NotConnect" Text="No conectado" />
+  <Value Id="SingleFileDownloader.ConnectedTo"  Text="Conectado a " />
+  <Value Id="SingleFileDownloader.Error" Text="Error" />
+  <Value Id="SingleFileDownloader.PleaseEnterAValidFileName" Text="Introduzca un nombre de archivo válido." />
+  <Value Id="SingleFileDownloader.Instruction1Label" Text="1. Introduzca la dirección IP." />
+  <Value Id="SingleFileDownloader.Instruction2Label" Text="2. Haga clic en conectar." />
+  <Value Id="SingleFileDownloader.Instruction3Label" Text="3. Busque el archivo que desea descargar." />
+  <Value Id="SingleFileDownloader.Instruction4Label" Text="4. Haga clic en Descargar." />
+  <Value Id="SingleFileDownloader.Instruction5Label" Text="5. Para reestablecer los archivos, haga clic en Reset." />
+  <Value Id="SingleFileDownloader.Instruction6Label" Text="6. Si el archivo descargado presenta errores, los errores se mostrarán en el cuadro de lista de errores, también la ruta al archivo de errores que contiene todos los errores." />
+  <Value Id="SingleFileDownloader.Instruction" Text="Instrucciones" />
+  <Value Id="SingleFileDownloader.SelectFileToDownload" Text="Seleccione el archivo para descargar:" />
+</Dictionary>

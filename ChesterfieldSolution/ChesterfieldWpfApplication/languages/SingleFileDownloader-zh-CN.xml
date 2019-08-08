@@ -1,0 +1,31 @@
+﻿<?xml version="1.0" encoding="utf-8" ?>
+<Dictionary>
+  <Value Id="SingleFileDownloader.Connect" Text="连接" />
+  <Value Id="SingleFileDownloader.EnterIpAddress" Text="输入 IP 地址" />
+  <Value Id="SingleFileDownloader.Status" Text="状态：" />
+  <Value Id="SingleFileDownloader.Connecting" Text="正在连接，请稍候……" />
+  <Value Id="SingleFileDownloader.Version"  Text="版本：" />
+  <Value Id="SingleFileDownloader.CPU" Text="CPU：" />
+  <Value Id="SingleFileDownloader.TestDate"  Text="测试日期：" />
+  <Value Id="SingleFileDownloader.Browse" Text="浏览" />
+  <Value Id="SingleFileDownloader.Download"  Text="下载" />
+  <Value Id="SingleFileDownloader.ErrorList" Text="错误列表" />
+  <Value Id="SingleFileDownloader.ErrorFilePath"  Text="错误文件路径" />
+  <Value Id="SingleFileDownloader.ConnectMessage" Text="请确保您已连接" />
+  <Value Id="SingleFileDownloader.Success" Text="成功" />
+  <Value Id="SingleFileDownloader.Reset" Text="复位" />
+  <Value Id="SingleFileDownloader.LoginFailed"  Text="登录失败。 请重试" />
+  <Value Id="SingleFileDownloader.Disconnect" Text="断开连接" />
+  <Value Id="SingleFileDownloader.NotConnect" Text="未连接" />
+  <Value Id="SingleFileDownloader.ConnectedTo"  Text="连接至 " />
+  <Value Id="SingleFileDownloader.Error" Text="错误" />
+  <Value Id="SingleFileDownloader.PleaseEnterAValidFileName" Text="请输入有效文件名。" />
+  <Value Id="SingleFileDownloader.Instruction1Label" Text="1. 输入 IP 地址。" />
+  <Value Id="SingleFileDownloader.Instruction2Label" Text="2. 单击连接。" />
+  <Value Id="SingleFileDownloader.Instruction3Label" Text="3. 浏览您要下载的文件。" />
+  <Value Id="SingleFileDownloader.Instruction4Label" Text="4. 单击下载。" />
+  <Value Id="SingleFileDownloader.Instruction5Label" Text="5. 要重置字段，单击重置。" />
+  <Value Id="SingleFileDownloader.Instruction6Label" Text="6. 如果下载的文件存在任何错误，错误将显示在错误列表框中，同时还将显示包含所有错误的错误文件路径。" />
+  <Value Id="SingleFileDownloader.Instruction" Text="说明" />
+  <Value Id="SingleFileDownloader.SelectFileToDownload" Text="选择文件以下载：" />
+</Dictionary>
