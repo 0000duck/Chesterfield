@@ -1,0 +1,31 @@
+﻿<?xml version="1.0" encoding="utf-8" ?>
+<Dictionary>
+  <Value Id="SingleFileDownloader.Connect" Text="接続" />
+  <Value Id="SingleFileDownloader.EnterIpAddress" Text="IPアドレスを入力してください" />
+  <Value Id="SingleFileDownloader.Status" Text="ステータス:" />
+  <Value Id="SingleFileDownloader.Connecting" Text="接続しています。しばらくお待ちください...." />
+  <Value Id="SingleFileDownloader.Version"  Text="バージョン:" />
+  <Value Id="SingleFileDownloader.CPU" Text="CPU:" />
+  <Value Id="SingleFileDownloader.TestDate"  Text="テスト日付:" />
+  <Value Id="SingleFileDownloader.Browse" Text="参照" />
+  <Value Id="SingleFileDownloader.Download"  Text="ダウンロード" />
+  <Value Id="SingleFileDownloader.ErrorList" Text="エラーリスト" />
+  <Value Id="SingleFileDownloader.ErrorFilePath"  Text="エラーファイルのパス" />
+  <Value Id="SingleFileDownloader.ConnectMessage" Text="接続されていることを確認してください" />
+  <Value Id="SingleFileDownloader.Success" Text="成功" />
+  <Value Id="SingleFileDownloader.Reset" Text="リセット" />
+  <Value Id="SingleFileDownloader.LoginFailed"  Text="ログインできませんでした。 やり直してください" />
+  <Value Id="SingleFileDownloader.Disconnect" Text="切断" />
+  <Value Id="SingleFileDownloader.NotConnect" Text="接続されていません" />
+  <Value Id="SingleFileDownloader.ConnectedTo"  Text="接続先 " />
+  <Value Id="SingleFileDownloader.Error" Text="エラー" />
+  <Value Id="SingleFileDownloader.PleaseEnterAValidFileName" Text="有効なファイル名を入力してください。" />
+  <Value Id="SingleFileDownloader.Instruction1Label" Text="1. IPアドレスを入力します。" />
+  <Value Id="SingleFileDownloader.Instruction2Label" Text="2. [接続]をクリックします。" />
+  <Value Id="SingleFileDownloader.Instruction3Label" Text="3. ダウンロードするファイルを選択します。" />
+  <Value Id="SingleFileDownloader.Instruction4Label" Text="4. [ダウンロード]をクリックします。" />
+  <Value Id="SingleFileDownloader.Instruction5Label" Text="5. フィールドをリセットするには、[リセット]をクリックします。" />
+  <Value Id="SingleFileDownloader.Instruction6Label" Text="6. ダウンロードファイルにエラーがある場合は、エラーがエラーリストボックスに表示され、すべてのエラーを含むエラーファイルのパスも示されます。" />
+  <Value Id="SingleFileDownloader.Instruction" Text="操作説明" />
+  <Value Id="SingleFileDownloader.SelectFileToDownload" Text="ダウンロードするファイルを選択:" />
+</Dictionary>
