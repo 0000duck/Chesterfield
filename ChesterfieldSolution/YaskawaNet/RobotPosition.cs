@@ -23,6 +23,14 @@ namespace YaskawaNet
         {
             get;
         }
+        double MinSJointPosition
+        {
+            get;
+        }
+        double MaxSJointPosition
+        {
+            get;
+        }
         double LAxis
         {
             get;
@@ -109,7 +117,19 @@ namespace YaskawaNet
             set;
         }
 
+        [ComVisible(false)]
+        double[][] JointsLimits
+        {
+            get;
+            set;
+        }
+
         double[] RobotPositions
+        {
+            get;
+            set;
+        }
+        double[] RobotPulsePositions
         {
             get;
             set;
@@ -124,20 +144,44 @@ namespace YaskawaNet
     [ComVisible(true)]
     public class RobotPosition : IRobotPosition
     {
+        #region Constants
+        const double SJointPulsesDegreeRatio = 1341.380;
+        const double LJointPulsesDegreeRatio = 1907.674;
+        const double UJointPulsesDegreeRatio = 1592.889;
+        const double RJointPulsesDegreeRatio = 1022.862;
+        const double BJointPulsesDegreeRatio = 986.074;
+        const double TJointPulsesDegreeRatio = 631.299;
+        #endregion
+
         #region Fields
         volatile double[] _robotPositions = new double[12];
+        volatile double[] _robotPulsePositions = new double[12];
 
         readonly object _sAxisLocker = new object();
         readonly object _robotPositionsLocker = new object();
+        readonly object _robotPulsePositionsLocker = new object();
         #endregion
 
         //TODO:create limits for all axis
+
+        //TODO:create option for real robot and simulator
 
         //TODO:create inMotion indicators for all axis
 
         private bool _sJointInMotion = false;
         private double _actualSJointPosition = 0.0;
         private double _previousSJointPosition = 0.0;
+        private double _minSJointPosition = -180.0;
+        private double _maxSJointPosition = 180.0;
+        private double[][] _jointsLimits = new double[6][]
+            {
+                new double [2]{ -180.0,180.0 } ,
+                new double [2]{-105.0,155.0 } ,
+                new double [2]{-170.0,240.0 } ,
+                new double [2]{-200.0,200.0 } ,
+                new double [2]{-150.0,150.0 } ,
+                new double [2]{-455.0,455.0 }
+            };
 
         #region Properties
         public RobotPosition(double e1axis, double e2axis, double e3axis, double e4axis, double e5axis, double e6axis)
@@ -232,17 +276,8 @@ namespace YaskawaNet
                 {
                     _previousSJointPosition = _robotPositions[0];
                     _actualSJointPosition = _robotPositions[0] = value;
+                    _robotPulsePositions[0] = _robotPositions[0] * SJointPulsesDegreeRatio;
                     _sJointInMotion = (_previousSJointPosition != _actualSJointPosition);
-                    if (_previousSJointPosition != _actualSJointPosition)
-                    {
-                        int debug = 1;
-                        debug++;
-                    }
-                    else
-                    {
-                        int debug = 1;
-                        debug++;
-                    }
                 }
             }
         }
@@ -256,6 +291,48 @@ namespace YaskawaNet
                 }
             }
         }
+        public double MinSJointPosition
+        {
+            get
+            {
+                lock (_sAxisLocker)
+                {
+                    return _minSJointPosition;
+                }
+            }
+            set
+            {
+                lock (_sAxisLocker)
+                {
+                    if (value >= -180.0 && value <= 180.0)
+                    {
+                        _jointsLimits[0][0] = _minSJointPosition = value;
+                    }
+                }
+            }
+        }
+        public double MaxSJointPosition
+        {
+            get
+            {
+                lock (_sAxisLocker)
+                {
+                    return _maxSJointPosition;
+
+                }
+            }
+            set
+            {
+                lock (_sAxisLocker)
+                {
+                    if (value >= -180.0 && value <= 180.0)
+                    {
+                        _jointsLimits[0][1] = _maxSJointPosition = value;
+                    }
+                }
+            }
+        }
+
         public double LAxis
         {
             get
@@ -265,6 +342,7 @@ namespace YaskawaNet
             set
             {
                 _robotPositions[1] = value;
+                _robotPulsePositions[1] = _robotPositions[1] * LJointPulsesDegreeRatio;
             }
         }
         public double UAxis
@@ -276,6 +354,7 @@ namespace YaskawaNet
             set
             {
                 _robotPositions[2] = value;
+                _robotPulsePositions[2] = _robotPositions[2] * UJointPulsesDegreeRatio;
             }
         }
         public double RAxis
@@ -287,6 +366,7 @@ namespace YaskawaNet
             set
             {
                 _robotPositions[3] = value;
+                _robotPulsePositions[3] = _robotPositions[3] * RJointPulsesDegreeRatio;
             }
         }
         public double BAxis
@@ -298,6 +378,7 @@ namespace YaskawaNet
             set
             {
                 _robotPositions[4] = value;
+                _robotPulsePositions[4] = _robotPositions[4] * BJointPulsesDegreeRatio;
             }
         }
         public double TAxis
@@ -309,6 +390,7 @@ namespace YaskawaNet
             set
             {
                 _robotPositions[5] = value;
+                _robotPulsePositions[5] = _robotPositions[5] * TJointPulsesDegreeRatio;
             }
         }
         public double X
@@ -444,6 +526,18 @@ namespace YaskawaNet
             }
         }
 
+        public double[][] JointsLimits
+        {
+            get
+            {
+                return _jointsLimits;
+            }
+            set
+            {
+                _jointsLimits = value;
+            }
+        }
+
         public double[] RobotPositions
         {
             get
@@ -460,6 +554,26 @@ namespace YaskawaNet
                     _previousSJointPosition = _robotPositions[0];
                     _robotPositions = value;
                     _actualSJointPosition = _robotPositions[0];
+                    _sJointInMotion = (_previousSJointPosition != _actualSJointPosition);
+                }
+            }
+        }
+        public double[] RobotPulsePositions
+        {
+            get
+            {
+                lock (_robotPulsePositionsLocker)
+                {
+                    return _robotPulsePositions;
+                }
+            }
+            set
+            {
+                lock (_robotPulsePositionsLocker)
+                {
+                    _previousSJointPosition = _robotPulsePositions[0];
+                    _robotPulsePositions = value;
+                    _actualSJointPosition = _robotPulsePositions[0];
                     _sJointInMotion = (_previousSJointPosition != _actualSJointPosition);
                 }
             }

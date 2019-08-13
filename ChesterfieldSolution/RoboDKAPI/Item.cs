@@ -1112,7 +1112,7 @@ namespace RoboDk.API
         /// <inheritdoc />
         public bool Busy()
         {
-            //Link.check_connection();
+            Link.check_connection();
             var command = "IsBusy";
             Link.send_line(command);
             Link.send_item(this);
@@ -1128,7 +1128,7 @@ namespace RoboDk.API
             var command = "Stop";
             Link.send_line(command);
             Link.send_item(this);
-            Link.check_status();
+            //Link.check_status();
         }
 
         /// <inheritdoc />
@@ -1143,10 +1143,10 @@ namespace RoboDk.API
             Link.check_status(); //will wait here;
             Link.ReceiveTimeout = Link.DefaultSocketTimeoutMilliseconds;
 
-            //int isbusy = link.Busy(this);
+            //bool isbusy = Busy();
             //while (isbusy)
             //{
-            //    busy = link.Busy(item);
+            //    isbusy = Busy();
             //}
         }
 

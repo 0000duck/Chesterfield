@@ -1820,13 +1820,20 @@ namespace RoboDk.API
         {
             int n = 0;
             IAsyncResult ar = null;
+            int waitCounter = 0;
 
             try
             {
                 ar = _socket.BeginSend(data, 0, len, flags, null, data);
-                ar.AsyncWaitHandle.WaitOne(5);
-
-                //Debug.Assert(n == len);
+                while (!ar.IsCompleted)
+                {
+                    ar.AsyncWaitHandle.WaitOne(10);
+                    waitCounter++;
+                    if (waitCounter > 50)
+                    {
+                        break;
+                    }
+                }
             }
             catch (Exception ex)
             {
@@ -2634,7 +2641,7 @@ namespace RoboDk.API
                 string response = rec_line();
                 int verApi = rec_int();
                 RoboDKBuild = rec_int();
-                check_status();
+                //check_status();
                 return response == "RDK_API";
             }
             else

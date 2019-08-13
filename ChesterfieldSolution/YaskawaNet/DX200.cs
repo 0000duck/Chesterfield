@@ -386,6 +386,7 @@ namespace YaskawaNet
         private short _toolNumber = 0;
 
         private volatile bool _jogRunning = false;
+        private volatile bool _isBusy = false;
 
         #endregion
 
@@ -1924,34 +1925,40 @@ namespace YaskawaNet
         {
             RobotFunctionReturnType_2 returnValue = RobotFunctionReturnType_2.Other;
             double[] joints = new double[6] { 0, 0, 0, 0, 0, 0 };
+            int _waitingTime = 0;
 
             _jogRunning = true;
-            joints = ActualRobotJointPosition.RobotPositions;
+
+            //get actual robot position
+            for (int i = 0; i < joints.Length; i++)
+            {
+                joints[i] = ReportedRobotJointPosition[i];
+            }
+
+            _waitingTime = (speed != 0) ? (int)((Math.Abs(_stepJogging / speed) * 1000) / 2.0) : 1000;
 
             try
             {
                 Task.Run(() =>
                 {
-                    while (_jogRunning)
+                    //while (_jogRunning)
+                    //{
+                    #region
+                    if (speed > 0)
                     {
-                        #region
-                        if (speed > 0)
-                        {
-                            joints[jointIndex] += _stepJogging;
-                        }
-                        if (speed < 0)
-                        {
-                            joints[jointIndex] -= _stepJogging;
-                        }
-
-                        if (!_roboDKRobot.Busy())
-                        {
-                            _roboDKRobot.MoveJ(joints, MOVE_BLOCKING);
-                        }
-
-                        Thread.Sleep(1000);
-                        #endregion
+                        joints[jointIndex] = DesiredRobotJointPosition.JointsLimits[jointIndex][1];
                     }
+                    if (speed < 0)
+                    {
+                        joints[jointIndex] = DesiredRobotJointPosition.JointsLimits[jointIndex][0];
+                    }
+
+                    _roboDKRobot.MoveJ(joints, MOVE_BLOCKING);
+
+                    //Thread.Sleep(_waitingTime);
+
+                    #endregion
+                    //}
                 });
             }
             catch (Exception ex)
@@ -1971,7 +1978,8 @@ namespace YaskawaNet
 
             try
             {
-                _jogRunning = false;
+                //_jogRunning = false;
+                _roboDKRobot.Stop();
             }
             catch (Exception ex)
             {
@@ -2274,6 +2282,8 @@ namespace YaskawaNet
         RoboDK RDK = null;
         // Keep the ROBOT item as a global variable
         IItem _roboDKRobot = null;
+        IItem _roboDKLinearTrack = null;
+        IItem _roboDKTurnTable = null;
         // Define if the robot movements will be blocking
         const bool MOVE_BLOCKING = false;
         #endregion
@@ -2330,12 +2340,17 @@ namespace YaskawaNet
                 // select robot among available robots
                 //ROBOT = RL.getItem("ABB IRB120", ITEM_TYPE_ROBOT); // select by name
                 //ITEM = RL.ItemUserPick("Select an item"); // Select any item in the station
-                _roboDKRobot = RDK.ItemUserPick("Select a robot", ItemType.Robot);
+                _roboDKRobot = RDK.GetItemByName("Motoman MH24", ItemType.Robot);
+                _roboDKLinearTrack = RDK.GetItemByName("ABB IRBT 6004 Standard 3.5m Base", ItemType.Frame);
+                _roboDKTurnTable = RDK.GetItemByName("ABB IRBP L2000 L4000 Base", ItemType.Frame);
                 if (_roboDKRobot.Valid())
                 {
                     // This will create a new communication link (another instance of the RoboDK API), this is useful if we are moving 2 robots at the same time. 
                     //_roboDKRobot.NewLink();
                     string _robotName = _roboDKRobot.Name();
+                    string _robotLinearTrackName = _roboDKLinearTrack.Name();
+                    string _robotTurnTableName = _roboDKTurnTable.Name();
+
                 }
                 else
                 {
@@ -2492,6 +2507,7 @@ namespace YaskawaNet
             {
                 if (run == true)
                 {
+                    #region
                     RDK = new RoboDK();
 
                     // Check if RoboDK started properly
@@ -2505,7 +2521,8 @@ namespace YaskawaNet
 
                     ShowRoboDKForm();
 
-                    _statusTimer.Change(0, 100); //enable timer
+                    _statusTimer.Change(0, 100); //enable timer 
+                    #endregion
                 }
                 else
                 {
