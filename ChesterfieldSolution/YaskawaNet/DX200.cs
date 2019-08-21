@@ -86,7 +86,7 @@ namespace YaskawaNet
             get;
             set;
         }
-        RobotPosition DesiredRobotPosition
+        RobotPosition DesiredRobotTCPPosition
         {
             get;
             set;
@@ -139,12 +139,13 @@ namespace YaskawaNet
             get;
             set;
         }
-        double[] ReportedRobotJointPosition
+
+        double[] ReportedRobotJointPositionArray
         {
             get;
             set;
         }
-        double[] ReportedRobotCartesianPosition
+        double[] ReportedRobotTCPPositionArray
         {
             get;
             set;
@@ -202,10 +203,15 @@ namespace YaskawaNet
         short JointMove(double speed);
         short BeginMove(double speed);
         short JointJogMove(int joint, double speed);
+        short JointAbsoluteMove(int jointIndex, double speed);
+        short TCPJogMove(int tcpIndex, double speed);
+        short TCPAbsoluteMove(int tcpIndex, double speed);
         short JointJogHold();
 
         void SelectRoboDKRobot();
         void RoboDKSimulatorRun(bool run);
+
+        bool IsInMotion(int axis);
 
         #endregion
     }
@@ -321,8 +327,8 @@ namespace YaskawaNet
         System.Threading.Timer _getPositionsTimer = null;
         readonly object _lockGetPositionsTimer = new object();
 
-        private int _statusTimerInterval = 50;
-        private int _getPositionsTimerInterval = 50;
+        private int _statusTimerInterval = 100;
+        private int _getPositionsTimerInterval = 100;
         #endregion
 
         private short _oldStatusD1 = -1;
@@ -347,13 +353,15 @@ namespace YaskawaNet
         private RobotPositionVariable _reportedRobotPositionVariable = new RobotPositionVariable();
 
         private RobotPosition _actualRobotPosition = new RobotPosition();
-        private RobotPosition _desiredRobotPosition = new RobotPosition();
+        private RobotPosition _desiredRobotTCPPosition = new RobotPosition();
         private RobotPosition _reportedRobotPosition = new RobotPosition();
 
         private RobotPosition _actualRobotJointPosition = new RobotPosition();
         private volatile RobotPosition _desiredRobotJointPosition = new RobotPosition();
-        private volatile double[] _reportedRobotJointPosition = new double[12];
-        private volatile double[] _reportedRobotCartesianPosition = new double[6];
+
+        private volatile double[] _reportedRobotJointPositionArray = new double[12];
+        private volatile double[] _reportedRobotTCPPositionArray = new double[6];
+
         private double _reportedSJointPosition = 0.0;
 
         private RobotPosition _actualRobotIncrementPosition = new RobotPosition();
@@ -532,15 +540,15 @@ namespace YaskawaNet
                 OnNotifyPropertyChanged();
             }
         }
-        public RobotPosition DesiredRobotPosition
+        public RobotPosition DesiredRobotTCPPosition
         {
             get
             {
-                return _desiredRobotPosition;
+                return _desiredRobotTCPPosition;
             }
             set
             {
-                _desiredRobotPosition = value;
+                _desiredRobotTCPPosition = value;
                 OnNotifyPropertyChanged();
             }
         }
@@ -663,38 +671,39 @@ namespace YaskawaNet
                 }
             }
         }
-        public double[] ReportedRobotJointPosition
+
+        public double[] ReportedRobotJointPositionArray
         {
             get
             {
                 lock (_reportedRobotJointPositionLocker)
                 {
-                    return _reportedRobotJointPosition;
+                    return _reportedRobotJointPositionArray;
                 }
             }
             set
             {
                 lock (_reportedRobotJointPositionLocker)
                 {
-                    _reportedRobotJointPosition = value;
+                    _reportedRobotJointPositionArray = value;
                     OnNotifyPropertyChanged();
                 }
             }
         }
-        public double[] ReportedRobotCartesianPosition
+        public double[] ReportedRobotTCPPositionArray
         {
             get
             {
                 lock (_reportedRobotCartesianPositionLocker)
                 {
-                    return _reportedRobotCartesianPosition;
+                    return _reportedRobotTCPPositionArray;
                 }
             }
             set
             {
                 lock (_reportedRobotCartesianPositionLocker)
                 {
-                    _reportedRobotCartesianPosition = value;
+                    _reportedRobotTCPPositionArray = value;
                     OnNotifyPropertyChanged();
                 }
             }
@@ -794,7 +803,7 @@ namespace YaskawaNet
                 if (_autoStatusUpdate)
                 {
                     //** Initialize status timer **
-                    _statusTimer.Change(0, 500); //enable timer
+                    _statusTimer.Change(0, 100); //enable timer
                 }
                 else
                 {
@@ -913,8 +922,8 @@ namespace YaskawaNet
                     returnValue = Motocom.BscConnect(_robotHandler);
                     if (returnValue > 0)
                     {
-                        _statusTimer.Change(0, 50); //enable timer
-                        _getPositionsTimer.Change(0, 50); //enable timer
+                        _statusTimer.Change(0, 100); //enable timer
+                        _getPositionsTimer.Change(0, 100); //enable timer
                     }
                 }
             }
@@ -986,7 +995,7 @@ namespace YaskawaNet
                 ActualRobotSpeed = 0.0;
                 ActualMode = RobotModeType.TEACH;
                 ActualReferenceFrame = RobotFrameType.Base;
-                DesiredRobotPosition.RobotPositions.Initialize();
+                DesiredRobotTCPPosition.RobotPositions.Initialize();
                 DesiredRobotIncrementPosition.RobotPositions.Initialize();
             }
             catch (Exception ex)
@@ -1745,6 +1754,27 @@ namespace YaskawaNet
             }
             return ret;
         }
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="axis"></param>
+        /// <returns></returns>
+        public bool IsInMotion(int axis)
+        {
+            bool returnValue = false;
+
+            try
+            {
+                returnValue = (axis == 0) ? ActualRobotJointPosition.SAxisInMotion : false;
+            }
+            catch (Exception ex)
+            {
+                returnValue = false;
+                DiagnosticException.ExceptionHandler(ex.Message);
+            }
+
+            return returnValue;
+        }
 
         #region Movement
         /// <summary>
@@ -1932,7 +1962,7 @@ namespace YaskawaNet
             //get actual robot position
             for (int i = 0; i < joints.Length; i++)
             {
-                joints[i] = ReportedRobotJointPosition[i];
+                joints[i] = ReportedRobotJointPositionArray[i];
             }
 
             _waitingTime = (speed != 0) ? (int)((Math.Abs(_stepJogging / speed) * 1000) / 2.0) : 1000;
@@ -1960,6 +1990,178 @@ namespace YaskawaNet
                     #endregion
                     //}
                 });
+            }
+            catch (Exception ex)
+            {
+                DiagnosticException.ExceptionHandler(ex.Message);
+            }
+
+            return (short)returnValue;
+        }
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="jointIndex"></param>
+        /// <param name="speed"></param>
+        /// <returns></returns>
+        public short JointAbsoluteMove(int jointIndex, double speed)
+        {
+            RobotFunctionReturnType_2 returnValue = RobotFunctionReturnType_2.Other;
+            double[] joints = new double[6] { 0, 0, 0, 0, 0, 0 };
+
+            //get actual robot position
+            for (int i = 0; i < joints.Length; i++)
+            {
+                joints[i] = ReportedRobotJointPositionArray[i];
+            }
+
+            try
+            {
+                #region
+
+                joints[jointIndex] = DesiredRobotJointPosition.RobotPositions[jointIndex];
+
+                _roboDKRobot.MoveJ(joints, MOVE_BLOCKING);
+
+                #endregion
+            }
+            catch (Exception ex)
+            {
+                DiagnosticException.ExceptionHandler(ex.Message);
+            }
+
+            return (short)returnValue;
+        }
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="jointIndex"></param>
+        /// <param name="speed"></param>
+        /// <returns></returns>
+        public short TCPJogMove(int tcpIndex, double speed)
+        {
+            RobotFunctionReturnType_2 returnValue = RobotFunctionReturnType_2.Other;
+            double[] tcpAxes = new double[6] { 0, 0, 0, 0, 0, 0 };
+
+            //get actual robot position
+            for (int i = 0; i < tcpAxes.Length; i++)
+            {
+                tcpAxes[i] = ReportedRobotTCPPositionArray[i];
+            }
+
+            try
+            {
+                #region
+
+                double[] move_xyzwpr = new double[6] { 0, 0, 0, 0, 0, 0 };
+
+                if (speed > 0)
+                {
+                    tcpAxes[tcpIndex] = 1500;
+                    move_xyzwpr[tcpIndex] = 50;
+                }
+                if (speed < 0)
+                {
+                    tcpAxes[tcpIndex] = -1500;
+                    move_xyzwpr[tcpIndex] = -50;
+                }
+
+                Mat movement_pose = Mat.FromTxyzRxyz(move_xyzwpr);
+
+                // the the current position of the robot (as a 4x4 matrix)
+                Mat robot_pose = _roboDKRobot.Pose();
+
+                // Calculate the new position of the robot
+                Mat new_robot_pose;
+                //bool is_TCP_relative_move = rad_Move_wrt_Tool.Checked;
+                //if (is_TCP_relative_move)
+                //{
+                //    // if the movement is relative to the TCP we must POST MULTIPLY the movement
+                //    new_robot_pose = robot_pose * movement_pose;
+                //}
+                //else
+                //{
+                // if the movement is relative to the reference frame we must PRE MULTIPLY the XYZ translation:
+                // new_robot_pose = movement_pose * robot_pose;
+                // Note: Rotation applies from the robot axes.
+
+                Mat transformation_axes = new Mat(robot_pose);
+                transformation_axes.setPos(0, 0, 0);
+                Mat movement_pose_aligned = transformation_axes.inv() * movement_pose * transformation_axes;
+                new_robot_pose = robot_pose * movement_pose_aligned;
+                //}
+
+                // Then, we can do the movement:
+
+                _roboDKRobot.MoveJ(new_robot_pose, MOVE_BLOCKING);
+
+                #endregion
+            }
+            catch (Exception ex)
+            {
+                DiagnosticException.ExceptionHandler(ex.Message);
+            }
+
+            return (short)returnValue;
+        }
+        public short TCPAbsoluteMove(int tcpIndex, double speed)
+        {
+            RobotFunctionReturnType_2 returnValue = RobotFunctionReturnType_2.Other;
+            double[] tcpAxes = new double[6] { 0, 0, 0, 0, 0, 0 };
+
+            //get actual robot position
+            for (int i = 0; i < tcpAxes.Length; i++)
+            {
+                tcpAxes[i] = ReportedRobotTCPPositionArray[i];
+            }
+
+            try
+            {
+                #region
+
+                double[] move_xyzwpr = new double[6] { 0, 0, 0, 0, 0, 0 };
+
+                if (speed > 0)
+                {
+                    tcpAxes[tcpIndex] = 1500;
+                    move_xyzwpr[tcpIndex] = 50;
+                }
+                if (speed < 0)
+                {
+                    tcpAxes[tcpIndex] = -1500;
+                    move_xyzwpr[tcpIndex] = -50;
+                }
+
+                Mat movement_pose = Mat.FromTxyzRxyz(move_xyzwpr);
+
+                // the the current position of the robot (as a 4x4 matrix)
+                Mat robot_pose = _roboDKRobot.Pose();
+
+                // Calculate the new position of the robot
+                Mat new_robot_pose;
+                //bool is_TCP_relative_move = rad_Move_wrt_Tool.Checked;
+                //if (is_TCP_relative_move)
+                //{
+                //    // if the movement is relative to the TCP we must POST MULTIPLY the movement
+                //    new_robot_pose = robot_pose * movement_pose;
+                //}
+                //else
+                //{
+                // if the movement is relative to the reference frame we must PRE MULTIPLY the XYZ translation:
+                // new_robot_pose = movement_pose * robot_pose;
+                // Note: Rotation applies from the robot axes.
+
+                Mat transformation_axes = new Mat(robot_pose);
+                transformation_axes.setPos(0, 0, 0);
+                Mat movement_pose_aligned = transformation_axes.inv() * movement_pose * transformation_axes;
+                new_robot_pose = robot_pose * movement_pose_aligned;
+                //}
+
+                // Then, we can do the movement:
+
+                _roboDKRobot.MoveJ(new_robot_pose, MOVE_BLOCKING);
+
+                #endregion
             }
             catch (Exception ex)
             {
@@ -2225,11 +2427,12 @@ namespace YaskawaNet
                     {
                         for (int index = 0; index < joints.Length; index++)
                         {
-                            ReportedRobotJointPosition[index] = joints[index];
+                            ReportedRobotJointPositionArray[index] = joints[index];
                             if (index == 0) ActualRobotJointPosition.SAxis = joints[index];
                         }
 
-                        Debug.WriteLine("SJoint in motion: " + ((ActualRobotJointPosition.SAxisInMotion) ? "True" : "False"));
+                        Debug.WriteLine("C#---SJoint in motion: " + ((ActualRobotJointPosition.SAxisInMotion) ? "True" : "False"));
+                        //Debug.WriteLine("C#---SJoint position: " + ActualRobotJointPosition.SAxis);
                     }
 
                     pose = _roboDKRobot.Pose();
@@ -2237,7 +2440,7 @@ namespace YaskawaNet
                     if (pose != null)
                     {
                         // update the pose as xyzwpr
-                        ReportedRobotCartesianPosition = pose.ToTxyzRxyz();
+                        ReportedRobotTCPPositionArray = pose.ToTxyzRxyz();
                     }
 
                     //RDK.FlushReceiveBuffer();
@@ -2411,7 +2614,7 @@ namespace YaskawaNet
 
                 for (int index = 0; index < move_xyzwpr.Length; index++)
                 {
-                    move_xyzwpr[index] = _desiredRobotPosition.RobotPositions[index];
+                    move_xyzwpr[index] = _desiredRobotTCPPosition.RobotPositions[index];
                 }
 
                 Mat movement_pose = Mat.FromTxyzRxyz(move_xyzwpr);
