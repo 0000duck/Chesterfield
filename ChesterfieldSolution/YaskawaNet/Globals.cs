@@ -55,8 +55,16 @@ namespace YaskawaNet
     [ComVisible(true)]
     public enum RobotMotionType : short
     {
-        Joint = 1,
-        Linear = 2
+        NONE = -1,
+        Relative,
+        Jog,
+        Absolute,
+        Continuous,
+        RelativeArray,
+        JogArray,
+        AbsoluteArray,
+        JointMotion,
+        LinearMotion
     }
     [ComVisible(true)]
     public enum RobotMoveSpeedSelectionType : short

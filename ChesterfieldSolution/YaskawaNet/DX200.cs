@@ -204,6 +204,7 @@ namespace YaskawaNet
         short BeginMove(double speed);
         short JointJogMove(int joint, double speed);
         short JointAbsoluteMove(int jointIndex, double speed);
+        short JointRelativeMove(int jointIndex, double speed);
         short TCPJogMove(int tcpIndex, double speed);
         short TCPAbsoluteMove(int tcpIndex, double speed);
         short JointJogHold();
@@ -313,8 +314,8 @@ namespace YaskawaNet
         };
         private Dictionary<RobotMotionType, string> _motionDictionary = new Dictionary<RobotMotionType, string>()
         {
-            {RobotMotionType.Joint,"MOVJ"},
-            {RobotMotionType.Linear,"MOVL"}
+            {RobotMotionType.JointMotion,"MOVJ"},
+            {RobotMotionType.LinearMotion,"MOVL"}
         };
 
         private Configuration _actualRConf = new Configuration(0);
@@ -381,7 +382,7 @@ namespace YaskawaNet
         #endregion
 
         RobotMoveSpeedSelectionType _actualMoveSpeedSelection = RobotMoveSpeedSelectionType.ControlPoint;
-        RobotMotionType _actualMotionType = RobotMotionType.Linear;
+        RobotMotionType _actualMotionType = RobotMotionType.LinearMotion;
 
         UserCoordinateSystem _userCoordinateSystem_1 = new UserCoordinateSystem();
 
@@ -2020,6 +2021,40 @@ namespace YaskawaNet
                 #region
 
                 joints[jointIndex] = DesiredRobotJointPosition.RobotPositions[jointIndex];
+
+                _roboDKRobot.MoveJ(joints, MOVE_BLOCKING);
+
+                #endregion
+            }
+            catch (Exception ex)
+            {
+                DiagnosticException.ExceptionHandler(ex.Message);
+            }
+
+            return (short)returnValue;
+        }
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="jointIndex"></param>
+        /// <param name="speed"></param>
+        /// <returns></returns>
+        public short JointRelativeMove(int jointIndex, double speed)
+        {
+            RobotFunctionReturnType_2 returnValue = RobotFunctionReturnType_2.Other;
+            double[] joints = new double[6] { 0, 0, 0, 0, 0, 0 };
+
+            //get actual robot position
+            for (int i = 0; i < joints.Length; i++)
+            {
+                joints[i] = ReportedRobotJointPositionArray[i];
+            }
+
+            try
+            {
+                #region
+
+                joints[jointIndex] += DesiredRobotJointPosition.RobotPositions[jointIndex];
 
                 _roboDKRobot.MoveJ(joints, MOVE_BLOCKING);
 
