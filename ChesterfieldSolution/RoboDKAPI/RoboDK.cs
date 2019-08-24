@@ -60,6 +60,9 @@ using RoboDk.API.Model;
 
 namespace RoboDk.API
 {
+    //TODO:set diagnostic exception handler for all functions
+    //TODO:check why robodk sometimes disconnect
+
     /// <summary>
     ///     This class is the link to allows to create macros and automate Robodk.
     ///     Any interaction is made through \"items\" (IItem() objects). An item is an object in the

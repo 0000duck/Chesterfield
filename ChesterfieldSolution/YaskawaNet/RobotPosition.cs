@@ -580,4 +580,26 @@ namespace YaskawaNet
         }
         #endregion
     }
+    [ComVisible(true)]
+    [StructLayout(LayoutKind.Sequential, Pack = 1, Size = 714)]
+    public struct JointsPositions
+    {
+        double sJoint;
+        double lJoint;
+        double uJoint;
+        double rJoint;
+        double bJoint;
+        double tJoint;
+    }
+    [ComVisible(true)]
+    [StructLayout(LayoutKind.Sequential, Pack = 1, Size = 714)]
+    public struct TCPPositions
+    {
+        double xJoint;
+        double yJoint;
+        double zJoint;
+        double rxJoint;
+        double ryJoint;
+        double rzJoint;
+    }
 }

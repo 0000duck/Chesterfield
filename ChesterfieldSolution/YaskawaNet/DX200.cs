@@ -222,6 +222,7 @@ namespace YaskawaNet
     [ComVisible(true)]
     public class DX200 : IDX200, INotifyPropertyChanged
     {
+        //TODO:set diagnostic exception hadler for all functions
         #region Events
         public event PropertyChangedEventHandler PropertyChanged;
         #endregion
@@ -391,6 +392,8 @@ namespace YaskawaNet
         private double _actualRobotSpeed = 0.0;
         private double _desiredRobotSpeed = 0.0;
         private double _reportedRobotSpeed = 0.0;
+
+        //TODO:create speed array for joints and tcp
 
         private short _toolNumber = 0;
 
