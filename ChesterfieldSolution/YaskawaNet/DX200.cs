@@ -44,6 +44,13 @@ namespace YaskawaNet
             get;
             set;
         }
+        bool UseRoboDKSimulator
+        {
+            [return: MarshalAs(UnmanagedType.Bool)]
+            get;
+            [param: MarshalAs(UnmanagedType.Bool)]
+            set;
+        }
         RobotFrameType ActualReferenceFrame
         {
             get;
@@ -81,7 +88,7 @@ namespace YaskawaNet
             set;
         }
 
-        RobotPosition ActualRobotPosition
+        RobotPosition ActualRobotTCPPosition
         {
             get;
             set;
@@ -91,39 +98,7 @@ namespace YaskawaNet
             get;
             set;
         }
-        RobotPosition ReportedRobotPosition
-        {
-            get;
-            set;
-        }
-
-        RobotPosition ActualRobotHomePosition
-        {
-            get;
-            set;
-        }
-        RobotPosition DesiredRobotHomePosition
-        {
-            get;
-            set;
-        }
-        RobotPosition ReportedRobotHomePosition
-        {
-            get;
-            set;
-        }
-
-        RobotPosition ActualRobotParkPosition
-        {
-            get;
-            set;
-        }
-        RobotPosition DesiredRobotParkPosition
-        {
-            get;
-            set;
-        }
-        RobotPosition ReportedRobotParkPosition
+        RobotPosition ReportedRobotTCPPosition
         {
             get;
             set;
@@ -139,19 +114,7 @@ namespace YaskawaNet
             get;
             set;
         }
-
-        double[] ReportedRobotJointPositionArray
-        {
-            get;
-            set;
-        }
-        double[] ReportedRobotTCPPositionArray
-        {
-            get;
-            set;
-        }
-
-        double ReportedSJointPosition
+        RobotPosition ReportedRobotJointPosition
         {
             get;
             set;
@@ -191,6 +154,12 @@ namespace YaskawaNet
             set;
         }
 
+        RobotPosition[] PositionTrajectory
+        {
+            get;
+            set;
+        }
+
         #endregion
 
         #region Methods
@@ -205,13 +174,13 @@ namespace YaskawaNet
         short JointJogMove(int joint, double speed);
         short JointAbsoluteMove(int jointIndex, double speed);
         short JointRelativeMove(int jointIndex, double speed);
+        short JointHomeMove(int jointIndex, double speed);
         short TCPJogMove(int tcpIndex, double speed);
         short TCPAbsoluteMove(int tcpIndex, double speed);
+        short TCPRelativeMove(int tcpIndex, double speed);
         short JointJogHold();
 
-        void SelectRoboDKRobot();
-        void RoboDKSimulatorRun(bool run);
-
+        [return: MarshalAs(UnmanagedType.Bool)]
         bool IsInMotion(int axis);
 
         #endregion
@@ -230,6 +199,7 @@ namespace YaskawaNet
         #region Fields
 
         private short _robotHandler = -1;
+        private bool _useRoboDKSimulator = false;
         private string _commDir;
         private string _path;
         private string _ipAddress = "";
@@ -354,32 +324,21 @@ namespace YaskawaNet
         private RobotPositionVariable _desiredRobotPositionVariable = new RobotPositionVariable();
         private RobotPositionVariable _reportedRobotPositionVariable = new RobotPositionVariable();
 
-        private RobotPosition _actualRobotPosition = new RobotPosition();
-        private RobotPosition _desiredRobotTCPPosition = new RobotPosition();
-        private RobotPosition _reportedRobotPosition = new RobotPosition();
+        private volatile RobotPosition _actualRobotTCPPosition = new RobotPosition();
+        private volatile RobotPosition _desiredRobotTCPPosition = new RobotPosition();
+        private volatile RobotPosition _reportedRobotTCPPosition = new RobotPosition();
 
-        private RobotPosition _actualRobotJointPosition = new RobotPosition();
+        private volatile RobotPosition _actualRobotJointPosition = new RobotPosition();
         private volatile RobotPosition _desiredRobotJointPosition = new RobotPosition();
-
-        private volatile double[] _reportedRobotJointPositionArray = new double[12];
-        private volatile double[] _reportedRobotTCPPositionArray = new double[6];
-
-        private double _reportedSJointPosition = 0.0;
+        private volatile RobotPosition _reportedRobotJointPosition = new RobotPosition();
 
         private RobotPosition _actualRobotIncrementPosition = new RobotPosition();
         private RobotPosition _desiredRobotIncrementPosition = new RobotPosition();
         private RobotPosition _reportedRobotIncrementPosition = new RobotPosition();
 
-        private RobotPosition _actualRobotHomePosition = new RobotPosition();
-        private RobotPosition _desiredRobotHomePosition = new RobotPosition();
-        private RobotPosition _reportedRobotHomePosition = new RobotPosition();
-
-        private RobotPosition _actualRobotParkPosition = new RobotPosition();
-        private RobotPosition _desiredRobotParkPosition = new RobotPosition();
-        private RobotPosition _reportedRobotParkPosition = new RobotPosition();
-
         private ObservableCollection<RobotPositionVariable> _variableTrajectory = new ObservableCollection<RobotPositionVariable>();
-        private ObservableCollection<RobotPosition> _positionTrajectory = new ObservableCollection<RobotPosition>();
+        private RobotPosition[] _positionTrajectory = new RobotPosition[5];
+
         #endregion
 
         RobotMoveSpeedSelectionType _actualMoveSpeedSelection = RobotMoveSpeedSelectionType.ControlPoint;
@@ -440,6 +399,20 @@ namespace YaskawaNet
                 OnNotifyPropertyChanged();
             }
         }
+
+        public bool UseRoboDKSimulator
+        {
+            get
+            {
+                return _useRoboDKSimulator;
+            }
+            set
+            {
+                _useRoboDKSimulator = value;
+                RoboDKSimulatorRun(_useRoboDKSimulator);
+            }
+        }
+
         public RobotFrameType ActualReferenceFrame
         {
             get
@@ -532,15 +505,15 @@ namespace YaskawaNet
             }
         }
 
-        public RobotPosition ActualRobotPosition
+        public RobotPosition ActualRobotTCPPosition
         {
             get
             {
-                return _actualRobotPosition;
+                return _actualRobotTCPPosition;
             }
             set
             {
-                _actualRobotPosition = value;
+                _actualRobotTCPPosition = value;
                 OnNotifyPropertyChanged();
             }
         }
@@ -556,89 +529,15 @@ namespace YaskawaNet
                 OnNotifyPropertyChanged();
             }
         }
-        public RobotPosition ReportedRobotPosition
+        public RobotPosition ReportedRobotTCPPosition
         {
             get
             {
-                return _reportedRobotPosition;
+                return _reportedRobotTCPPosition;
             }
             set
             {
-                _reportedRobotPosition = value;
-                OnNotifyPropertyChanged();
-            }
-        }
-
-        public RobotPosition ActualRobotHomePosition
-        {
-            get
-            {
-                return _actualRobotHomePosition;
-            }
-            set
-            {
-                _actualRobotHomePosition = value;
-                OnNotifyPropertyChanged();
-            }
-        }
-        public RobotPosition DesiredRobotHomePosition
-        {
-            get
-            {
-                return _desiredRobotHomePosition;
-            }
-            set
-            {
-                _desiredRobotHomePosition = value;
-                OnNotifyPropertyChanged();
-            }
-        }
-        public RobotPosition ReportedRobotHomePosition
-        {
-            get
-            {
-                return _reportedRobotHomePosition;
-            }
-            set
-            {
-                _reportedRobotHomePosition = value;
-                OnNotifyPropertyChanged();
-            }
-        }
-
-        public RobotPosition ActualRobotParkPosition
-        {
-            get
-            {
-                return _actualRobotParkPosition;
-            }
-            set
-            {
-                _actualRobotParkPosition = value;
-                OnNotifyPropertyChanged();
-            }
-        }
-        public RobotPosition DesiredRobotParkPosition
-        {
-            get
-            {
-                return _desiredRobotParkPosition;
-            }
-            set
-            {
-                _desiredRobotParkPosition = value;
-                OnNotifyPropertyChanged();
-            }
-        }
-        public RobotPosition ReportedRobotParkPosition
-        {
-            get
-            {
-                return _reportedRobotParkPosition;
-            }
-            set
-            {
-                _reportedRobotParkPosition = value;
+                _reportedRobotTCPPosition = value;
                 OnNotifyPropertyChanged();
             }
         }
@@ -675,58 +574,20 @@ namespace YaskawaNet
                 }
             }
         }
-
-        public double[] ReportedRobotJointPositionArray
+        public RobotPosition ReportedRobotJointPosition
         {
             get
             {
                 lock (_reportedRobotJointPositionLocker)
                 {
-                    return _reportedRobotJointPositionArray;
+                    return _reportedRobotJointPosition;
                 }
             }
             set
             {
                 lock (_reportedRobotJointPositionLocker)
                 {
-                    _reportedRobotJointPositionArray = value;
-                    OnNotifyPropertyChanged();
-                }
-            }
-        }
-        public double[] ReportedRobotTCPPositionArray
-        {
-            get
-            {
-                lock (_reportedRobotCartesianPositionLocker)
-                {
-                    return _reportedRobotTCPPositionArray;
-                }
-            }
-            set
-            {
-                lock (_reportedRobotCartesianPositionLocker)
-                {
-                    _reportedRobotTCPPositionArray = value;
-                    OnNotifyPropertyChanged();
-                }
-            }
-        }
-
-        public double ReportedSJointPosition
-        {
-            get
-            {
-                lock (_reportedSJointPositionLocker)
-                {
-                    return _reportedSJointPosition;
-                }
-            }
-            set
-            {
-                lock (_reportedSJointPositionLocker)
-                {
-                    _reportedSJointPosition = value;
+                    _reportedRobotJointPosition = value;
                     OnNotifyPropertyChanged();
                 }
             }
@@ -769,6 +630,18 @@ namespace YaskawaNet
             }
         }
 
+        public RobotPosition[] PositionTrajectory
+        {
+            get
+            {
+                return _positionTrajectory;
+            }
+            set
+            {
+                _positionTrajectory = value;
+            }
+        }
+       
         public RobotMoveSpeedSelectionType ActualMoveSpeedSelection
         {
             get
@@ -999,8 +872,37 @@ namespace YaskawaNet
                 ActualRobotSpeed = 0.0;
                 ActualMode = RobotModeType.TEACH;
                 ActualReferenceFrame = RobotFrameType.Base;
-                DesiredRobotTCPPosition.RobotPositions.Initialize();
-                DesiredRobotIncrementPosition.RobotPositions.Initialize();
+
+                ActualRobotJointPosition.Limits = DesiredRobotJointPosition.Limits = new double[12][]
+                {
+                    new double [2]{ -180.0,180.0 } ,
+                    new double [2]{-105.0,155.0 } ,
+                    new double [2]{-170.0,240.0 } ,
+                    new double [2]{-200.0,200.0 } ,
+                    new double [2]{-150.0,150.0 } ,
+                    new double [2]{-455.0,455.0 },
+                    new double [2]{0,0},
+                    new double [2]{0,0},
+                    new double [2]{0,0},
+                    new double [2]{0,0},
+                    new double [2]{0,0},
+                    new double [2]{0,0}
+                };
+                ActualRobotTCPPosition.Limits = DesiredRobotTCPPosition.Limits = new double[12][]
+                {
+                    new double [2]{ -500,500  } ,
+                    new double [2]{ -500, 500 } ,
+                    new double [2]{ -500, 500 } ,
+                    new double [2]{ -500, 500 } ,
+                    new double [2]{ -500, 500 } ,
+                    new double [2]{ -500,500  },
+                    new double [2]{0,0},
+                    new double [2]{0,0},
+                    new double [2]{0,0},
+                    new double [2]{0,0},
+                    new double [2]{0,0},
+                    new double [2]{0,0}
+                };
             }
             catch (Exception ex)
             {
@@ -1189,7 +1091,7 @@ namespace YaskawaNet
 
                     if (returnValue == 0)
                     {
-                        ReportedRobotPosition.RobotPositions = _currentRobotPosition;
+                        ReportedRobotTCPPosition.RobotPositions = _currentRobotPosition;
                     }
                 }
             }
@@ -1223,7 +1125,7 @@ namespace YaskawaNet
 
                     if (returnValue == 0)
                     {
-                        ReportedRobotPosition.RobotPositions = _currentRobotPosition;
+                        ReportedRobotTCPPosition.RobotPositions = _currentRobotPosition;
                     }
                 }
             }
@@ -1763,13 +1665,14 @@ namespace YaskawaNet
         /// </summary>
         /// <param name="axis"></param>
         /// <returns></returns>
+        [return: MarshalAs(UnmanagedType.Bool)]
         public bool IsInMotion(int axis)
         {
             bool returnValue = false;
 
             try
             {
-                returnValue = (axis == 0) ? ActualRobotJointPosition.SAxisInMotion : false;
+                returnValue = ActualRobotJointPosition.InMotionArray[axis];
             }
             catch (Exception ex)
             {
@@ -1959,41 +1862,31 @@ namespace YaskawaNet
         {
             RobotFunctionReturnType_2 returnValue = RobotFunctionReturnType_2.Other;
             double[] joints = new double[6] { 0, 0, 0, 0, 0, 0 };
-            int _waitingTime = 0;
-
-            _jogRunning = true;
 
             //get actual robot position
             for (int i = 0; i < joints.Length; i++)
             {
-                joints[i] = ReportedRobotJointPositionArray[i];
+                joints[i] = ReportedRobotJointPosition.RobotPositions[i];
             }
-
-            _waitingTime = (speed != 0) ? (int)((Math.Abs(_stepJogging / speed) * 1000) / 2.0) : 1000;
 
             try
             {
-                Task.Run(() =>
+                if (_useRoboDKSimulator)
                 {
-                    //while (_jogRunning)
-                    //{
                     #region
                     if (speed > 0)
                     {
-                        joints[jointIndex] = DesiredRobotJointPosition.JointsLimits[jointIndex][1];
+                        joints[jointIndex] = DesiredRobotJointPosition.Limits[jointIndex][1];
                     }
                     if (speed < 0)
                     {
-                        joints[jointIndex] = DesiredRobotJointPosition.JointsLimits[jointIndex][0];
+                        joints[jointIndex] = DesiredRobotJointPosition.Limits[jointIndex][0];
                     }
 
                     _roboDKRobot.MoveJ(joints, MOVE_BLOCKING);
 
-                    //Thread.Sleep(_waitingTime);
-
                     #endregion
-                    //}
-                });
+                }
             }
             catch (Exception ex)
             {
@@ -2016,7 +1909,7 @@ namespace YaskawaNet
             //get actual robot position
             for (int i = 0; i < joints.Length; i++)
             {
-                joints[i] = ReportedRobotJointPositionArray[i];
+                joints[i] = ReportedRobotJointPosition.RobotPositions[i];
             }
 
             try
@@ -2024,6 +1917,74 @@ namespace YaskawaNet
                 #region
 
                 joints[jointIndex] = DesiredRobotJointPosition.RobotPositions[jointIndex];
+
+                _roboDKRobot.MoveJ(joints, MOVE_BLOCKING);
+
+                #endregion
+            }
+            catch (Exception ex)
+            {
+                DiagnosticException.ExceptionHandler(ex.Message);
+            }
+
+            return (short)returnValue;
+        }
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="jointIndex"></param>
+        /// <param name="speed"></param>
+        /// <returns></returns>
+        public short JointHomeMove(int jointIndex, double speed)
+        {
+            RobotFunctionReturnType_2 returnValue = RobotFunctionReturnType_2.Other;
+            double[] joints = new double[6] { 0, 0, 0, 0, 0, 0 };
+
+            try
+            {
+                #region
+
+                //get actual robot position
+                for (int i = 0; i < joints.Length; i++)
+                {
+                    joints[i] = ReportedRobotJointPosition.RobotPositions[i];
+                }
+
+                joints[jointIndex] = DesiredRobotJointPosition.RobotHomePositions[jointIndex];
+
+                _roboDKRobot.MoveJ(joints, MOVE_BLOCKING);
+
+                #endregion
+            }
+            catch (Exception ex)
+            {
+                DiagnosticException.ExceptionHandler(ex.Message);
+            }
+
+            return (short)returnValue;
+        }
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="jointIndex"></param>
+        /// <param name="speed"></param>
+        /// <returns></returns>
+        public short JointParkMove(int jointIndex, double speed)
+        {
+            RobotFunctionReturnType_2 returnValue = RobotFunctionReturnType_2.Other;
+            double[] joints = new double[6] { 0, 0, 0, 0, 0, 0 };
+
+            try
+            {
+                #region
+
+                //get actual robot position
+                for (int i = 0; i < joints.Length; i++)
+                {
+                    joints[i] = ReportedRobotJointPosition.RobotPositions[i];
+                }
+
+                joints[jointIndex] = DesiredRobotJointPosition.RobotParkPositions[jointIndex];
 
                 _roboDKRobot.MoveJ(joints, MOVE_BLOCKING);
 
@@ -2050,7 +2011,7 @@ namespace YaskawaNet
             //get actual robot position
             for (int i = 0; i < joints.Length; i++)
             {
-                joints[i] = ReportedRobotJointPositionArray[i];
+                joints[i] = ReportedRobotJointPosition.RobotPositions[i];
             }
 
             try
@@ -2084,54 +2045,25 @@ namespace YaskawaNet
             //get actual robot position
             for (int i = 0; i < tcpAxes.Length; i++)
             {
-                tcpAxes[i] = ReportedRobotTCPPositionArray[i];
+                tcpAxes[i] = ReportedRobotTCPPosition.RobotPositions[i];
             }
 
             try
             {
                 #region
 
-                double[] move_xyzwpr = new double[6] { 0, 0, 0, 0, 0, 0 };
-
                 if (speed > 0)
                 {
-                    tcpAxes[tcpIndex] = 1500;
-                    move_xyzwpr[tcpIndex] = 50;
+                    tcpAxes[tcpIndex] = DesiredRobotTCPPosition.Limits[tcpIndex][1];
                 }
                 if (speed < 0)
                 {
-                    tcpAxes[tcpIndex] = -1500;
-                    move_xyzwpr[tcpIndex] = -50;
+                    tcpAxes[tcpIndex] = DesiredRobotTCPPosition.Limits[tcpIndex][0];
                 }
 
-                Mat movement_pose = Mat.FromTxyzRxyz(move_xyzwpr);
+                Mat movement_pose = Mat.FromTxyzRxyz(tcpAxes);
 
-                // the the current position of the robot (as a 4x4 matrix)
-                Mat robot_pose = _roboDKRobot.Pose();
-
-                // Calculate the new position of the robot
-                Mat new_robot_pose;
-                //bool is_TCP_relative_move = rad_Move_wrt_Tool.Checked;
-                //if (is_TCP_relative_move)
-                //{
-                //    // if the movement is relative to the TCP we must POST MULTIPLY the movement
-                //    new_robot_pose = robot_pose * movement_pose;
-                //}
-                //else
-                //{
-                // if the movement is relative to the reference frame we must PRE MULTIPLY the XYZ translation:
-                // new_robot_pose = movement_pose * robot_pose;
-                // Note: Rotation applies from the robot axes.
-
-                Mat transformation_axes = new Mat(robot_pose);
-                transformation_axes.setPos(0, 0, 0);
-                Mat movement_pose_aligned = transformation_axes.inv() * movement_pose * transformation_axes;
-                new_robot_pose = robot_pose * movement_pose_aligned;
-                //}
-
-                // Then, we can do the movement:
-
-                _roboDKRobot.MoveJ(new_robot_pose, MOVE_BLOCKING);
+                _roboDKRobot.MoveJ(movement_pose, MOVE_BLOCKING);
 
                 #endregion
             }
@@ -2142,6 +2074,12 @@ namespace YaskawaNet
 
             return (short)returnValue;
         }
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="tcpIndex"></param>
+        /// <param name="speed"></param>
+        /// <returns></returns>
         public short TCPAbsoluteMove(int tcpIndex, double speed)
         {
             RobotFunctionReturnType_2 returnValue = RobotFunctionReturnType_2.Other;
@@ -2150,52 +2088,57 @@ namespace YaskawaNet
             //get actual robot position
             for (int i = 0; i < tcpAxes.Length; i++)
             {
-                tcpAxes[i] = ReportedRobotTCPPositionArray[i];
+                tcpAxes[i] = ReportedRobotTCPPosition.RobotPositions[i];
             }
 
             try
             {
                 #region
 
-                double[] move_xyzwpr = new double[6] { 0, 0, 0, 0, 0, 0 };
+                tcpAxes[tcpIndex] = DesiredRobotTCPPosition.RobotPositions[tcpIndex];
 
-                if (speed > 0)
-                {
-                    tcpAxes[tcpIndex] = 1500;
-                    move_xyzwpr[tcpIndex] = 50;
-                }
-                if (speed < 0)
-                {
-                    tcpAxes[tcpIndex] = -1500;
-                    move_xyzwpr[tcpIndex] = -50;
-                }
+                Mat movement_pose = Mat.FromTxyzRxyz(tcpAxes);
 
-                Mat movement_pose = Mat.FromTxyzRxyz(move_xyzwpr);
+                _roboDKRobot.MoveJ(movement_pose, MOVE_BLOCKING);
+
+                #endregion
+            }
+            catch (Exception ex)
+            {
+                DiagnosticException.ExceptionHandler(ex.Message);
+            }
+
+            return (short)returnValue;
+        }
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="tcpIndex"></param>
+        /// <param name="speed"></param>
+        /// <returns></returns>
+        public short TCPRelativeMove(int tcpIndex, double speed)
+        {
+            RobotFunctionReturnType_2 returnValue = RobotFunctionReturnType_2.Other;
+            double[] tcpAxes = new double[6] { 0, 0, 0, 0, 0, 0 };
+
+            try
+            {
+                #region
+
+                tcpAxes[tcpIndex] = DesiredRobotTCPPosition.RobotPositions[tcpIndex];
+
+                Mat movement_pose = Mat.FromTxyzRxyz(tcpAxes);
 
                 // the the current position of the robot (as a 4x4 matrix)
                 Mat robot_pose = _roboDKRobot.Pose();
 
                 // Calculate the new position of the robot
                 Mat new_robot_pose;
-                //bool is_TCP_relative_move = rad_Move_wrt_Tool.Checked;
-                //if (is_TCP_relative_move)
-                //{
-                //    // if the movement is relative to the TCP we must POST MULTIPLY the movement
-                //    new_robot_pose = robot_pose * movement_pose;
-                //}
-                //else
-                //{
-                // if the movement is relative to the reference frame we must PRE MULTIPLY the XYZ translation:
-                // new_robot_pose = movement_pose * robot_pose;
-                // Note: Rotation applies from the robot axes.
 
                 Mat transformation_axes = new Mat(robot_pose);
                 transformation_axes.setPos(0, 0, 0);
                 Mat movement_pose_aligned = transformation_axes.inv() * movement_pose * transformation_axes;
                 new_robot_pose = robot_pose * movement_pose_aligned;
-                //}
-
-                // Then, we can do the movement:
 
                 _roboDKRobot.MoveJ(new_robot_pose, MOVE_BLOCKING);
 
@@ -2332,7 +2275,7 @@ namespace YaskawaNet
                 returnValue = (RobotFunctionReturnType_1)(Motocom.BscIsRobotPos(_robotHandler, frameName, isEx, ref rconf, ref toolNumber, ref positions[0]));
                 if (returnValue == RobotFunctionReturnType_1.NormalCompletion)
                 {
-                    positions.CopyTo(ActualRobotPosition.RobotPositions, 0);
+                    positions.CopyTo(ActualRobotTCPPosition.RobotPositions, 0);
                 }
             }
 
@@ -2450,27 +2393,30 @@ namespace YaskawaNet
             short d1 = 0;
             short d2 = 0;
 
-            double[] joints = new double[6] { 0, 0, 0, 0, 0, 0 };
+            double[] jointPositions = new double[12] { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+
+            double[] joints = null;
             Mat pose = null;
 
             try
             {
                 lock (_lockStatusTimer)
                 {
+                    #region
                     //UpdateStatus(ref d1, ref d2);
 
                     joints = _roboDKRobot.Joints();
 
                     if (joints != null)
                     {
+                        #region
                         for (int index = 0; index < joints.Length; index++)
                         {
-                            ReportedRobotJointPositionArray[index] = joints[index];
-                            if (index == 0) ActualRobotJointPosition.SAxis = joints[index];
+                            jointPositions[index] = joints[index];
                         }
 
-                        Debug.WriteLine("C#---SJoint in motion: " + ((ActualRobotJointPosition.SAxisInMotion) ? "True" : "False"));
-                        //Debug.WriteLine("C#---SJoint position: " + ActualRobotJointPosition.SAxis);
+                        ActualRobotJointPosition.RobotPositions = ReportedRobotJointPosition.RobotPositions = jointPositions;
+                        #endregion
                     }
 
                     pose = _roboDKRobot.Pose();
@@ -2478,10 +2424,11 @@ namespace YaskawaNet
                     if (pose != null)
                     {
                         // update the pose as xyzwpr
-                        ReportedRobotTCPPositionArray = pose.ToTxyzRxyz();
+                        ReportedRobotTCPPosition.RobotPositions = pose.ToTxyzRxyz();
                     }
 
-                    //RDK.FlushReceiveBuffer();
+                    //RDK.FlushReceiveBuffer(); 
+                    #endregion
                 }
             }
             catch (Exception ex)
