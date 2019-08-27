@@ -103,6 +103,7 @@
     <Compile Include="AlarmHistoryItem.cs" />
     <Compile Include="AlarmHistory.cs" />
     <Compile Include="Configuration.cs" />
+    <Compile Include="DX200Communication.cs" />
     <Compile Include="ErrorData.cs" />
     <Compile Include="Motocom.cs" />
     <Compile Include="RobotPositionVariable.cs" />

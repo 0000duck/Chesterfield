@@ -44,6 +44,11 @@ namespace YaskawaNet
             get;
             set;
         }
+        CommunicationStatus CommunicationStatus
+        {
+            get;
+            set;
+        }
         bool UseRoboDKSimulator
         {
             [return: MarshalAs(UnmanagedType.Bool)]
@@ -66,7 +71,7 @@ namespace YaskawaNet
             get;
             set;
         }
-        RobotStatus ActualRobotStatus
+        RobotStatusInformation ActualRobotStatus
         {
             get;
             set;
@@ -203,6 +208,7 @@ namespace YaskawaNet
         private string _commDir;
         private string _path;
         private string _ipAddress = "";
+        private CommunicationStatus _communicationStatus = new CommunicationStatus();
         private RobotFrameType _actualReferenceFrame = RobotFrameType.Base;
         private Dictionary<RobotFrameType, string> _frameDictionary = new Dictionary<RobotFrameType, string>()
         {
@@ -290,7 +296,7 @@ namespace YaskawaNet
         };
 
         private Configuration _actualRConf = new Configuration(0);
-        private RobotStatus _actualRobotStatus = new RobotStatus();
+        private RobotStatusInformation _actualRobotStatus = new RobotStatusInformation();
 
         #region Thread timers
         System.Threading.Timer _statusTimer = null;
@@ -400,6 +406,19 @@ namespace YaskawaNet
             }
         }
 
+        public CommunicationStatus CommunicationStatus
+        {
+            get
+            {
+                return _communicationStatus;
+            }
+            set
+            {
+                _communicationStatus = value;
+            }
+        }
+
+
         public bool UseRoboDKSimulator
         {
             get
@@ -437,7 +456,7 @@ namespace YaskawaNet
                 OnNotifyPropertyChanged();
             }
         }
-        public RobotStatus ActualRobotStatus
+        public RobotStatusInformation ActualRobotStatus
         {
             get
             {
@@ -641,7 +660,7 @@ namespace YaskawaNet
                 _positionTrajectory = value;
             }
         }
-       
+
         public RobotMoveSpeedSelectionType ActualMoveSpeedSelection
         {
             get
@@ -758,7 +777,9 @@ namespace YaskawaNet
                 _statusTimer = new System.Threading.Timer(StatusTimerTick, null, Timeout.Infinite, Timeout.Infinite);//timer disabled
                                                                                                                      //_statusTimer.Change(Timeout.Infinite, Timeout.Infinite);//timer disabled
                                                                                                                      //_statusTimer.Change(0, 50); //enable timer
-                _getPositionsTimer = new System.Threading.Timer(StatusTimerTick, null, Timeout.Infinite, Timeout.Infinite);//timer disabled
+                _getPositionsTimer = new System.Threading.Timer(GetPositionsTimerTick, null, Timeout.Infinite, Timeout.Infinite);//timer disabled
+
+                _statusTimer.Change(0, 100);
             }
             catch (Exception ex)
             {
@@ -977,38 +998,38 @@ namespace YaskawaNet
                 #region
                 lock (_DX200AccessLock)
                 {
-                    short ret = Motocom.BscGetStatus(_robotHandler, ref d1, ref d2);
+                    //short ret = Motocom.BscGetStatus(_robotHandler, ref d1, ref d2);
 
-                    if (ret == 0)
-                    {
-                        #region
-                        //check bits and set properties
-                        if (d1 != _oldStatusD1 || d2 != _oldStatusD2)
-                        {
-                            #region
-                            _actualRobotStatus.IsStep = (d1 & (1 << 0)) > 0 ? true : false;
-                            _actualRobotStatus.Is1Cycle = (d1 & (1 << 1)) > 0 ? true : false;
-                            _actualRobotStatus.IsAuto = (d1 & (1 << 2)) > 0 ? true : false;
-                            _actualRobotStatus.IsOperating = (d1 & (1 << 3)) > 0 ? true : false;
-                            _actualRobotStatus.IsSafeSpeed = (d1 & (1 << 4)) > 0 ? true : false;
-                            _actualRobotStatus.IsTeach = (d1 & (1 << 5)) > 0 ? true : false;
-                            _actualRobotStatus.IsPlay = (d1 & (1 << 6)) > 0 ? true : false;
-                            _actualRobotStatus.IsCommandRemote = (d1 & (1 << 7)) > 0 ? true : false;
+                    //if (ret == 0)
+                    //{
+                    #region
+                    //check bits and set properties
+                    //if (d1 != _oldStatusD1 || d2 != _oldStatusD2)
+                    //{
+                    #region
+                    _actualRobotStatus.isStep = (d1 & (1 << 0)) > 0 ? true : false;
+                    _actualRobotStatus.is1Cycle = (d1 & (1 << 1)) > 0 ? true : false;
+                    _actualRobotStatus.isAuto = (d1 & (1 << 2)) > 0 ? true : false;
+                    _actualRobotStatus.isOperating = (d1 & (1 << 3)) > 0 ? true : false;
+                    _actualRobotStatus.isSafeSpeed = (d1 & (1 << 4)) > 0 ? true : false;
+                    _actualRobotStatus.isTeach = (d1 & (1 << 5)) > 0 ? true : false;
+                    _actualRobotStatus.isPlay = (d1 & (1 << 6)) > 0 ? true : false;
+                    _actualRobotStatus.isCommandRemote = (d1 & (1 << 7)) > 0 ? true : false;
 
-                            _actualRobotStatus.IsPlaybackBoxHold = (d2 & (1 << 0)) > 0 ? true : false;
-                            _actualRobotStatus.IsPPHold = (d2 & (1 << 1)) > 0 ? true : false;
-                            _actualRobotStatus.IsExternalHold = (d2 & (1 << 2)) > 0 ? true : false;
-                            _actualRobotStatus.IsCommandHold = (d2 & (1 << 3)) > 0 ? true : false;
-                            _actualRobotStatus.IsAlarm = (d2 & (1 << 4)) > 0 ? true : false;
-                            _actualRobotStatus.IsError = (d2 & (1 << 5)) > 0 ? true : false;
-                            _actualRobotStatus.IsServoOn = (d2 & (1 << 6)) > 0 ? true : false;
+                    _actualRobotStatus.isPlaybackBoxHold = (d2 & (1 << 0)) > 0 ? true : false;
+                    _actualRobotStatus.isPPHold = (d2 & (1 << 1)) > 0 ? true : false;
+                    _actualRobotStatus.isExternalHold = (d2 & (1 << 2)) > 0 ? true : false;
+                    _actualRobotStatus.isCommandHold = (d2 & (1 << 3)) > 0 ? true : false;
+                    _actualRobotStatus.isAlarm = (d2 & (1 << 4)) > 0 ? true : false;
+                    _actualRobotStatus.isError = (d2 & (1 << 5)) > 0 ? true : false;
+                    _actualRobotStatus.isServoOn = (d2 & (1 << 6)) > 0 ? true : false;
 
-                            _oldStatusD1 = d1;
-                            _oldStatusD2 = d2;
-                            #endregion
-                        }
-                        #endregion
-                    }
+                    _oldStatusD1 = d1;
+                    _oldStatusD2 = d2;
+                    #endregion
+                    //}
+                    #endregion
+                    //}
                 }
                 #endregion
             }
@@ -1077,22 +1098,44 @@ namespace YaskawaNet
         public short GetCurrentRobotPosition()
         {
             short returnValue = -1;
-            double[] _currentRobotPosition = new double[12];
+            double[] _currentRobotPositionReal = new double[12];
+            double[] _currentRobotPositionSimulation = new double[12];
             short _rConf = 0;
             StringBuilder _frameName = null;
+            double[] joints = null;
+            Mat pose = null;
 
             try
             {
-                lock (_DX200AccessLock)
+                _frameName = new StringBuilder(_frameDictionary[RobotFrameType.Robot]);
+
+                //returnValue = Motocom.BscIsRobotPos(_robotHandler, _frameName, 0, ref _rConf, ref _toolNumber, ref _currentRobotPositionReal[0]);
+
+                if (_useRoboDKSimulator)
                 {
-                    _frameName = new StringBuilder(_frameDictionary[RobotFrameType.Robot]);
+                    #region
+                    joints = _roboDKRobot.Joints();
 
-                    returnValue = Motocom.BscIsRobotPos(_robotHandler, _frameName, 0, ref _rConf, ref _toolNumber, ref _currentRobotPosition[0]);
-
-                    if (returnValue == 0)
+                    if (joints != null)
                     {
-                        ReportedRobotTCPPosition.RobotPositions = _currentRobotPosition;
+                        #region
+                        for (int index = 0; index < joints.Length; index++)
+                        {
+                            _currentRobotPositionSimulation[index] = joints[index];
+                        }
+
+                        ActualRobotJointPosition.RobotPositions = ReportedRobotJointPosition.RobotPositions = _currentRobotPositionSimulation;
+                        #endregion
                     }
+
+                    pose = _roboDKRobot.Pose();
+
+                    if (pose != null)
+                    {
+                        // update the pose as xyzwpr
+                        ReportedRobotTCPPosition.RobotPositions = pose.ToTxyzRxyz();
+                    }
+                    #endregion
                 }
             }
             catch (Exception ex)
@@ -2390,45 +2433,24 @@ namespace YaskawaNet
         /// <param name="state"></param>
         private void StatusTimerTick(object state)
         {
-            short d1 = 0;
-            short d2 = 0;
-
-            double[] jointPositions = new double[12] { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
-
-            double[] joints = null;
-            Mat pose = null;
-
+            bool connection = false;
             try
             {
                 lock (_lockStatusTimer)
                 {
-                    #region
-                    //UpdateStatus(ref d1, ref d2);
+                    //TODO:Check connection ping and any relevant parameter
+#if DEBUG
+                    //TODO:check if it possible fix problem with ping in thread
+                    _communicationStatus.connectionStatus = ConnectionStatus.Reachable;
+#else
+                     _communicationStatus.connectionStatus = DX200Communication.CheckPing(_ipAddress);
+#endif
 
-                    joints = _roboDKRobot.Joints();
+                    _communicationStatus.ipAddress = _ipAddress;
 
-                    if (joints != null)
-                    {
-                        #region
-                        for (int index = 0; index < joints.Length; index++)
-                        {
-                            jointPositions[index] = joints[index];
-                        }
+                    GetStatus();
 
-                        ActualRobotJointPosition.RobotPositions = ReportedRobotJointPosition.RobotPositions = jointPositions;
-                        #endregion
-                    }
-
-                    pose = _roboDKRobot.Pose();
-
-                    if (pose != null)
-                    {
-                        // update the pose as xyzwpr
-                        ReportedRobotTCPPosition.RobotPositions = pose.ToTxyzRxyz();
-                    }
-
-                    //RDK.FlushReceiveBuffer(); 
-                    #endregion
+                    //TODO:if not connected try connect
                 }
             }
             catch (Exception ex)
@@ -2709,7 +2731,7 @@ namespace YaskawaNet
 
                     ShowRoboDKForm();
 
-                    _statusTimer.Change(0, 100); //enable timer 
+                    _getPositionsTimer.Change(0, 100); //enable timer 
                     #endregion
                 }
                 else
@@ -2722,6 +2744,6 @@ namespace YaskawaNet
                 DiagnosticException.ExceptionHandler(ex.Message);
             }
         }
-        #endregion                      
+        #endregion
     }
 }

@@ -305,4 +305,41 @@ namespace YaskawaNet
         }
         #endregion
     }
+    [ComVisible(true)]
+    [StructLayout(LayoutKind.Sequential, Pack = 1)]
+    public struct RobotStatusInformation
+    {
+        [MarshalAs(UnmanagedType.Bool)]
+        public bool isStep;
+        [MarshalAs(UnmanagedType.Bool)]
+        public bool is1Cycle;
+        [MarshalAs(UnmanagedType.Bool)]
+        public bool isAuto;
+        [MarshalAs(UnmanagedType.Bool)]
+        public bool isOperating;
+        [MarshalAs(UnmanagedType.Bool)]
+        public bool isSafeSpeed;
+        [MarshalAs(UnmanagedType.Bool)]
+        public bool isTeach;
+        [MarshalAs(UnmanagedType.Bool)]
+        public bool isPlay;
+        [MarshalAs(UnmanagedType.Bool)]
+        public bool isCommandRemote;
+        [MarshalAs(UnmanagedType.Bool)]
+        public bool isPlaybackBoxHold;
+        [MarshalAs(UnmanagedType.Bool)]
+        public bool isExternalHold;
+        [MarshalAs(UnmanagedType.Bool)]
+        public bool isPPHold;
+        [MarshalAs(UnmanagedType.Bool)]
+        public bool isCommandHold;
+        [MarshalAs(UnmanagedType.Bool)]
+        public bool isAlarm;
+        [MarshalAs(UnmanagedType.Bool)]
+        public bool isError;
+        [MarshalAs(UnmanagedType.Bool)]
+        public bool isServoOn;
+        [MarshalAs(UnmanagedType.Bool)]
+        public bool isHold ;
+    }
 }

@@ -92,4 +92,20 @@ namespace YaskawaNet
         Positive = 1,
         Negative = 2
     }
+    [ComVisible(true)]
+    public enum ConnectionStatus : short
+    {
+        Unreachable = 0,
+        Reachable = 1
+    }
+    [ComVisible(true)]
+    [StructLayout(LayoutKind.Sequential, Pack = 1)]
+    public struct CommunicationStatus
+    {
+        [MarshalAs(UnmanagedType.Bool)]
+        public bool connected;
+        [MarshalAs(UnmanagedType.BStr)]
+        public string ipAddress;
+        public ConnectionStatus connectionStatus;
+    }
 }
