@@ -243,6 +243,12 @@ namespace YaskawaNet
             get;
             set;
         }
+        [ComVisible(false)]
+        double[][] LimitsPulse
+        {
+            get;
+            set;
+        }
 
         double[] RobotPositions
         {
@@ -358,6 +364,22 @@ namespace YaskawaNet
         private double _tJointHomePosition = 0;
 
         private double[][] _limits = new double[12][]
+            {
+                new double [2]{0,0} ,
+                new double [2]{0,0} ,
+                new double [2]{0,0} ,
+                new double [2]{0,0} ,
+                new double [2]{0,0} ,
+                new double [2]{0,0},
+                new double [2]{0,0},
+                new double [2]{0,0},
+                new double [2]{0,0},
+                new double [2]{0,0},
+                new double [2]{0,0},
+                new double [2]{0,0}
+            };
+
+        private double[][] _limitsPulse = new double[12][]
             {
                 new double [2]{0,0} ,
                 new double [2]{0,0} ,
@@ -1189,6 +1211,53 @@ namespace YaskawaNet
             set
             {
                 _limits = value;
+
+                _limitsPulse[0][0] = _limits[0][0] * SJointPulsesDegreeRatio;
+                _limitsPulse[0][1] = _limits[0][1] * SJointPulsesDegreeRatio;
+
+                _limitsPulse[1][0] = _limits[1][0] * LJointPulsesDegreeRatio;
+                _limitsPulse[1][1] = _limits[1][1] * LJointPulsesDegreeRatio;
+
+                _limitsPulse[2][0] = _limits[2][0] * UJointPulsesDegreeRatio;
+                _limitsPulse[2][1] = _limits[2][1] * UJointPulsesDegreeRatio;
+
+                _limitsPulse[3][0] = _limits[3][0] * RJointPulsesDegreeRatio;
+                _limitsPulse[3][1] = _limits[3][1] * RJointPulsesDegreeRatio;
+
+                _limitsPulse[4][0] = _limits[4][0] * BJointPulsesDegreeRatio;
+                _limitsPulse[4][1] = _limits[4][1] * BJointPulsesDegreeRatio;
+
+                _limitsPulse[5][0] = _limits[5][0] * TJointPulsesDegreeRatio;
+                _limitsPulse[5][1] = _limits[5][1] * TJointPulsesDegreeRatio;
+            }
+        }
+        public double[][] LimitsPulse
+        {
+            get
+            {
+                return _limitsPulse;
+            }
+            set
+            {
+                _limitsPulse = value;
+
+                _limits[0][0] = _limitsPulse[0][0] / SJointPulsesDegreeRatio;
+                _limits[0][1] = _limitsPulse[0][1] / SJointPulsesDegreeRatio;
+
+                _limits[1][0] = _limitsPulse[1][0] / LJointPulsesDegreeRatio;
+                _limits[1][1] = _limitsPulse[1][1] / LJointPulsesDegreeRatio;
+
+                _limits[2][0] = _limitsPulse[2][0] / UJointPulsesDegreeRatio;
+                _limits[2][1] = _limitsPulse[2][1] / UJointPulsesDegreeRatio;
+
+                _limits[3][0] = _limitsPulse[3][0] / RJointPulsesDegreeRatio;
+                _limits[3][1] = _limitsPulse[3][1] / RJointPulsesDegreeRatio;
+
+                _limits[4][0] = _limitsPulse[4][0] / BJointPulsesDegreeRatio;
+                _limits[4][1] = _limitsPulse[4][1] / BJointPulsesDegreeRatio;
+
+                _limits[5][0] = _limitsPulse[5][0] / TJointPulsesDegreeRatio;
+                _limits[5][1] = _limitsPulse[5][1] / TJointPulsesDegreeRatio;
             }
         }
 

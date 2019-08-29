@@ -1071,7 +1071,7 @@ namespace RoboDk.API
             speedAccel[2] = speedJoints;
             speedAccel[3] = accelJoints;
             Link.send_array(speedAccel);
-            Link.check_status();
+            //Link.check_status();
         }
 
         /// <inheritdoc />

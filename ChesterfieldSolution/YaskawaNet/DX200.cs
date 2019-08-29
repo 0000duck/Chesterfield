@@ -175,15 +175,18 @@ namespace YaskawaNet
         void SetServoOn();
         void SetServoOff();
         short JointMove(double speed);
-        short BeginMove(double speed);
         short JointJogMove(int joint, double speed);
+        short JointsJogMove(int jointMask, double speed);
         short JointAbsoluteMove(int jointIndex, double speed);
         short JointRelativeMove(int jointIndex, double speed);
         short JointHomeMove(int jointIndex, double speed);
         short TCPJogMove(int tcpIndex, double speed);
         short TCPAbsoluteMove(int tcpIndex, double speed);
         short TCPRelativeMove(int tcpIndex, double speed);
-        short JointJogHold();
+        short TrackLinearJogMove(int jointIndex, double speed);
+        short TurnTableJogMove(int jointIndex, double speed);
+        short HoldOn();
+        short HoldOff();
 
         [return: MarshalAs(UnmanagedType.Bool)]
         bool IsInMotion(int axis);
@@ -338,6 +341,14 @@ namespace YaskawaNet
         private volatile RobotPosition _desiredRobotJointPosition = new RobotPosition();
         private volatile RobotPosition _reportedRobotJointPosition = new RobotPosition();
 
+        private volatile RobotPosition _actualRobotTCPPositionSimulator = new RobotPosition();
+        private volatile RobotPosition _desiredRobotTCPPositionSimulator = new RobotPosition();
+        private volatile RobotPosition _reportedRobotTCPPositionSimulator = new RobotPosition();
+
+        private volatile RobotPosition _actualRobotJointPositionSimulator = new RobotPosition();
+        private volatile RobotPosition _desiredRobotJointPositionSimulator = new RobotPosition();
+        private volatile RobotPosition _reportedRobotJointPositionSimulator = new RobotPosition();
+
         private RobotPosition _actualRobotIncrementPosition = new RobotPosition();
         private RobotPosition _desiredRobotIncrementPosition = new RobotPosition();
         private RobotPosition _reportedRobotIncrementPosition = new RobotPosition();
@@ -417,7 +428,6 @@ namespace YaskawaNet
                 _communicationStatus = value;
             }
         }
-
 
         public bool UseRoboDKSimulator
         {
@@ -607,6 +617,92 @@ namespace YaskawaNet
                 lock (_reportedRobotJointPositionLocker)
                 {
                     _reportedRobotJointPosition = value;
+                    OnNotifyPropertyChanged();
+                }
+            }
+        }
+
+        public RobotPosition ActualRobotTCPPositionSimulator
+        {
+            get
+            {
+                return _actualRobotTCPPositionSimulator;
+            }
+            set
+            {
+                _actualRobotTCPPositionSimulator = value;
+                OnNotifyPropertyChanged();
+            }
+        }
+        public RobotPosition DesiredRobotTCPPositionSimulator
+        {
+            get
+            {
+                return _desiredRobotTCPPositionSimulator;
+            }
+            set
+            {
+                _desiredRobotTCPPositionSimulator = value;
+                OnNotifyPropertyChanged();
+            }
+        }
+        public RobotPosition ReportedRobotTCPPositionSimulator
+        {
+            get
+            {
+                return _reportedRobotTCPPositionSimulator;
+            }
+            set
+            {
+                _reportedRobotTCPPositionSimulator = value;
+                OnNotifyPropertyChanged();
+            }
+        }
+
+        public RobotPosition ActualRobotJointPositionSimulator
+        {
+            get
+            {
+                return _actualRobotJointPositionSimulator;
+            }
+            set
+            {
+                _actualRobotJointPositionSimulator = value;
+                OnNotifyPropertyChanged();
+            }
+        }
+        public RobotPosition DesiredRobotJointPositionSimulator
+        {
+            get
+            {
+                lock (_desiredRobotJointPositionLocker)
+                {
+                    return _desiredRobotJointPositionSimulator;
+                }
+            }
+            set
+            {
+                lock (_desiredRobotJointPositionLocker)
+                {
+                    _desiredRobotJointPositionSimulator = value;
+                    OnNotifyPropertyChanged();
+                }
+            }
+        }
+        public RobotPosition ReportedRobotJointPositionSimulator
+        {
+            get
+            {
+                lock (_reportedRobotJointPositionLocker)
+                {
+                    return _reportedRobotJointPositionSimulator;
+                }
+            }
+            set
+            {
+                lock (_reportedRobotJointPositionLocker)
+                {
+                    _reportedRobotJointPositionSimulator = value;
                     OnNotifyPropertyChanged();
                 }
             }
@@ -902,8 +998,8 @@ namespace YaskawaNet
                     new double [2]{-200.0,200.0 } ,
                     new double [2]{-150.0,150.0 } ,
                     new double [2]{-455.0,455.0 },
-                    new double [2]{0,0},
-                    new double [2]{0,0},
+                    new double [2]{0,3500},
+                    new double [2]{-720.0,720.0},
                     new double [2]{0,0},
                     new double [2]{0,0},
                     new double [2]{0,0},
@@ -1095,21 +1191,71 @@ namespace YaskawaNet
         /// 
         /// </summary>
         /// <returns></returns>
-        public short GetCurrentRobotPosition()
+        public short GetCurrentRobotTCPPosition()
         {
             short returnValue = -1;
-            double[] _currentRobotPositionReal = new double[12];
-            double[] _currentRobotPositionSimulation = new double[12];
+            double[] _currentRobotTCPPositionReal = new double[12];
+            double[] _currentRobotTCPPositionSimulation = new double[12];
             short _rConf = 0;
+            short isex = 1;
             StringBuilder _frameName = null;
-            double[] joints = null;
             Mat pose = null;
 
             try
             {
                 _frameName = new StringBuilder(_frameDictionary[RobotFrameType.Robot]);
 
-                //returnValue = Motocom.BscIsRobotPos(_robotHandler, _frameName, 0, ref _rConf, ref _toolNumber, ref _currentRobotPositionReal[0]);
+                returnValue = Motocom.BscIsRobotPos(_robotHandler, _frameName, isex, ref _rConf, ref _toolNumber, ref _currentRobotTCPPositionReal[0]);
+
+                if (_useRoboDKSimulator)
+                {
+                    #region
+                    pose = _roboDKRobot.Pose();
+
+                    if (pose != null)
+                    {
+                        // update the pose as xyzwpr
+                        _currentRobotTCPPositionSimulation = pose.ToTxyzRxyz();
+
+                        ActualRobotTCPPositionSimulator.RobotPositions = ReportedRobotTCPPositionSimulator.RobotPositions = _currentRobotTCPPositionSimulation;
+                    }
+                    #endregion
+                }
+
+#if DEBUG
+
+                ActualRobotTCPPosition.RobotPositions = ReportedRobotTCPPosition.RobotPositions = _currentRobotTCPPositionSimulation;
+#else
+                if (returnValue == 0)
+                {                      
+                    ActualRobotTCPPosition.RobotPositions = ReportedRobotTCPPosition.RobotPositions = _currentRobotTCPPositionReal;
+                }
+#endif
+            }
+            catch (Exception ex)
+            {
+                returnValue = -1;
+                DiagnosticException.ExceptionHandler(ex.Message);
+            }
+
+            return returnValue;
+        }
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <returns></returns>
+        public short GetCurrentRobotJointsPosition()
+        {
+            short returnValue = -1;
+            double[] _currentRobotJointsPositionReal = new double[12];
+            double[] _currentRobotJointsPositionSimulation = new double[12];
+            short _rConf = 0;
+            short ispulse = 1;//joints coordinate system
+            double[] joints = null;
+
+            try
+            {
+                returnValue = Motocom.BscIsLoc(_robotHandler, ispulse, ref _rConf, ref _currentRobotJointsPositionReal[0]);
 
                 if (_useRoboDKSimulator)
                 {
@@ -1121,22 +1267,24 @@ namespace YaskawaNet
                         #region
                         for (int index = 0; index < joints.Length; index++)
                         {
-                            _currentRobotPositionSimulation[index] = joints[index];
+                            _currentRobotJointsPositionSimulation[index] = joints[index];
                         }
 
-                        ActualRobotJointPosition.RobotPositions = ReportedRobotJointPosition.RobotPositions = _currentRobotPositionSimulation;
+                        ActualRobotJointPositionSimulator.RobotPositions = ReportedRobotJointPositionSimulator.RobotPositions = _currentRobotJointsPositionSimulation;
                         #endregion
-                    }
-
-                    pose = _roboDKRobot.Pose();
-
-                    if (pose != null)
-                    {
-                        // update the pose as xyzwpr
-                        ReportedRobotTCPPosition.RobotPositions = pose.ToTxyzRxyz();
                     }
                     #endregion
                 }
+
+#if DEBUG
+
+                ActualRobotJointPosition.RobotPositions = ReportedRobotJointPosition.RobotPositions = _currentRobotJointsPositionSimulation;
+#else
+                if (returnValue == 0)
+                {
+                    ActualRobotJointPosition.RobotPositions = ReportedRobotJointPosition.RobotPositions = _currentRobotJointsPositionReal;
+                }
+#endif
             }
             catch (Exception ex)
             {
@@ -1156,6 +1304,7 @@ namespace YaskawaNet
             short returnValue = -1;
             double[] _currentRobotPosition = new double[12];
             short _rConf = 0;
+            short isex = 1;
             StringBuilder _frameName = null;
 
             try
@@ -1164,11 +1313,11 @@ namespace YaskawaNet
                 {
                     _frameName = new StringBuilder(frameName);
 
-                    returnValue = Motocom.BscIsRobotPos(_robotHandler, _frameName, 0, ref _rConf, ref _toolNumber, ref _currentRobotPosition[0]);
+                    returnValue = Motocom.BscIsRobotPos(_robotHandler, _frameName, isex, ref _rConf, ref _toolNumber, ref _currentRobotPosition[0]);
 
                     if (returnValue == 0)
                     {
-                        ReportedRobotTCPPosition.RobotPositions = _currentRobotPosition;
+                        ActualRobotTCPPosition.RobotPositions = ReportedRobotTCPPosition.RobotPositions = _currentRobotPosition;
                     }
                 }
             }
@@ -1339,30 +1488,54 @@ namespace YaskawaNet
         /// <summary>
         /// Sets Hold ON
         /// </summary>
-        public short SetHoldOn()
+        public short HoldOn()
         {
-            lock (_DX200AccessLock)
-            {
-                short ret = Motocom.BscHoldOn(_robotHandler);
-                if (ret != 0)
-                    throw new Exception("Error executing BscHoldOn");
+            short returnValue = 0;
 
-                return ret;
+            try
+            {
+                lock (_DX200AccessLock)
+                {
+                    returnValue = Motocom.BscHoldOn(_robotHandler);
+
+                    if (_useRoboDKSimulator)
+                    {
+                        _roboDKRobot.Stop();
+                    }
+                }
             }
+            catch (Exception ex)
+            {
+                DiagnosticException.ExceptionHandler(ex.Message);
+            }
+
+            return returnValue;
         }
         /// <summary>
         /// Sets Hold OFF
         /// </summary>
-        public short SetHoldOff()
+        public short HoldOff()
         {
-            lock (_DX200AccessLock)
-            {
-                short ret = Motocom.BscHoldOff(_robotHandler);
-                if (ret != 0)
-                    throw new Exception("Error executing BscHoldOff");
+            short returnValue = 0;
 
-                return ret;
+            try
+            {
+                lock (_DX200AccessLock)
+                {
+                    returnValue = Motocom.BscHoldOff(_robotHandler);
+
+                    if (_useRoboDKSimulator)
+                    {
+                        _roboDKRobot.Stop();
+                    }
+                }
             }
+            catch (Exception ex)
+            {
+                DiagnosticException.ExceptionHandler(ex.Message);
+            }
+
+            return returnValue;
         }
         /// <summary>
         /// Starts operation from the current line of current job
@@ -1904,29 +2077,103 @@ namespace YaskawaNet
         public short JointJogMove(int jointIndex, double speed)
         {
             RobotFunctionReturnType_2 returnValue = RobotFunctionReturnType_2.Other;
-            double[] joints = new double[6] { 0, 0, 0, 0, 0, 0 };
+            double[] jointsPositionsSimulator = null;
+            double[] jointsPositions = new double[12] { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
 
-            //get actual robot position
-            for (int i = 0; i < joints.Length; i++)
+            try
             {
-                joints[i] = ReportedRobotJointPosition.RobotPositions[i];
+                jointsPositions = ReportedRobotJointPosition.RobotPulsePositions;
+
+                if (speed > 0)
+                {
+                    jointsPositions[jointIndex] = DesiredRobotJointPosition.LimitsPulse[jointIndex][1];
+                }
+                if (speed < 0)
+                {
+                    jointsPositions[jointIndex] = DesiredRobotJointPosition.LimitsPulse[jointIndex][0];
+                }
+
+                Motocom.BscPMovj(_robotHandler, speed, _toolNumber, ref jointsPositions[0]);
+
+                if (_useRoboDKSimulator)
+                {
+                    #region
+
+                    jointsPositionsSimulator = _roboDKRobot.Joints();
+
+                    //get actual robot position
+                    for (int i = 0; i < jointsPositionsSimulator.Length; i++)
+                    {
+                        jointsPositionsSimulator[i] = ReportedRobotJointPositionSimulator.RobotPositions[i];
+                    }
+
+                    _roboDKRobot.SetSpeed(-1, Math.Abs(speed));
+
+                    if (speed > 0)
+                    {
+                        jointsPositionsSimulator[jointIndex] = DesiredRobotJointPosition.Limits[jointIndex][1];
+                    }
+                    if (speed < 0)
+                    {
+                        jointsPositionsSimulator[jointIndex] = DesiredRobotJointPosition.Limits[jointIndex][0];
+                    }
+
+                    _roboDKRobot.MoveJ(jointsPositionsSimulator, MOVE_BLOCKING);
+
+                    #endregion
+                }
             }
+            catch (Exception ex)
+            {
+                DiagnosticException.ExceptionHandler(ex.Message);
+            }
+
+            return (short)returnValue;
+        }
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="jointMask"></param>
+        /// <param name="speed"></param>
+        /// <returns></returns>
+        public short JointsJogMove(int jointMask, double speed)
+        {
+            RobotFunctionReturnType_2 returnValue = RobotFunctionReturnType_2.Other;
+            double[] jointsPositionsSimulator = null;
+            double[] jointsPositions = new double[12] { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
 
             try
             {
                 if (_useRoboDKSimulator)
                 {
                     #region
-                    if (speed > 0)
+
+                    jointsPositionsSimulator = _roboDKRobot.Joints();
+
+                    //get actual robot position
+                    for (int i = 0; i < jointsPositionsSimulator.Length; i++)
                     {
-                        joints[jointIndex] = DesiredRobotJointPosition.Limits[jointIndex][1];
-                    }
-                    if (speed < 0)
-                    {
-                        joints[jointIndex] = DesiredRobotJointPosition.Limits[jointIndex][0];
+                        jointsPositionsSimulator[i] = ReportedRobotJointPositionSimulator.RobotPositions[i];
                     }
 
-                    _roboDKRobot.MoveJ(joints, MOVE_BLOCKING);
+                    _roboDKRobot.SetSpeed(-1, Math.Abs(speed));
+
+                    for (int i = 0; i < jointsPositionsSimulator.Length; i++)
+                    {
+                        if (((jointMask << i) & (1 << i)) == 1)
+                        {
+                            if (speed > 0)
+                            {
+                                jointsPositionsSimulator[i] = DesiredRobotJointPosition.Limits[i][1];
+                            }
+                            if (speed < 0)
+                            {
+                                jointsPositionsSimulator[i] = DesiredRobotJointPosition.Limits[i][0];
+                            }
+                        }
+                    }
+
+                    _roboDKRobot.MoveJ(jointsPositionsSimulator, MOVE_BLOCKING);
 
                     #endregion
                 }
@@ -1958,6 +2205,8 @@ namespace YaskawaNet
             try
             {
                 #region
+
+                _roboDKRobot.SetSpeed(-1, Math.Abs(speed));
 
                 joints[jointIndex] = DesiredRobotJointPosition.RobotPositions[jointIndex];
 
@@ -1993,6 +2242,8 @@ namespace YaskawaNet
                     joints[i] = ReportedRobotJointPosition.RobotPositions[i];
                 }
 
+                _roboDKRobot.SetSpeed(-1, Math.Abs(speed));
+
                 joints[jointIndex] = DesiredRobotJointPosition.RobotHomePositions[jointIndex];
 
                 _roboDKRobot.MoveJ(joints, MOVE_BLOCKING);
@@ -2027,6 +2278,8 @@ namespace YaskawaNet
                     joints[i] = ReportedRobotJointPosition.RobotPositions[i];
                 }
 
+                _roboDKRobot.SetSpeed(-1, Math.Abs(speed));
+
                 joints[jointIndex] = DesiredRobotJointPosition.RobotParkPositions[jointIndex];
 
                 _roboDKRobot.MoveJ(joints, MOVE_BLOCKING);
@@ -2060,6 +2313,8 @@ namespace YaskawaNet
             try
             {
                 #region
+
+                _roboDKRobot.SetSpeed(-1, Math.Abs(speed));
 
                 joints[jointIndex] += DesiredRobotJointPosition.RobotPositions[jointIndex];
 
@@ -2197,15 +2452,57 @@ namespace YaskawaNet
         /// <summary>
         /// 
         /// </summary>
+        /// <param name="jointIndex"></param>
+        /// <param name="speed"></param>
         /// <returns></returns>
-        public short JointJogHold()
+        public short TrackLinearJogMove(int jointIndex, double speed)
         {
             RobotFunctionReturnType_2 returnValue = RobotFunctionReturnType_2.Other;
+            double[] jointsPositionsSimulator = null;
+            double[] jointsPositions = new double[12] { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
 
             try
             {
-                //_jogRunning = false;
-                _roboDKRobot.Stop();
+                jointsPositions = ReportedRobotJointPosition.RobotPulsePositions;
+
+                if (speed > 0)
+                {
+                    jointsPositions[jointIndex] = DesiredRobotJointPosition.LimitsPulse[jointIndex][1];
+                }
+                if (speed < 0)
+                {
+                    jointsPositions[jointIndex] = DesiredRobotJointPosition.LimitsPulse[jointIndex][0];
+                }
+
+                Motocom.BscPMovj(_robotHandler, speed, _toolNumber, ref jointsPositions[0]);
+
+                if (_useRoboDKSimulator)
+                {
+                    #region
+
+                    jointsPositionsSimulator = _roboDKRobot.Joints();
+
+                    //get actual robot position
+                    for (int i = 0; i < jointsPositionsSimulator.Length; i++)
+                    {
+                        jointsPositionsSimulator[i] = ReportedRobotJointPositionSimulator.RobotPositions[i];
+                    }
+
+                    _roboDKRobot.SetSpeed(-1, Math.Abs(speed));
+
+                    if (speed > 0)
+                    {
+                        jointsPositionsSimulator[jointIndex] = DesiredRobotJointPosition.Limits[jointIndex][1];
+                    }
+                    if (speed < 0)
+                    {
+                        jointsPositionsSimulator[jointIndex] = DesiredRobotJointPosition.Limits[jointIndex][0];
+                    }
+
+                    _roboDKRobot.MoveJ(jointsPositionsSimulator, MOVE_BLOCKING);
+
+                    #endregion
+                }
             }
             catch (Exception ex)
             {
@@ -2217,25 +2514,56 @@ namespace YaskawaNet
         /// <summary>
         /// 
         /// </summary>
-        /// <param name="axisIndex"></param>
-        public short BeginMove(double speed)
+        /// <param name="jointIndex"></param>
+        /// <param name="speed"></param>
+        /// <returns></returns>
+        public short TurnTableJogMove(int jointIndex, double speed)
         {
             RobotFunctionReturnType_2 returnValue = RobotFunctionReturnType_2.Other;
-            StringBuilder movtype = null;
-            StringBuilder vtype = null;
+            double[] jointsPositionsSimulator = null;
+            double[] jointsPositions = new double[12] { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
 
             try
             {
-                lock (_DX200AccessLock)
+                jointsPositions = ReportedRobotJointPosition.RobotPulsePositions;
+
+                if (speed > 0)
                 {
-                    movtype = new StringBuilder(_motionDictionary[ActualMotionType]);
-                    vtype = new StringBuilder(_moveSpeedSelectionDictionary[ActualMoveSpeedSelection]);
+                    jointsPositions[jointIndex] = DesiredRobotJointPosition.LimitsPulse[jointIndex][1];
+                }
+                if (speed < 0)
+                {
+                    jointsPositions[jointIndex] = DesiredRobotJointPosition.LimitsPulse[jointIndex][0];
+                }
 
-                    //returnValue = (RobotFunctionReturnType_2)(Motocom.BscPMov(_handle, movtype, vtype, speed, ToolNumber,
-                    //ref _desiredRobotJointPosition.RobotPositions[0]));
+                Motocom.BscPMovj(_robotHandler, speed, _toolNumber, ref jointsPositions[0]);
 
-                    //TODO:Use with flag (_isSimulatorRoboDKUsed)
-                    IncrementalJointMoveRoboDK();
+                if (_useRoboDKSimulator)
+                {
+                    #region
+
+                    jointsPositionsSimulator = _roboDKRobot.Joints();
+
+                    //get actual robot position
+                    for (int i = 0; i < jointsPositionsSimulator.Length; i++)
+                    {
+                        jointsPositionsSimulator[i] = ReportedRobotJointPositionSimulator.RobotPositions[i];
+                    }
+
+                    _roboDKRobot.SetSpeed(-1, Math.Abs(speed));
+
+                    if (speed > 0)
+                    {
+                        jointsPositionsSimulator[jointIndex] = DesiredRobotJointPosition.Limits[jointIndex][1];
+                    }
+                    if (speed < 0)
+                    {
+                        jointsPositionsSimulator[jointIndex] = DesiredRobotJointPosition.Limits[jointIndex][0];
+                    }
+
+                    _roboDKRobot.MoveJ(jointsPositionsSimulator, MOVE_BLOCKING);
+
+                    #endregion
                 }
             }
             catch (Exception ex)
@@ -2468,7 +2796,8 @@ namespace YaskawaNet
             {
                 lock (_lockGetPositionsTimer)
                 {
-                    GetCurrentRobotPosition();
+                    GetCurrentRobotTCPPosition();
+                    GetCurrentRobotJointsPosition();
                 }
             }
             catch (Exception ex)
@@ -2578,7 +2907,7 @@ namespace YaskawaNet
         public void ShowRoboDKForm()
         {
             RDK.SetWindowState(WindowState.Normal); // removes Cinema mode and shows the screen
-            //RDK.SetWindowState(WindowState.Maximized); // shows maximized
+                                                    //RDK.SetWindowState(WindowState.Maximized); // shows maximized
             RDK.SetWindowState(WindowState.Cinema); // shows maximized
         }
         /// <summary>
