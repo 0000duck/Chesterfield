@@ -201,32 +201,46 @@ namespace RoboDk.API
         {
             string iniFile = System.Environment.GetFolderPath(System.Environment.SpecialFolder.ApplicationData) + "\\RoboDK\\RecentFiles.ini";
             string str = "";
-            if (File.Exists(iniFile))
-            {
-                foreach (string line in File.ReadLines(iniFile))
-                {
-                    if (line.Contains("RecentFileList="))
-                    {
-                        str = line.Remove(0, "RecentFileList=".Length);
-                        break;
-                    }
-                }
-            }
             List<string> rdkList = new List<string>();
-            string[] readList = str.Split(',');
-            foreach (string st in readList)
-            {
-                string st2 = st.Trim();
-                if (st2.Length < 5) // file name should be name.abc
-                {
-                    continue;
-                }
-                if (extensionFilter.Length == 0 || st2.ToLower().EndsWith(extensionFilter.ToLower()))
-                {
-                    rdkList.Add(st2);
-                }
+            string[] readList = null;
 
+            try
+            {
+                if (File.Exists(iniFile))
+                {
+                    #region
+                    foreach (string line in File.ReadLines(iniFile))
+                    {
+                        if (line.Contains("RecentFileList="))
+                        {
+                            str = line.Remove(0, "RecentFileList=".Length);
+                            break;
+                        }
+                    } 
+                    #endregion
+                }
+                rdkList = new List<string>();
+                readList = str.Split(',');
+                foreach (string st in readList)
+                {
+                    #region
+                    string st2 = st.Trim();
+                    if (st2.Length < 5) // file name should be name.abc
+                    {
+                        continue;
+                    }
+                    if (extensionFilter.Length == 0 || st2.ToLower().EndsWith(extensionFilter.ToLower()))
+                    {
+                        rdkList.Add(st2);
+                    } 
+                    #endregion
+                }
             }
+            catch (Exception ex)
+            {
+                DiagnosticException.ExceptionHandler(ex.Message);
+            }
+
             return rdkList;
         }
         #endregion
@@ -236,12 +250,14 @@ namespace RoboDk.API
         /// <inheritdoc />
         public IRoboDK NewLink()
         {
-            var rdk = new RoboDK()
+            RoboDK rdk = new RoboDK()
             {
                 RoboDKServerStartPort = this.RoboDKServerStartPort,
                 RoboDKServerEndPort = this.RoboDKServerEndPort
             };
+
             rdk.Connect();
+
             return rdk;
         }
 
@@ -287,15 +303,16 @@ namespace RoboDk.API
         }
 
         /// <inheritdoc />
+        //TODO:Vlad:write new algorithm
         public bool Connect()
         {
             // Establishes a connection with robodk. 
             // robodk must be running, otherwise, the variable APPLICATION_DIR must be set properly.
-            var connected = false;
+            bool connected = false;
 
             try
             {
-                for (var i = 0; i < 2; i++)
+                for (int i = 0; i < 2; i++)
                 {
                     #region
                     if (RoboDKServerEndPort < RoboDKServerStartPort)
@@ -351,65 +368,74 @@ namespace RoboDk.API
         {
             bool started = false;
 
-            var arguments = string.Format($"/PORT={port}");
+            string arguments = string.Format($"/PORT={port}");
 
-            if (StartHidden)
+            try
             {
-                arguments = string.Format($"/NOSPLASH /NOSHOW /HIDDEN {arguments}");
-            }
-
-            if (!string.IsNullOrEmpty(CommandLineOptions))
-            {
-                arguments = string.Format($"{arguments} {CommandLineOptions}");
-            }
-
-            // No application path is given. Check the registry.
-            if (string.IsNullOrEmpty(ApplicationDir))
-            {
-                using (var hklm = RegistryKey.OpenBaseKey(RegistryHive.LocalMachine, RegistryView.Registry64))
-                using (var regKey = hklm.OpenSubKey(@"SOFTWARE\RoboDK"))
+                if (StartHidden)
                 {
-                    // key now points to the 64-bit key
-                    var installPath = regKey?.GetValue("INSTDIR").ToString();
-                    if (!string.IsNullOrEmpty(installPath))
+                    arguments = string.Format($"/NOSPLASH /NOSHOW /HIDDEN {arguments}");
+                }
+
+                if (!string.IsNullOrEmpty(CommandLineOptions))
+                {
+                    arguments = string.Format($"{arguments} {CommandLineOptions}");
+                }
+
+                // No application path is given. Check the registry.
+                if (string.IsNullOrEmpty(ApplicationDir))
+                {
+                    #region
+                    using (var hklm = RegistryKey.OpenBaseKey(RegistryHive.LocalMachine, RegistryView.Registry64))
+                    using (var regKey = hklm.OpenSubKey(@"SOFTWARE\RoboDK"))
                     {
-                        ApplicationDir = installPath + "\\bin\\RoboDK.exe";
+                        // key now points to the 64-bit key
+                        var installPath = regKey?.GetValue("INSTDIR").ToString();
+                        if (!string.IsNullOrEmpty(installPath))
+                        {
+                            ApplicationDir = installPath + "\\bin\\RoboDK.exe";
+                        }
                     }
+                    #endregion
+                }
+
+                // Still no application path. User Default installation directory
+                if (string.IsNullOrEmpty(ApplicationDir))
+                {
+                    ApplicationDir = @"C:\RoboDK\bin\RoboDK.exe";
+                }
+
+                // Validate if executable exists
+                if (!File.Exists(ApplicationDir))
+                {
+                    throw new FileNotFoundException(ApplicationDir);
+                }
+
+                ProcessStartInfo processStartInfo = new ProcessStartInfo
+                {
+                    FileName = ApplicationDir,
+                    Arguments = arguments,
+                    RedirectStandardOutput = true,
+                    UseShellExecute = false
+                };
+                Process = Process.Start(processStartInfo);
+
+                // wait for RoboDK to output (stdout) RoboDK is Running. Works after v3.4.0.
+                string line = "";
+                while (line != null && !line.Contains("RoboDK is Running"))
+                {
+                    line = Process.StandardOutput.ReadLine();
+                }
+
+                Process.StandardOutput.Close();
+                if (line != null)
+                {
+                    started = true;
                 }
             }
-
-            // Still no application path. User Default installation directory
-            if (string.IsNullOrEmpty(ApplicationDir))
+            catch (Exception ex)
             {
-                ApplicationDir = @"C:\RoboDK\bin\RoboDK.exe";
-            }
-
-            // Validate if executable exists
-            if (!File.Exists(ApplicationDir))
-            {
-                throw new FileNotFoundException(ApplicationDir);
-            }
-
-            var processStartInfo = new ProcessStartInfo
-            {
-                FileName = ApplicationDir,
-                Arguments = arguments,
-                RedirectStandardOutput = true,
-                UseShellExecute = false
-            };
-            Process = Process.Start(processStartInfo);
-
-            // wait for RoboDK to output (stdout) RoboDK is Running. Works after v3.4.0.
-            string line = "";
-            while (line != null && !line.Contains("RoboDK is Running"))
-            {
-                line = Process.StandardOutput.ReadLine();
-            }
-
-            Process.StandardOutput.Close();
-            if (line != null)
-            {
-                started = true;
+                DiagnosticException.ExceptionHandler(ex.Message);
             }
 
             return started;
@@ -419,24 +445,35 @@ namespace RoboDk.API
         {
             int sleepTime = 100;
             bool serverPortIsOpen = false;
-            while ((serverPortIsOpen == false) && (millisecondsTimeout > 0))
+
+            try
             {
-                //TcpConnectionInformation[] tcpConnInfoArray = IPGlobalProperties.GetIPGlobalProperties().GetActiveTcpConnections();
-                IPEndPoint[] objEndPoints = System.Net.NetworkInformation.IPGlobalProperties.GetIPGlobalProperties().GetActiveTcpListeners();
-                foreach (var tcpEndPoint in objEndPoints)
+                while ((serverPortIsOpen == false) && (millisecondsTimeout > 0))
                 {
-                    if (tcpEndPoint.Port == serverPort)
+                    #region
+                    //TcpConnectionInformation[] tcpConnInfoArray = IPGlobalProperties.GetIPGlobalProperties().GetActiveTcpConnections();
+                    IPEndPoint[] objEndPoints = System.Net.NetworkInformation.IPGlobalProperties.GetIPGlobalProperties().GetActiveTcpListeners();
+                    foreach (var tcpEndPoint in objEndPoints)
                     {
-                        serverPortIsOpen = true;
-                        break;
+                        if (tcpEndPoint.Port == serverPort)
+                        {
+                            serverPortIsOpen = true;
+                            break;
+                        }
                     }
-                }
-                if (serverPortIsOpen == false)
-                {
-                    Thread.Sleep(sleepTime);
-                    millisecondsTimeout -= sleepTime;
+                    if (serverPortIsOpen == false)
+                    {
+                        Thread.Sleep(sleepTime);
+                        millisecondsTimeout -= sleepTime;
+                    }
+                    #endregion
                 }
             }
+            catch (Exception ex)
+            {
+                DiagnosticException.ExceptionHandler(ex.Message);
+            }
+
             return serverPortIsOpen;
         }
 
@@ -458,7 +495,7 @@ namespace RoboDk.API
                 throw new RdkException("event socket already open.");
             }
 
-            var socketEvents = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.IP);
+            Socket socketEvents = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.IP);
             socketEvents.SendTimeout = 1000;
             socketEvents.ReceiveTimeout = 1000;
             try
@@ -493,40 +530,50 @@ namespace RoboDk.API
         {
             bool eventReceived = true;
 
-            switch (evt)
+            try
             {
-                case EventType.SelectionTreeChanged:
-                    Console.WriteLine("Event: Selection changed (something was selected in the tree)");
-                    if (itm.Valid())
-                        Console.WriteLine("  -> Selected: " + itm.Name());
-                    else
-                        Console.WriteLine("  -> Nothing selected");
+                switch (evt)
+                {
+                    #region
+                    case EventType.SelectionTreeChanged:
+                        Console.WriteLine("Event: Selection changed (something was selected in the tree)");
+                        if (itm.Valid())
+                            Console.WriteLine("  -> Selected: " + itm.Name());
+                        else
+                            Console.WriteLine("  -> Nothing selected");
 
-                    break;
+                        break;
 
-                case EventType.Selection3DChanged:
-                    Console.WriteLine("Event: Selection changed (something was selected in the 3D view)");
-                    if (itm.Valid())
-                        Console.WriteLine("  -> Selected: " + itm.Name());
-                    else
-                        Console.WriteLine("  -> Nothing selected");
+                    case EventType.Selection3DChanged:
+                        Console.WriteLine("Event: Selection changed (something was selected in the 3D view)");
+                        if (itm.Valid())
+                            Console.WriteLine("  -> Selected: " + itm.Name());
+                        else
+                            Console.WriteLine("  -> Nothing selected");
 
-                    break;
+                        break;
 
-                case EventType.ItemMoved:
-                    Console.WriteLine("Event: Item Moved");
-                    if (itm.Valid())
-                        Console.WriteLine("  -> Moved: " + itm.Name() + " ->\n" + itm.Pose().ToString());
-                    else
-                        Console.WriteLine("  -> This should never happen");
+                    case EventType.ItemMoved:
+                        Console.WriteLine("Event: Item Moved");
+                        if (itm.Valid())
+                            Console.WriteLine("  -> Moved: " + itm.Name() + " ->\n" + itm.Pose().ToString());
+                        else
+                            Console.WriteLine("  -> This should never happen");
 
-                    break;
+                        break;
 
-                default:
-                    Console.WriteLine("Unknown event " + evt.ToString());
-                    eventReceived = false;
-                    break;
+                    default:
+                        Console.WriteLine("Unknown event " + evt.ToString());
+                        eventReceived = false;
+                        break;
+                        #endregion
+                }
             }
+            catch (Exception ex)
+            {
+                DiagnosticException.ExceptionHandler(ex.Message);
+            }
+
             return eventReceived;
         }
 
@@ -534,13 +581,22 @@ namespace RoboDk.API
         public bool EventsLoop()
         {
             Console.WriteLine("Events loop started");
-            var eventSource = EventsListen();
-            while (eventSource.Connected)
+            IRoboDKEventSource eventSource = EventsListen();
+
+            try
             {
-                EventResult eventResult = eventSource.WaitForEvent(timeout: 3600 * 1000);
-                SampleRoboDkEvent(eventResult.EventType, eventResult.Item);
+                while (eventSource.Connected)
+                {
+                    EventResult eventResult = eventSource.WaitForEvent(timeout: 3600 * 1000);
+                    SampleRoboDkEvent(eventResult.EventType, eventResult.Item);
+                }
+                Console.WriteLine("Event loop finished");
             }
-            Console.WriteLine("Event loop finished");
+            catch (Exception ex)
+            {
+                DiagnosticException.ExceptionHandler(ex.Message);
+            }
+
             return true;
         }
 
@@ -550,7 +606,7 @@ namespace RoboDk.API
             check_connection();
             var command = "QUIT";
             send_line(command);
-            check_status();
+            //check_status();
             _socket.Disconnect(false);
             Process = null;
         }
@@ -564,7 +620,7 @@ namespace RoboDk.API
             int bitArch = rec_int();
             string ver4 = rec_line();
             string dateBuild = rec_line();
-            check_status();
+            //check_status();
             return ver4;
         }
 
@@ -575,7 +631,7 @@ namespace RoboDk.API
             var command = "S_WindowState";
             send_line(command);
             send_int((int)windowState);
-            check_status();
+            //check_status();
         }
 
         /// <inheritdoc />
@@ -584,7 +640,7 @@ namespace RoboDk.API
             check_connection();
             send_line("Copy");
             send_item(tocopy);
-            check_status();
+            //check_status();
         }
 
         /// <inheritdoc />
@@ -594,7 +650,7 @@ namespace RoboDk.API
             send_line("Paste");
             send_item(paste_to);
             IItem newitem = rec_item();
-            check_status();
+            //check_status();
             return newitem;
         }
 
@@ -614,7 +670,7 @@ namespace RoboDk.API
             ReceiveTimeout = 3600 * 1000;
             var newitem = rec_item();
             ReceiveTimeout = DefaultSocketTimeoutMilliseconds;
-            check_status();
+            //check_status();
             return newitem;
         }
 
@@ -628,7 +684,7 @@ namespace RoboDk.API
             send_item(parent);
             send_item(robot);
             var newitem = rec_item();
-            check_status();
+            //check_status();
             return newitem;
         }
 
@@ -641,7 +697,7 @@ namespace RoboDk.API
             send_line(name);
             send_item(robot);
             var newitem = rec_item();
-            check_status();
+            //check_status();
             return newitem;
         }
 
@@ -653,7 +709,7 @@ namespace RoboDk.API
             send_line(name);
             send_item(itemrobot);
             IItem newitem = rec_item();
-            check_status();
+            //check_status();
             return newitem;
         }
 
@@ -665,7 +721,7 @@ namespace RoboDk.API
             var command = "Render";
             send_line(command);
             send_int(autoRender ? 1 : 0);
-            check_status();
+            //check_status();
         }
 
         /// <summary>
@@ -677,7 +733,7 @@ namespace RoboDk.API
             var command = "Refresh";
             send_line(command);
             send_int(0);
-            check_status();
+            //check_status();
         }
 
         /// <inheritdoc />
@@ -701,7 +757,7 @@ namespace RoboDk.API
             }
 
             var item = rec_item();
-            check_status();
+            //check_status();
             return item;
         }
 
@@ -730,7 +786,7 @@ namespace RoboDk.API
                 listnames.Add(itemName);
             }
 
-            check_status();
+            //check_status();
             return listnames;
         }
 
@@ -759,7 +815,7 @@ namespace RoboDk.API
                 listitems.Add(item);
             }
 
-            check_status();
+            //check_status();
             return listitems;
         }
 
@@ -776,7 +832,7 @@ namespace RoboDk.API
             _socket.ReceiveTimeout = 3600 * 1000;
             var item = rec_item();
             _socket.ReceiveTimeout = DefaultSocketTimeoutMilliseconds;
-            check_status();
+            //check_status();
             return item;
         }
 
@@ -786,7 +842,7 @@ namespace RoboDk.API
             check_connection();
             var command = "RAISE";
             send_line(command);
-            check_status();
+            //check_status();
         }
 
         /// <inheritdoc />
@@ -794,7 +850,7 @@ namespace RoboDk.API
         {
             check_connection();
             send_line("FitAll");
-            check_status();
+            //check_status();
         }
 
         /// <inheritdoc />
@@ -803,7 +859,7 @@ namespace RoboDk.API
             check_connection();
             var command = "HIDE";
             send_line(command);
-            check_status();
+            //check_status();
         }
 
         /// <inheritdoc />
@@ -813,7 +869,7 @@ namespace RoboDk.API
             var command = "S_RoboDK_Rights";
             send_line(command);
             send_int((int)flags);
-            check_status();
+            //check_status();
         }
 
         /// <inheritdoc />
@@ -834,7 +890,7 @@ namespace RoboDk.API
                 var command = "ShowMessageStatus";
                 send_line(command);
                 send_line(message);
-                check_status();
+                //check_status();
             }
         }
 
@@ -846,7 +902,7 @@ namespace RoboDk.API
             send_line(command);
             send_line(filename);
             send_item(itemsave);
-            check_status();
+            //check_status();
         }
 
         /// <inheritdoc />
@@ -856,7 +912,7 @@ namespace RoboDk.API
             send_line("NewStation");
             send_line(name);
             IItem newitem = rec_item();
-            check_status();
+            //check_status();
             return newitem;
         }
 
@@ -875,7 +931,7 @@ namespace RoboDk.API
             ReceiveTimeout = 3600 * 1000;
             var newitem = rec_item();
             ReceiveTimeout = DefaultSocketTimeoutMilliseconds;
-            check_status();
+            //check_status();
             return newitem;
         }
 
@@ -893,7 +949,7 @@ namespace RoboDk.API
             ReceiveTimeout = 3600 * 1000;
             var newitem = rec_item();
             ReceiveTimeout = DefaultSocketTimeoutMilliseconds;
-            check_status();
+            //check_status();
             return newitem;
         }
 
@@ -909,7 +965,7 @@ namespace RoboDk.API
             ReceiveTimeout = 3600 * 1000;
             IItem newitem = rec_item();
             ReceiveTimeout = DefaultSocketTimeoutMilliseconds;
-            check_status();
+            //check_status();
             return newitem;
         }
 
@@ -926,7 +982,7 @@ namespace RoboDk.API
             ReceiveTimeout = 3600 * 1000;
             var projectedPoints = rec_matrix();
             ReceiveTimeout = DefaultSocketTimeoutMilliseconds;
-            check_status();
+            //check_status();
             return projectedPoints;
         }
 
@@ -938,7 +994,7 @@ namespace RoboDk.API
             send_line(command);
             send_item(new Item(this));
             ReceiveTimeout = 3600 * 1000;
-            check_status();
+            //check_status();
             ReceiveTimeout = DefaultSocketTimeoutMilliseconds;
         }
 
@@ -951,7 +1007,7 @@ namespace RoboDk.API
             send_line(name);
             send_item(parent);
             var newitem = rec_item();
-            check_status();
+            //check_status();
             return newitem;
         }
 
@@ -970,7 +1026,7 @@ namespace RoboDk.API
             send_int(codeIsFunctionCall ? 1 : 0);
             send_line(code);
             var progStatus = rec_int();
-            check_status();
+            //check_status();
             return progStatus;
         }
 
@@ -982,7 +1038,7 @@ namespace RoboDk.API
             send_line(command);
             send_int(messageIsComment ? 1 : 0);
             send_line(message);
-            check_status();
+            //check_status();
         }
 
         /// <inheritdoc />
@@ -994,7 +1050,7 @@ namespace RoboDk.API
             send_item(objectInside);
             send_item(objectParent);
             var inside = rec_int();
-            check_status();
+            //check_status();
             return inside > 0;
         }
 
@@ -1005,7 +1061,7 @@ namespace RoboDk.API
             send_line("Collision_SetState");
             send_int((int)collisionCheck);
             var ncollisions = rec_int();
-            check_status();
+            //check_status();
             return ncollisions;
         }
 
@@ -1033,7 +1089,7 @@ namespace RoboDk.API
             send_int(collisionPair.RobotLinkId2);
             send_int((int)collisionCheck);
             var success = rec_int();
-            check_status();
+            //check_status();
             return success > 0;
         }
 
@@ -1064,7 +1120,7 @@ namespace RoboDk.API
             SendData(buffer.ToArray());
 
             int nok = rec_int();
-            check_status();
+            //check_status();
             return nok == npairs;
         }
 
@@ -1075,7 +1131,7 @@ namespace RoboDk.API
             var command = "Collisions";
             send_line(command);
             var ncollisions = rec_int();
-            check_status();
+            //check_status();
             return ncollisions;
         }
 
@@ -1089,7 +1145,7 @@ namespace RoboDk.API
             send_item(item2);
             send_int(useCollisionMap ? 1 : 0);
             var ncollisions = rec_int();
-            check_status();
+            //check_status();
             return ncollisions > 0;
         }
 
@@ -1108,7 +1164,7 @@ namespace RoboDk.API
 
                 int collisionTimes = rec_int(); //number of objects it is in collisions with (unused)
             }
-            check_status();
+            //check_status();
             return itemList;
         }
 
@@ -1128,7 +1184,7 @@ namespace RoboDk.API
                 CollisionPair collisionPair = new CollisionPair(item1, id1, item2, id2);
                 list_items.Add(collisionPair);
             }
-            check_status();
+            //check_status();
             return list_items;
         }
 
@@ -1139,17 +1195,17 @@ namespace RoboDk.API
             var command = "SimulateSpeed";
             send_line(command);
             send_int((int)(speed * 1000.0));
-            check_status();
+            //check_status();
         }
 
         /// <inheritdoc />
         public double GetSimulationSpeed()
         {
             check_connection();
-            var command = "GetSimulateSpeed";
+            string command = "GetSimulateSpeed";
             send_line(command);
             var speed = rec_int() / 1000.0;
-            check_status();
+            //check_status();
             return speed;
         }
 
@@ -1160,7 +1216,7 @@ namespace RoboDk.API
             var command = "S_RunMode";
             send_line(command);
             send_int((int)runMode);
-            check_status();
+            //check_status();
         }
 
         /// <inheritdoc />
@@ -1170,7 +1226,7 @@ namespace RoboDk.API
             var command = "G_RunMode";
             send_line(command);
             var runMode = (RunMode)rec_int();
-            check_status();
+            //check_status();
             return runMode;
         }
 
@@ -1190,7 +1246,7 @@ namespace RoboDk.API
                 paramlist.Add(paramValue);
             }
 
-            check_status();
+            //check_status();
             return paramlist;
         }
 
@@ -1207,7 +1263,7 @@ namespace RoboDk.API
                 value = null;
             }
 
-            check_status();
+            //check_status();
             return value;
         }
 
@@ -1219,7 +1275,7 @@ namespace RoboDk.API
             send_line(command);
             send_line(parameter);
             send_line(value);
-            check_status();
+            //check_status();
         }
 
         /// <inheritdoc />
@@ -1230,7 +1286,7 @@ namespace RoboDk.API
             send_line(command);
             send_line(parameter);
             send_line(value.ToString());
-            check_status();
+            //check_status();
         }
 
         /// <inheritdoc />
@@ -1241,7 +1297,7 @@ namespace RoboDk.API
             send_line(cmd);
             send_line(value);
             string response = rec_line();
-            check_status();
+            //check_status();
             return response;
         }
 
@@ -1275,7 +1331,7 @@ namespace RoboDk.API
                 IItem station = rec_item();
                 listStn.Add(station);
             }
-            check_status();
+            //check_status();
             return listStn;
         }
 
@@ -1285,7 +1341,7 @@ namespace RoboDk.API
             check_connection();
             send_line("G_ActiveStn");
             IItem station = rec_item();
-            check_status();
+            //check_status();
             return station;
         }
 
@@ -1295,7 +1351,7 @@ namespace RoboDk.API
             check_connection();
             send_line("S_ActiveStn");
             send_item(station);
-            check_status();
+            //check_status();
         }
 
         /// <inheritdoc />
@@ -1308,7 +1364,7 @@ namespace RoboDk.API
             send_int(search ? 1 : 0);
             var xyz = new double[3];
             rec_xyz(xyz);
-            check_status();
+            //check_status();
             if (xyz[0] * xyz[0] + xyz[1] * xyz[1] + xyz[2] * xyz[2] < 0.0001)
             {
                 return null;
@@ -1330,7 +1386,7 @@ namespace RoboDk.API
             npoints2 = rec_int();
             time = rec_int();
             status = rec_int();
-            check_status();
+            //check_status();
         }
 
         /// <inheritdoc />
@@ -1345,7 +1401,7 @@ namespace RoboDk.API
             var xyz = new double[] { 0, 0, 0 };
             rec_xyz(xyz);
             var collision = item.Valid();
-            check_status();
+            //check_status();
             return collision;
         }
 
@@ -1367,7 +1423,7 @@ namespace RoboDk.API
                 }
                 send_int(frameVis);
             }
-            check_status();
+            //check_status();
         }
 
 
@@ -1402,7 +1458,7 @@ namespace RoboDk.API
                 send_item(item_list[i]);
                 send_line("#" + Color2Hex(color_list[i]));
             }
-            check_status();
+            //check_status();
         }
 
         /// <inheritdoc />
@@ -1428,7 +1484,7 @@ namespace RoboDk.API
                 }
                 send_int(link_id);
             }
-            check_status();
+            //check_status();
         }
 
         /// <inheritdoc />
@@ -1447,7 +1503,7 @@ namespace RoboDk.API
                 jointsList.Add(joints);
             }
 
-            check_status();
+            //check_status();
             return jointsList;
         }
 
@@ -1465,7 +1521,7 @@ namespace RoboDk.API
                 send_array(jointsList[i]);
             }
 
-            check_status();
+            //check_status();
         }
 
         /// <inheritdoc />
@@ -1484,7 +1540,7 @@ namespace RoboDk.API
             var tcp = rec_array();
             errorStats = rec_array();
             var errorGraph = rec_matrix();
-            check_status();
+            //check_status();
             return tcp;
         }
 
@@ -1502,7 +1558,7 @@ namespace RoboDk.API
             send_item(robot);
             var referencePose = rec_pose();
             var errorStats = rec_array();
-            check_status();
+            //check_status();
 
             //errors = errors[:, 1].tolist()
             return referencePose;
@@ -1520,7 +1576,7 @@ namespace RoboDk.API
             send_line(postprocessor);
             send_item(robot);
             var errors = rec_int();
-            check_status();
+            //check_status();
             return errors;
         }
 
@@ -1531,7 +1587,7 @@ namespace RoboDk.API
             var command = "S_ViewPose";
             send_line(command);
             send_pose(pose);
-            check_status();
+            //check_status();
         }
 
         /// <inheritdoc />
@@ -1543,7 +1599,7 @@ namespace RoboDk.API
             send_line(command);
             send_int((int)preset);
             var pose = rec_pose();
-            check_status();
+            //check_status();
             return pose;
         }
 
@@ -1576,7 +1632,7 @@ namespace RoboDk.API
             // reserved
             send_array(null);
             send_array(null);
-            check_status();
+            //check_status();
             return true;
         }
 
@@ -1616,7 +1672,7 @@ namespace RoboDk.API
             }
             send_matrix(jointsData);
             IItem newRobot = rec_item();
-            check_status();
+            //check_status();
             return newRobot;
         }
 
@@ -1628,7 +1684,7 @@ namespace RoboDk.API
             send_item(item);
             send_line(cameraParameters);
             var camHandle = rec_ptr();
-            check_status();
+            //check_status();
             return camHandle;
         }
 
@@ -1640,7 +1696,7 @@ namespace RoboDk.API
             send_ptr(camHandle);
             send_line(fileSaveImg);
             var success = rec_int();
-            check_status();
+            //check_status();
             return success > 0;
         }
 
@@ -1659,7 +1715,7 @@ namespace RoboDk.API
             }
 
             var success = rec_int();
-            check_status();
+            //check_status();
             return success > 0;
         }
 
@@ -1671,7 +1727,7 @@ namespace RoboDk.API
             send_ptr(camHandle);
             send_line(cameraParameters);
             var success = rec_int();
-            check_status();
+            //check_status();
             return success > 0;
         }
 
@@ -1683,7 +1739,7 @@ namespace RoboDk.API
             send_line(command);
             var license = rec_line();
             var cid = rec_line();
-            check_status();
+            //check_status();
             return license;
         }
 
@@ -1701,7 +1757,7 @@ namespace RoboDk.API
                 listItems.Add(item);
             }
 
-            check_status();
+            //check_status();
             return listItems;
         }
 
@@ -1716,7 +1772,7 @@ namespace RoboDk.API
             {
                 send_item(item_list[i]);
             }
-            check_status();
+            //check_status();
         }
 
         /// <inheritdoc />
@@ -1731,7 +1787,7 @@ namespace RoboDk.API
                 send_item(item_list[i]);
             }
             IItem newitem = rec_item();
-            check_status();
+            //check_status();
             return newitem;
         }
 
@@ -1744,7 +1800,7 @@ namespace RoboDk.API
             ReceiveTimeout = 3600 * 1000;
             IItem isoProgram = rec_item();
             ReceiveTimeout = DefaultSocketTimeoutMilliseconds;
-            check_status();
+            //check_status();
             return isoProgram;
         }
 
@@ -1769,7 +1825,7 @@ namespace RoboDk.API
                     send_int((int)customRefFlags[i]);
                 }
             }
-            check_status();
+            //check_status();
         }
 
         /// <inheritdoc />
@@ -1783,7 +1839,7 @@ namespace RoboDk.API
             double[] xyz = new double[3];
             IItem selectedItem = rec_item();
             rec_xyz(xyz);
-            check_status();
+            //check_status();
             if (xyz != null)
             {
                 xyzStation.Add(xyz[0]); xyzStation.Add(xyz[1]); xyzStation.Add(xyz[2]);
@@ -1995,13 +2051,13 @@ namespace RoboDk.API
         //Returns 1 if connection is valid, returns 0 if connection is invalid
         internal bool is_connected()
         {
-            //bool returnValue = false;
+            bool returnValue = false;
 
             //returnValue = !(_socket.Poll(1, SelectMode.SelectRead));
 
-            //returnValue = _socket.Connected;
+            returnValue = _socket.Connected;
 
-            return _socket.Connected;
+            return returnValue;
         }
 
         /// <summary>
@@ -2033,6 +2089,7 @@ namespace RoboDk.API
         internal void check_status()
         {
             var status = rec_int();
+
             LastStatusMessage = "";
             switch (status)
             {
