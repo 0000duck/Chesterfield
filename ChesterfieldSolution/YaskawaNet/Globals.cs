@@ -6,7 +6,7 @@ using System.Runtime.InteropServices;
 namespace YaskawaNet
 {
     [ComVisible(true)]
-    public enum RobotFrameType : byte
+    public enum RobotFrameType 
     {
         Base = 0,
         Robot,
@@ -22,7 +22,7 @@ namespace YaskawaNet
         MasterTool
     }
     [ComVisible(true)]
-    public enum RobotVariableType : short
+    public enum RobotVariableType 
     {
         Byte = 0,
         Integer,
@@ -34,26 +34,26 @@ namespace YaskawaNet
         String
     }
     [ComVisible(true)]
-    public enum RobotPositionVariableType : byte
+    public enum RobotPositionVariableType 
     {
         Pulse = 0,
         XYZ
     }
     [ComVisible(true)]
-    public enum RobotCommunicationType : short
+    public enum RobotCommunicationType 
     {
         SERIAL = 0x01,
         ETHERNET = 0x10,
         ETHERNET_SERVER = 0x100
     }
     [ComVisible(true)]
-    public enum RobotModeType : short
+    public enum RobotModeType 
     {
         TEACH = 1,
         PLAY = 2
     }
     [ComVisible(true)]
-    public enum RobotMotionType : short
+    public enum RobotMotionType
     {
         NONE = -1,
         Relative,
@@ -67,33 +67,33 @@ namespace YaskawaNet
         LinearMotion
     }
     [ComVisible(true)]
-    public enum RobotMoveSpeedSelectionType : short
+    public enum RobotMoveSpeedSelectionType 
     {
         ControlPoint = 1,
         PositionAngular = 2,
         JointSpeed = 3
     }
     [ComVisible(true)]
-    public enum RobotFunctionReturnType_1 : short
+    public enum RobotFunctionReturnType_1
     {
         AcquisitionFailure = -1,
         NormalCompletion = 0
     }
     [ComVisible(true)]
-    public enum RobotFunctionReturnType_2 : short
+    public enum RobotFunctionReturnType_2 
     {
         Other = -1,
         NormalCompletion = 0
     }
     [ComVisible(true)]
-    public enum MotionDirection : short
+    public enum MotionDirection
     {
         None = 0,
         Positive = 1,
         Negative = 2
     }
     [ComVisible(true)]
-    public enum ConnectionStatus : short
+    public enum ConnectionStatus
     {
         Unreachable = 0,
         Reachable = 1
@@ -106,6 +106,7 @@ namespace YaskawaNet
         public bool connected;
         [MarshalAs(UnmanagedType.BStr)]
         public string ipAddress;
+        [MarshalAs(UnmanagedType.I4)]
         public ConnectionStatus connectionStatus;
     }
 }

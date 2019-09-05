@@ -115,7 +115,7 @@ namespace YaskawaNet
         private bool _isAlarm = false;
         private bool _isError = false;
         private bool _isServoOn = false;
-        private bool _isHold = false; 
+        private bool _isHold = false;
         #endregion
 
         #region Properties
@@ -305,41 +305,42 @@ namespace YaskawaNet
         }
         #endregion
     }
+
     [ComVisible(true)]
     [StructLayout(LayoutKind.Sequential, Pack = 1)]
     public struct RobotStatusInformation
     {
         [MarshalAs(UnmanagedType.Bool)]
-        public bool isStep;
+        public bool IsStep;
         [MarshalAs(UnmanagedType.Bool)]
-        public bool is1Cycle;
+        public bool Is1Cycle;
         [MarshalAs(UnmanagedType.Bool)]
-        public bool isAuto;
+        public bool IsAuto;
         [MarshalAs(UnmanagedType.Bool)]
-        public bool isOperating;
+        public bool IsOperating;
         [MarshalAs(UnmanagedType.Bool)]
-        public bool isSafeSpeed;
+        public bool IsSafeSpeed;
         [MarshalAs(UnmanagedType.Bool)]
-        public bool isTeach;
+        public bool IsTeach;
         [MarshalAs(UnmanagedType.Bool)]
-        public bool isPlay;
+        public bool IsPlay;
         [MarshalAs(UnmanagedType.Bool)]
-        public bool isCommandRemote;
+        public bool IsCommandRemote;
         [MarshalAs(UnmanagedType.Bool)]
-        public bool isPlaybackBoxHold;
+        public bool IsPlaybackBoxHold;
         [MarshalAs(UnmanagedType.Bool)]
-        public bool isExternalHold;
+        public bool IsExternalHold;
         [MarshalAs(UnmanagedType.Bool)]
-        public bool isPPHold;
+        public bool IsPPHold;
         [MarshalAs(UnmanagedType.Bool)]
-        public bool isCommandHold;
+        public bool IsCommandHold;
         [MarshalAs(UnmanagedType.Bool)]
-        public bool isAlarm;
+        public bool IsAlarm;
         [MarshalAs(UnmanagedType.Bool)]
-        public bool isError;
+        public bool IsError;
         [MarshalAs(UnmanagedType.Bool)]
-        public bool isServoOn;
+        public bool IsServoOn;
         [MarshalAs(UnmanagedType.Bool)]
-        public bool isHold ;
+        public bool IsHold;
     }
 }

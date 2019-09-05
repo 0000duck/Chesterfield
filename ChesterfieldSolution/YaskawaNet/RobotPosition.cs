@@ -181,6 +181,28 @@ namespace YaskawaNet
             get;
             set;
         }
+        bool XAxisInMotion
+        {
+            get;
+        }
+        bool XAxisInHome
+        {
+            get;
+        }
+        double MinXAxisPosition
+        {
+            get;
+        }
+        double MaxXAxisPosition
+        {
+            get;
+        }
+        double XAxisHomePosition
+        {
+            get;
+            set;
+        }
+
         double Y
         {
             get;
@@ -296,7 +318,8 @@ namespace YaskawaNet
         #endregion
 
         #region Fields
-        volatile double[] _robotPositions = new double[12];
+        volatile double[] _actualRobotPositions = new double[12];
+        volatile double[] _previousRobotPositions = new double[12];
         volatile double[] _robotHomePositions = new double[12];
         volatile double[] _robotParkPositions = new double[12];
         volatile double[] _robotPulsePositions = new double[12];
@@ -307,6 +330,8 @@ namespace YaskawaNet
         readonly object _rAxisLocker = new object();
         readonly object _bAxisLocker = new object();
         readonly object _tAxisLocker = new object();
+
+        readonly object _xAxisLocker = new object();
 
         readonly object _robotPositionsLocker = new object();
         readonly object _robotHomePositionsLocker = new object();
@@ -362,6 +387,20 @@ namespace YaskawaNet
         private double _minTJointPosition = -150.0;
         private double _maxTJointPosition = 150.0;
         private double _tJointHomePosition = 0;
+
+        private bool _xAxisInMotion = false;
+        private bool _xAxisInHome = false;
+        private double _actualXAxisPosition = 0.0;
+        private double _previousXAxisPosition = 0.0;
+        private double _minXAxisPosition = -1500.0;
+        private double _maxXAxisPosition = 1500.0;
+        private double _xAxisHomePosition = 0;
+
+        private double _actualYAxisPosition = 0.0;
+        private double _actualZAxisPosition = 0.0;
+        private double _actualRxAxisPosition = 0.0;
+        private double _actualRyAxisPosition = 0.0;
+        private double _actualRzAxisPosition = 0.0;
 
         private double[][] _limits = new double[12][]
             {
@@ -468,11 +507,11 @@ namespace YaskawaNet
             E11Axis = 0;
             E12Axis = 0;
 
-            _robotPositions.Initialize();
+            _actualRobotPositions.Initialize();
         }
         public RobotPosition(double[] positions)
         {
-            positions.CopyTo(_robotPositions, 0);
+            positions.CopyTo(_actualRobotPositions, 0);
         }
 
         public double SAxis
@@ -481,18 +520,20 @@ namespace YaskawaNet
             {
                 lock (_sAxisLocker)
                 {
-                    return _robotPositions[0];
+                    return _actualRobotPositions[0];
                 }
             }
             set
             {
                 lock (_sAxisLocker)
                 {
-                    _previousSJointPosition = _robotPositions[0];
-                    _actualSJointPosition = _robotPositions[0] = value;
-                    _robotPulsePositions[0] = _robotPositions[0] * SJointPulsesDegreeRatio;
-                    _inMotionArray[0] = _sJointInMotion = (_previousSJointPosition != _actualSJointPosition);
+                    _actualRobotPositions[0] = value;
+                    _robotPulsePositions[0] = _actualRobotPositions[0] * SJointPulsesDegreeRatio;
+
+                    _inMotionArray[0] = (_previousRobotPositions[0] != _actualRobotPositions[0]);
                     _sJointInHome = (_actualSJointPosition == _robotHomePositions[0]);
+
+                    _previousRobotPositions[0] = _actualRobotPositions[0];
                 }
             }
         }
@@ -582,16 +623,16 @@ namespace YaskawaNet
             {
                 lock (_lAxisLocker)
                 {
-                    return _robotPositions[1];
+                    return _actualRobotPositions[1];
                 }
             }
             set
             {
                 lock (_lAxisLocker)
                 {
-                    _previousLJointPosition = _robotPositions[1];
-                    _actualLJointPosition = _robotPositions[1] = value;
-                    _robotPulsePositions[1] = _robotPositions[1] * LJointPulsesDegreeRatio;
+                    _previousLJointPosition = _actualRobotPositions[1];
+                    _actualLJointPosition = _actualRobotPositions[1] = value;
+                    _robotPulsePositions[1] = _actualRobotPositions[1] * LJointPulsesDegreeRatio;
                     _inMotionArray[1] = _lJointInMotion = (_previousLJointPosition != _actualLJointPosition);
                     _lJointInHome = (_actualLJointPosition == _robotHomePositions[1]);
                 }
@@ -681,15 +722,15 @@ namespace YaskawaNet
         {
             get
             {
-                return _robotPositions[2];
+                return _actualRobotPositions[2];
             }
             set
             {
                 lock (_uAxisLocker)
                 {
-                    _previousUJointPosition = _robotPositions[2];
-                    _actualUJointPosition = _robotPositions[2] = value;
-                    _robotPulsePositions[2] = _robotPositions[2] * UJointPulsesDegreeRatio;
+                    _previousUJointPosition = _actualRobotPositions[2];
+                    _actualUJointPosition = _actualRobotPositions[2] = value;
+                    _robotPulsePositions[2] = _actualRobotPositions[2] * UJointPulsesDegreeRatio;
                     _inMotionArray[2] = _uJointInMotion = (_previousUJointPosition != _actualUJointPosition);
                     _uJointInHome = (_actualUJointPosition == _robotHomePositions[2]);
                 }
@@ -779,15 +820,15 @@ namespace YaskawaNet
         {
             get
             {
-                return _robotPositions[3];
+                return _actualRobotPositions[3];
             }
             set
             {
                 lock (_rAxisLocker)
                 {
-                    _previousRJointPosition = _robotPositions[3];
-                    _actualRJointPosition = _robotPositions[3] = value;
-                    _robotPulsePositions[3] = _robotPositions[3] * RJointPulsesDegreeRatio;
+                    _previousRJointPosition = _actualRobotPositions[3];
+                    _actualRJointPosition = _actualRobotPositions[3] = value;
+                    _robotPulsePositions[3] = _actualRobotPositions[3] * RJointPulsesDegreeRatio;
                     _inMotionArray[3] = _rJointInMotion = (_previousRJointPosition != _actualRJointPosition);
                     _rJointInHome = (_actualRJointPosition == _robotHomePositions[3]);
                 }
@@ -877,15 +918,15 @@ namespace YaskawaNet
         {
             get
             {
-                return _robotPositions[4];
+                return _actualRobotPositions[4];
             }
             set
             {
                 lock (_bAxisLocker)
                 {
-                    _previousBJointPosition = _robotPositions[4];
-                    _actualBJointPosition = _robotPositions[4] = value;
-                    _robotPulsePositions[4] = _robotPositions[4] * BJointPulsesDegreeRatio;
+                    _previousBJointPosition = _actualRobotPositions[4];
+                    _actualBJointPosition = _actualRobotPositions[4] = value;
+                    _robotPulsePositions[4] = _actualRobotPositions[4] * BJointPulsesDegreeRatio;
                     _inMotionArray[4] = _bJointInMotion = (_previousBJointPosition != _actualBJointPosition);
                     _bJointInHome = (_actualBJointPosition == _robotHomePositions[4]);
                 }
@@ -975,15 +1016,15 @@ namespace YaskawaNet
         {
             get
             {
-                return _robotPositions[5];
+                return _actualRobotPositions[5];
             }
             set
             {
                 lock (_tAxisLocker)
                 {
-                    _previousTJointPosition = _robotPositions[5];
-                    _actualBJointPosition = _robotPositions[5] = value;
-                    _robotPulsePositions[5] = _robotPositions[5] * TJointPulsesDegreeRatio;
+                    _previousTJointPosition = _actualRobotPositions[5];
+                    _actualBJointPosition = _actualRobotPositions[5] = value;
+                    _robotPulsePositions[5] = _actualRobotPositions[5] * TJointPulsesDegreeRatio;
                     _inMotionArray[5] = _tJointInMotion = (_previousTJointPosition != _actualTJointPosition);
                     _tJointInHome = (_actualTJointPosition == _robotHomePositions[5]);
                 }
@@ -1073,132 +1114,220 @@ namespace YaskawaNet
         {
             get
             {
-                return _robotPositions[0];
+                return _actualRobotPositions[0];
             }
             set
             {
-                _robotPositions[0] = value;
+                lock (_xAxisLocker)
+                {
+                    _actualRobotPositions[0] = value;
+
+                    _inMotionArray[0] = (_previousRobotPositions[0] != _actualRobotPositions[0]);
+                    _xAxisInHome = (_actualXAxisPosition == _robotHomePositions[0]);
+
+                    _previousRobotPositions[0] = _actualRobotPositions[0];
+                }
             }
         }
+        public bool XAxisInMotion
+        {
+            get
+            {
+                lock (_xAxisLocker)
+                {
+                    return _xAxisInMotion;
+                }
+            }
+        }
+        public bool XAxisInHome
+        {
+            get
+            {
+                lock (_xAxisLocker)
+                {
+                    return _xAxisInHome;
+                }
+            }
+        }
+        public double MinXAxisPosition
+        {
+            get
+            {
+                lock (_xAxisLocker)
+                {
+                    return _minXAxisPosition;
+                }
+            }
+            set
+            {
+                lock (_xAxisLocker)
+                {
+                    if (value >= -10000.0 && value <= 10000.0)
+                    {
+                        _limits[0][0] = _minXAxisPosition = value;
+                    }
+                }
+            }
+        }
+        public double MaxXAxisPosition
+        {
+            get
+            {
+                lock (_xAxisLocker)
+                {
+                    return _maxXAxisPosition;
+
+                }
+            }
+            set
+            {
+                lock (_xAxisLocker)
+                {
+                    if (value >= -10000.0 && value <= 10000.0)
+                    {
+                        _limits[0][1] = _maxXAxisPosition = value;
+                    }
+                }
+            }
+        }
+        public double XAxisHomePosition
+        {
+            get
+            {
+                lock (_xAxisLocker)
+                {
+                    return _xAxisHomePosition;
+
+                }
+            }
+            set
+            {
+                lock (_xAxisLocker)
+                {
+                    _robotHomePositions[0] = _xAxisHomePosition = value;
+                }
+            }
+        }
+
         public double Y
         {
             get
             {
-                return _robotPositions[1];
+                return _actualRobotPositions[1];
             }
             set
             {
-                _robotPositions[1] = value;
+                _actualRobotPositions[1] = value;
             }
         }
         public double Z
         {
             get
             {
-                return _robotPositions[2];
+                return _actualRobotPositions[2];
             }
             set
             {
-                _robotPositions[2] = value;
+                _actualRobotPositions[2] = value;
             }
         }
         public double Rx
         {
             get
             {
-                return _robotPositions[3];
+                return _actualRobotPositions[3];
             }
             set
             {
-                _robotPositions[3] = value;
+                _actualRobotPositions[3] = value;
             }
         }
         public double Ry
         {
             get
             {
-                return _robotPositions[4];
+                return _actualRobotPositions[4];
             }
             set
             {
-                _robotPositions[4] = value;
+                _actualRobotPositions[4] = value;
             }
         }
         public double Rz
         {
             get
             {
-                return _robotPositions[5];
+                return _actualRobotPositions[5];
             }
             set
             {
-                _robotPositions[5] = value;
+                _actualRobotPositions[5] = value;
             }
         }
         public double E7Axis
         {
             get
             {
-                return _robotPositions[6];
+                return _actualRobotPositions[6];
             }
             set
             {
-                _robotPositions[6] = value;
+                _actualRobotPositions[6] = value;
             }
         }
         public double E8Axis
         {
             get
             {
-                return _robotPositions[7];
+                return _actualRobotPositions[7];
             }
             set
             {
-                _robotPositions[7] = value;
+                _actualRobotPositions[7] = value;
             }
         }
         public double E9Axis
         {
             get
             {
-                return _robotPositions[8];
+                return _actualRobotPositions[8];
             }
             set
             {
-                _robotPositions[8] = value;
+                _actualRobotPositions[8] = value;
             }
         }
         public double E10Axis
         {
             get
             {
-                return _robotPositions[9];
+                return _actualRobotPositions[9];
             }
             set
             {
-                _robotPositions[9] = value;
+                _actualRobotPositions[9] = value;
             }
         }
         public double E11Axis
         {
             get
             {
-                return _robotPositions[10];
+                return _actualRobotPositions[10];
             }
             set
             {
-                _robotPositions[10] = value;
+                _actualRobotPositions[10] = value;
             }
         }
         public double E12Axis
         {
             get
             {
-                return _robotPositions[11];
+                return _actualRobotPositions[11];
             }
             set
             {
-                _robotPositions[11] = value;
+                _actualRobotPositions[11] = value;
             }
         }
 
@@ -1267,42 +1396,43 @@ namespace YaskawaNet
             {
                 lock (_robotPositionsLocker)
                 {
-                    return _robotPositions;
+                    return _actualRobotPositions;
                 }
             }
             set
             {
                 lock (_robotPositionsLocker)
                 {
-                    _previousSJointPosition = _robotPositions[0];
-                    _previousLJointPosition = _robotPositions[1];
-                    _previousUJointPosition = _robotPositions[2];
-                    _previousRJointPosition = _robotPositions[3];
-                    _previousBJointPosition = _robotPositions[4];
-                    _previousTJointPosition = _robotPositions[5];
+                    _actualRobotPositions = value;
 
-                    _robotPositions = value;
+                    _actualSJointPosition = _actualXAxisPosition = _actualRobotPositions[0];
+                    _actualLJointPosition = _actualYAxisPosition = _actualRobotPositions[1];
+                    _actualUJointPosition = _actualZAxisPosition = _actualRobotPositions[2];
+                    _actualRJointPosition = _actualRxAxisPosition = _actualRobotPositions[3];
+                    _actualBJointPosition = _actualRyAxisPosition = _actualRobotPositions[4];
+                    _actualTJointPosition = _actualRzAxisPosition = _actualRobotPositions[5];
 
-                    _actualSJointPosition = _robotPositions[0];
-                    _actualLJointPosition = _robotPositions[1];
-                    _actualUJointPosition = _robotPositions[2];
-                    _actualRJointPosition = _robotPositions[3];
-                    _actualBJointPosition = _robotPositions[4];
-                    _actualTJointPosition = _robotPositions[5];
+                    _inMotionArray[0] = (_previousRobotPositions[0] != _actualRobotPositions[0]);
+                    _inMotionArray[1] = (_previousRobotPositions[1] != _actualRobotPositions[1]);
+                    _inMotionArray[2] = (_previousRobotPositions[2] != _actualRobotPositions[2]);
+                    _inMotionArray[3] = (_previousRobotPositions[3] != _actualRobotPositions[3]);
+                    _inMotionArray[4] = (_previousRobotPositions[4] != _actualRobotPositions[4]);
+                    _inMotionArray[5] = (_previousRobotPositions[5] != _actualRobotPositions[5]);
+                    _inMotionArray[6] = (_previousRobotPositions[6] != _actualRobotPositions[6]);
+                    _inMotionArray[7] = (_previousRobotPositions[7] != _actualRobotPositions[7]);
+                    _inMotionArray[8] = (_previousRobotPositions[8] != _actualRobotPositions[8]);
+                    _inMotionArray[9] = (_previousRobotPositions[9] != _actualRobotPositions[9]);
+                    _inMotionArray[10] = (_previousRobotPositions[10] != _actualRobotPositions[10]);
+                    _inMotionArray[11] = (_previousRobotPositions[11] != _actualRobotPositions[11]);
 
-                    _inMotionArray[0] = _sJointInMotion = (_previousSJointPosition != _actualSJointPosition);
-                    _inMotionArray[1] = _lJointInMotion = (_previousLJointPosition != _actualLJointPosition);
-                    _inMotionArray[2] = _uJointInMotion = (_previousUJointPosition != _actualUJointPosition);
-                    _inMotionArray[3] = _rJointInMotion = (_previousRJointPosition != _actualRJointPosition);
-                    _inMotionArray[4] = _bJointInMotion = (_previousBJointPosition != _actualBJointPosition);
-                    _inMotionArray[5] = _tJointInMotion = (_previousTJointPosition != _actualTJointPosition);
+                    _sJointInHome = _xAxisInHome = (_actualRobotPositions[0] == _robotHomePositions[0]);
+                    _lJointInHome = (_actualRobotPositions[1] == _robotHomePositions[1]);
+                    _uJointInHome = (_actualRobotPositions[2] == _robotHomePositions[2]);
+                    _rJointInHome = (_actualRobotPositions[3] == _robotHomePositions[3]);
+                    _bJointInHome = (_actualRobotPositions[4] == _robotHomePositions[4]);
+                    _tJointInHome = (_actualRobotPositions[5] == _robotHomePositions[5]);
 
-                    _sJointInHome = (_robotPositions[0] == _robotHomePositions[0]);
-                    _lJointInHome = (_robotPositions[1] == _robotHomePositions[1]);
-                    _uJointInHome = (_robotPositions[2] == _robotHomePositions[2]);
-                    _rJointInHome = (_robotPositions[3] == _robotHomePositions[3]);
-                    _bJointInHome = (_robotPositions[4] == _robotHomePositions[4]);
-                    _tJointInHome = (_robotPositions[5] == _robotHomePositions[5]);
+                    _previousRobotPositions = _actualRobotPositions;
                 }
             }
         }
