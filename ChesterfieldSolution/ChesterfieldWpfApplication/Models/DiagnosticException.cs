@@ -10,7 +10,7 @@ namespace ChesterfieldWpfApplication.Models
         {
 #if DEBUG
 
-            Debug.WriteLine(exception);
+            Debug.WriteLine("DX200::" + exception);
 
 #endif
         }

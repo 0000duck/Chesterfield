@@ -44,6 +44,7 @@
     <DocumentationFile>bin\Debug\YaskawaNet.xml</DocumentationFile>
     <Prefer32Bit>false</Prefer32Bit>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <NoWarn>CS1591;CS1572</NoWarn>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
     <DebugType>pdbonly</DebugType>
@@ -157,8 +158,9 @@
   <PropertyGroup>
     <PostBuildEvent>copy /Y "$(ProjectDir)Hslsrv32.exe" "$(TargetDir)Hslsrv32.exe"
 copy /Y "$(ProjectDir)MotoCom32.dll" "$(TargetDir)MotoCom32.dll"
-copy /Y "$(ProjectDir)MotoLdk.dll" "$(TargetDir)MotoLdk.dll"
-copy /Y "$(ProjectDir)MotoLdk1.dll" "$(TargetDir)MotoLdk1.dll"
+rem copy /Y "$(ProjectDir)MotoLdk.dll" "$(TargetDir)MotoLdk.dll"
+rem copy /Y "$(ProjectDir)MotoLdk1.dll" "$(TargetDir)MotoLdk1.dll"
+copy /Y "$(ProjectDir)MotoLk.dll" "$(TargetDir)MotoLdr.dll"
 copy /Y "$(ProjectDir)MotoLk.dll" "$(TargetDir)MotoLk.dll"
 copy /Y "$(ProjectDir)MotoLke.dll" "$(TargetDir)MotoLke.dll"
 copy /Y "$(ProjectDir)MotoLkr.dll" "$(TargetDir)MotoLkr.dll"

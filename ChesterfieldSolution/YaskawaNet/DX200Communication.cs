@@ -48,7 +48,7 @@ namespace YaskawaNet
             }
             catch (Exception ex)
             {
-                DiagnosticException.ExceptionHandler(ex.Message);
+                DiagnosticException.ExceptionHandler(ex);
                 return false;
             }
 
@@ -88,7 +88,7 @@ namespace YaskawaNet
             catch (Exception ex)
             {                  
                 returnValue = ConnectionStatus.Unreachable;
-                DiagnosticException.ExceptionHandler(ex.Message);
+                DiagnosticException.ExceptionHandler(ex);
             }
 
             return returnValue;

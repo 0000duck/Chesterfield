@@ -98,7 +98,7 @@ namespace RoboDk.API
             CommandLineOptions = "";
             ApplicationDir = "";
 
-            DefaultSocketTimeoutMilliseconds = 10 * 100;
+            DefaultSocketTimeoutMilliseconds = 50;
 
             SafeMode = true;
             AutoUpdate = false;
@@ -216,7 +216,7 @@ namespace RoboDk.API
                             str = line.Remove(0, "RecentFileList=".Length);
                             break;
                         }
-                    } 
+                    }
                     #endregion
                 }
                 rdkList = new List<string>();
@@ -232,13 +232,13 @@ namespace RoboDk.API
                     if (extensionFilter.Length == 0 || st2.ToLower().EndsWith(extensionFilter.ToLower()))
                     {
                         rdkList.Add(st2);
-                    } 
+                    }
                     #endregion
                 }
             }
             catch (Exception ex)
             {
-                DiagnosticException.ExceptionHandler(ex.Message);
+                DiagnosticException.ExceptionHandler(ex);
             }
 
             return rdkList;
@@ -278,7 +278,7 @@ namespace RoboDk.API
                 return false;
             }
 
-            var part1 = _socket.Poll(500000, SelectMode.SelectRead);
+            var part1 = _socket.Poll(1, SelectMode.SelectRead);
             var part2 = _socket.Available == 0;
 
             // s.Poll returns true if:
@@ -355,10 +355,19 @@ namespace RoboDk.API
                     connected = false;
                     Process = null;
                 }
+                //else
+                //{
+                //    while (true)
+                //    {
+                //        bool ver = VerifyConnection();
+                //        Debug.WriteLine("DX200::Connection verify: " + ((ver) ? "True" : "False"));
+                //        Thread.Sleep(25);
+                //    }
+                //}
             }
             catch (Exception ex)
             {
-                DiagnosticException.ExceptionHandler(ex.Message);
+                DiagnosticException.ExceptionHandler(ex);
             }
 
             return connected;
@@ -435,7 +444,7 @@ namespace RoboDk.API
             }
             catch (Exception ex)
             {
-                DiagnosticException.ExceptionHandler(ex.Message);
+                DiagnosticException.ExceptionHandler(ex);
             }
 
             return started;
@@ -471,7 +480,7 @@ namespace RoboDk.API
             }
             catch (Exception ex)
             {
-                DiagnosticException.ExceptionHandler(ex.Message);
+                DiagnosticException.ExceptionHandler(ex);
             }
 
             return serverPortIsOpen;
@@ -571,7 +580,7 @@ namespace RoboDk.API
             }
             catch (Exception ex)
             {
-                DiagnosticException.ExceptionHandler(ex.Message);
+                DiagnosticException.ExceptionHandler(ex);
             }
 
             return eventReceived;
@@ -594,7 +603,7 @@ namespace RoboDk.API
             }
             catch (Exception ex)
             {
-                DiagnosticException.ExceptionHandler(ex.Message);
+                DiagnosticException.ExceptionHandler(ex);
             }
 
             return true;
@@ -1877,29 +1886,36 @@ namespace RoboDk.API
         /// <returns></returns>
         public int SendData(byte[] data, int len, SocketFlags flags)
         {
-            int n = 0;
-            IAsyncResult ar = null;
+            int returnValue = 0;
+            IAsyncResult asyncResult = null;
             int waitCounter = 0;
 
             try
             {
-                ar = _socket.BeginSend(data, 0, len, flags, null, data);
-                while (!ar.IsCompleted)
+                if (_socket.Connected)
                 {
-                    ar.AsyncWaitHandle.WaitOne(10);
-                    waitCounter++;
-                    if (waitCounter > 50)
+                    asyncResult = _socket.BeginSend(data, 0, len, flags, null, data);
+                    while (!asyncResult.IsCompleted)
                     {
-                        break;
+                        #region
+                        asyncResult.AsyncWaitHandle.WaitOne(5);
+                        waitCounter++;
+                        if (waitCounter > 5)
+                        {
+                            break;
+                        }
+                        #endregion
                     }
+
+                    returnValue = len;
                 }
             }
             catch (Exception ex)
             {
-                DiagnosticException.ExceptionHandler(ex.Message);
+                DiagnosticException.ExceptionHandler(ex);
             }
 
-            return n;
+            return returnValue;
         }
         /// <summary>
         /// 
@@ -1922,30 +1938,24 @@ namespace RoboDk.API
         /// <returns></returns>
         public int ReceiveDataTask(byte[] data, int offset, int len, SocketFlags flags)
         {
-            Debug.Assert((offset + len) <= data.Length);
-            var receivedBytes = 0;
+            int receivedBytes = 0;
+            int recievedBytesCounter = 0;
 
             try
             {
                 while (receivedBytes < len)
                 {
-                    int n = 0;
+                    recievedBytesCounter = _socket.Receive(data, offset + receivedBytes, len - receivedBytes, flags);
 
-                    n = _socket.Receive(data, offset + receivedBytes, len - receivedBytes, flags);
+                    receivedBytes += recievedBytesCounter;
 
-                    if (n <= 0)
-                    {
-                        // socket closed.
-
-                        return 0;
-                    }
-                    receivedBytes += n;
+                    Thread.Sleep(1);
                 }
             }
             catch (Exception ex)
             {
                 //check_connection();
-                DiagnosticException.ExceptionHandler(ex.Message);
+                DiagnosticException.ExceptionHandler(ex);
             }
 
             return receivedBytes;
@@ -1961,19 +1971,39 @@ namespace RoboDk.API
         /// <returns></returns>
         public int ReceiveData(byte[] data, int offset, int len, SocketFlags flags)
         {
+            int returnValue = 0;
             // Only execute as Task if we run on the main UI Thread
-            if (Thread.CurrentThread == System.Windows.Application.Current?.Dispatcher?.Thread)
+            //if (Thread.CurrentThread == System.Windows.Application.Current?.Dispatcher?.Thread)
+            //{
+            //    // TASK.RUN
+            //    var receiveTask = Task.Run(() => ReceiveDataTask(data, offset, len, flags));
+            //    receiveTask.Wait();
+            //    return receiveTask.Result;
+            //}
+            //else
+            //{
+            //    // Any other background thread. Call receive synchronously
+            //    return ReceiveDataTask(data, offset, len, flags);
+            //}
+
+            Task<int> task = new Task<int>(() =>
+           {
+               return ReceiveDataTask(data, offset, len, flags);
+           });
+
+            task.Start();
+            task.Wait(50);
+            if (task.IsCompleted)
             {
-                // TASK.RUN
-                var receiveTask = Task.Run(() => ReceiveDataTask(data, offset, len, flags));
-                receiveTask.Wait();
-                return receiveTask.Result;
+                returnValue = Convert.ToInt32(task.Result);
+
             }
             else
             {
-                // Any other background thread. Call receive synchronously
-                return ReceiveDataTask(data, offset, len, flags);
+                returnValue = 0;
             }
+
+            return returnValue;
         }
         /// <summary>
         /// 
@@ -2053,9 +2083,19 @@ namespace RoboDk.API
         {
             bool returnValue = false;
 
-            //returnValue = !(_socket.Poll(1, SelectMode.SelectRead));
+            try
+            {
+                //returnValue = (_socket.Poll(100, SelectMode.SelectRead));
+                bool check = _socket.Poll(1, SelectMode.SelectRead);
+                returnValue = (check && _socket.Available != 0 && _socket.Connected);
 
-            returnValue = _socket.Connected;
+                //returnValue = _socket.Connected;
+            }
+            catch (Exception ex)
+            {
+                returnValue = false;
+                DiagnosticException.ExceptionHandler(ex);
+            }
 
             return returnValue;
         }
@@ -2071,7 +2111,7 @@ namespace RoboDk.API
                 {
                     if (!Connect())
                     {
-                        throw new RdkException("Can't connect to RoboDK API");
+                        DiagnosticException.ExceptionHandler(new Exception("Can't connect to RoboDK API"));
                     }
                 }
 
@@ -2079,7 +2119,7 @@ namespace RoboDk.API
             }
             catch (Exception ex)
             {
-                DiagnosticException.ExceptionHandler(ex.Message);
+                DiagnosticException.ExceptionHandler(ex);
             }
         }
 
@@ -2158,7 +2198,7 @@ namespace RoboDk.API
             }
             catch (Exception ex)
             {
-                DiagnosticException.ExceptionHandler(ex.Message);
+                DiagnosticException.ExceptionHandler(ex);
             }
         }
 
@@ -2168,9 +2208,10 @@ namespace RoboDk.API
                 sckt = _socket;
 
             //Receives a string. It reads until if finds LF (\\n)
-            var buffer = new byte[1];
-            var bytesread = ReceiveData(buffer, 1, SocketFlags.None);
-            var line = "";
+            byte[] buffer = new byte[1];
+            int bytesread = ReceiveData(buffer, 1, SocketFlags.None);
+            string line = string.Empty;
+
             while (bytesread > 0 && buffer[0] != '\n')
             {
                 line = line + Encoding.UTF8.GetString(buffer);
@@ -2205,7 +2246,7 @@ namespace RoboDk.API
             }
             catch (Exception ex)
             {
-                DiagnosticException.ExceptionHandler(ex.Message);
+                DiagnosticException.ExceptionHandler(ex);
             }
         }
 
@@ -2232,7 +2273,6 @@ namespace RoboDk.API
             buffer.AddRange(bytes);
             return buffer;
         }
-
 
         //Receives an item pointer
         internal IItem rec_item(Socket sckt = null)
@@ -2346,7 +2386,7 @@ namespace RoboDk.API
             }
             catch (Exception ex)
             {
-                DiagnosticException.ExceptionHandler(ex.Message);
+                DiagnosticException.ExceptionHandler(ex);
             }
 
             return pose;
@@ -2433,7 +2473,7 @@ namespace RoboDk.API
             catch (Exception ex)
             {
                 returnedValue = 0;
-                DiagnosticException.ExceptionHandler(ex.Message);
+                DiagnosticException.ExceptionHandler(ex);
             }
 
             return returnedValue;
@@ -2486,8 +2526,8 @@ namespace RoboDk.API
                     sckt = _socket;
                 }
 
-                nvalues = rec_int(sckt);
-                if (nvalues > 0)
+                nvalues = rec_int(_socket);
+                if (nvalues > 0 && nvalues < (_socket.ReceiveBufferSize / 8))
                 {
                     #region
                     values = new double[nvalues];
@@ -2505,7 +2545,7 @@ namespace RoboDk.API
             }
             catch (Exception ex)
             {
-                DiagnosticException.ExceptionHandler(ex.Message);
+                DiagnosticException.ExceptionHandler(ex);
             }
 
             return values;
@@ -2696,12 +2736,17 @@ namespace RoboDk.API
             bool useNewVersion = true; // this flag will be soon updated to support build/version check and prevent calling unsupported functions by RoboDK.
             if (useNewVersion)
             {
+                FlushReceiveBuffer();
+
                 send_line("RDK_API");
                 send_int(0);
                 string response = rec_line();
                 int verApi = rec_int();
                 RoboDKBuild = rec_int();
+
+                FlushReceiveBuffer();
                 //check_status();
+
                 return response == "RDK_API";
             }
             else
@@ -2750,7 +2795,7 @@ namespace RoboDk.API
             }
             catch (Exception ex)
             {
-                DiagnosticException.ExceptionHandler(ex.Message);
+                DiagnosticException.ExceptionHandler(ex);
             }
         }
 
@@ -2834,7 +2879,7 @@ namespace RoboDk.API
                 }
                 catch (Exception ex)
                 {
-                    DiagnosticException.ExceptionHandler(ex.Message);
+                    DiagnosticException.ExceptionHandler(ex);
                 }
 
                 return new EventResult(EventType.NoEvent, null);

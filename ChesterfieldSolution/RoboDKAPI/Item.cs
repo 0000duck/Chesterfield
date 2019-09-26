@@ -111,7 +111,7 @@ namespace RoboDk.API
         /// <inheritdoc />
         public void SetItemFlags(ItemFlags itemFlags = ItemFlags.All)
         {
-            int flags = (int) itemFlags;
+            int flags = (int)itemFlags;
             Link.check_connection();
             string command = "S_Item_Rights";
             Link.send_line(command);
@@ -128,7 +128,7 @@ namespace RoboDk.API
             Link.send_line(command);
             Link.send_item(this);
             int flags = Link.rec_int();
-            ItemFlags itemFlags = (ItemFlags) flags;
+            ItemFlags itemFlags = (ItemFlags)flags;
             Link.check_status();
             return itemFlags;
         }
@@ -246,7 +246,7 @@ namespace RoboDk.API
             Link.check_status();
             return item_detached;
         }
-        
+
         /// <inheritdoc />
         public void DetachAll(IItem parent = null)
         {
@@ -520,7 +520,7 @@ namespace RoboDk.API
             Link.check_connection();
             if (fromcolor == null)
             {
-                fromcolor = new double[] {0, 0, 0, 0};
+                fromcolor = new double[] { 0, 0, 0, 0 };
                 tolerance = 2;
             }
 
@@ -544,7 +544,7 @@ namespace RoboDk.API
             Link.check_connection();
             if (fromcolor.HasValue == false)
             {
-                fromcolor = new Color {A = 0, R = 0, G = 0, B = 0};
+                fromcolor = new Color { A = 0, R = 0, G = 0, B = 0 };
                 tolerance = 2;
             }
 
@@ -567,7 +567,7 @@ namespace RoboDk.API
         public void SetColor(Color tocolor)
         {
             double[] tocolorArray = tocolor.ToRoboDKColorArray();
-            Link.check_connection();            
+            Link.check_connection();
             Link.check_color(tocolorArray);
             Link.send_line("S_Color");
             Link.send_item(this);
@@ -594,7 +594,7 @@ namespace RoboDk.API
             // saturate the alpha channel so it remains between 0 and 1.
             alpha = Math.Min(1, Math.Max(0, alpha));
             Link.check_connection();
-            double[] tocolorArray = {-1, -1, -1, alpha};
+            double[] tocolorArray = { -1, -1, -1, alpha };
             Link.send_line("S_Color");
             Link.send_item(this);
             Link.send_array(tocolorArray);
@@ -756,7 +756,7 @@ namespace RoboDk.API
             Link.check_connection();
             Link.send_line("G_LinkType");
             Link.send_item(this);
-            Link.send_int((int) typeLinked);
+            Link.send_int((int)typeLinked);
             IItem item = Link.rec_item();
             Link.check_status();
             return item;
@@ -1013,7 +1013,7 @@ namespace RoboDk.API
             Link.send_item(this);
             Link.send_array(j1);
             Link.send_array(j2);
-            Link.send_int((int) (minstepDeg * 1000.0));
+            Link.send_int((int)(minstepDeg * 1000.0));
             Link.ReceiveTimeout = 3600 * 1000;
             var collision = Link.rec_int();
             Link.ReceiveTimeout = Link.DefaultSocketTimeoutMilliseconds;
@@ -1049,7 +1049,7 @@ namespace RoboDk.API
             Link.send_item(this);
             Link.send_array(j1);
             Link.send_array(j2);
-            Link.send_int((int) (minstepDeg * 1000.0));
+            Link.send_int((int)(minstepDeg * 1000.0));
             Link.ReceiveTimeout = 3600 * 1000;
             var collision = Link.rec_int();
             Link.ReceiveTimeout = Link.DefaultSocketTimeoutMilliseconds;
@@ -1058,8 +1058,7 @@ namespace RoboDk.API
         }
 
         /// <inheritdoc />
-        public void SetSpeed(double speedLinear, double accelLinear = -1, double speedJoints = -1,
-            double accelJoints = -1)
+        public void SetSpeed(double speedLinear, double accelLinear = -1, double speedJoints = -1, double accelJoints = -1)
         {
             Link.check_connection();
             var command = "S_Speed4";
@@ -1080,7 +1079,7 @@ namespace RoboDk.API
             Link.check_connection();
             var command = "S_ZoneData";
             Link.send_line(command);
-            Link.send_int((int) (zonedata * 1000.0));
+            Link.send_int((int)(zonedata * 1000.0));
             Link.send_item(this);
             Link.check_status();
         }
@@ -1092,7 +1091,7 @@ namespace RoboDk.API
             Link.check_connection();
             var command = "S_ZoneData";
             Link.send_line(command);
-            Link.send_int((int) rounding * 1000);
+            Link.send_int((int)rounding * 1000);
             Link.send_item(this);
             Link.check_status();
         }
@@ -1139,7 +1138,7 @@ namespace RoboDk.API
             Link.send_line(command);
             Link.send_item(this);
             Link.check_status();
-            Link.ReceiveTimeout = (int) (timeoutSec * 1000.0);
+            Link.ReceiveTimeout = (int)(timeoutSec * 1000.0);
             Link.check_status(); //will wait here;
             Link.ReceiveTimeout = Link.DefaultSocketTimeoutMilliseconds;
 
@@ -1162,7 +1161,7 @@ namespace RoboDk.API
             Link.send_line("MakeProg2");
             Link.send_item(this);
             Link.send_line(filename);
-            Link.send_int((int) runMode);
+            Link.send_int((int)runMode);
             Link.ReceiveTimeout = 3600 * 1000;
             int progStatus = Link.rec_int();
             Link.ReceiveTimeout = Link.DefaultSocketTimeoutMilliseconds;
@@ -1184,7 +1183,7 @@ namespace RoboDk.API
             var command = "S_ProgRunType";
             Link.send_line(command);
             Link.send_item(this);
-            Link.send_int((int) programExecutionType);
+            Link.send_int((int)programExecutionType);
             Link.check_status();
         }
 
@@ -1231,7 +1230,7 @@ namespace RoboDk.API
             Link.send_line(command);
             Link.send_item(this);
             Link.send_line(code.Replace("\n\n", "<br>").Replace("\n", "<br>"));
-            Link.send_int((int) runType);
+            Link.send_int((int)runType);
             var progstatus = Link.rec_int();
             Link.check_status();
             return progstatus == 0;
@@ -1244,7 +1243,7 @@ namespace RoboDk.API
             var command = "RunPause";
             Link.send_line(command);
             Link.send_item(this);
-            Link.send_int((int) (timeMs * 1000.0));
+            Link.send_int((int)(timeMs * 1000.0));
             Link.check_status();
         }
 
@@ -1270,7 +1269,7 @@ namespace RoboDk.API
             Link.send_item(this);
             Link.send_line(ioVar);
             Link.send_line(ioValue);
-            Link.send_int((int) (timeoutMs * 1000.0));
+            Link.send_int((int)(timeoutMs * 1000.0));
             Link.check_status();
         }
 
@@ -1360,14 +1359,14 @@ namespace RoboDk.API
             Link.send_int(instructionId);
 
             programInstruction.Name = Link.rec_line();
-            programInstruction.InstructionType = (InstructionType) Link.rec_int();
+            programInstruction.InstructionType = (InstructionType)Link.rec_int();
             programInstruction.MoveType = MoveType.Invalid;
             programInstruction.IsJointTarget = false;
             programInstruction.Target = null;
             programInstruction.Joints = null;
             if (programInstruction.InstructionType == InstructionType.Move)
             {
-                programInstruction.MoveType = (MoveType) Link.rec_int();
+                programInstruction.MoveType = (MoveType)Link.rec_int();
                 programInstruction.IsJointTarget = Link.rec_int() > 0 ? true : false;
                 programInstruction.Target = Link.rec_pose();
                 programInstruction.Joints = Link.rec_array();
@@ -1386,10 +1385,10 @@ namespace RoboDk.API
             Link.send_item(this);
             Link.send_int(instructionId);
             Link.send_line(instruction.Name);
-            Link.send_int((int) instruction.InstructionType);
+            Link.send_int((int)instruction.InstructionType);
             if (instruction.InstructionType == InstructionType.Move)
             {
-                Link.send_int((int) instruction.MoveType);
+                Link.send_int((int)instruction.MoveType);
                 Link.send_int(instruction.IsJointTarget ? 1 : 0);
                 Link.send_pose(instruction.Target);
                 Link.send_array(instruction.Joints);
@@ -1450,7 +1449,7 @@ namespace RoboDk.API
             Link.check_connection();
             Link.send_line("Update2");
             Link.send_item(this);
-            double[] values = {(double) collisionCheck, linStepMm, jointStepDeg};
+            double[] values = { (double)collisionCheck, linStepMm, jointStepDeg };
             Link.send_array(values);
             Link.ReceiveTimeout = timeoutSec * 1000;
             double[] result = Link.rec_array();
@@ -1488,7 +1487,7 @@ namespace RoboDk.API
             int timeoutSec = 3600,
             double time_step = 0.2)
         {
-            var result = new InstructionListJointsResult {JointList = new List<InstructionListJointsResult.JointsResult>()};
+            var result = new InstructionListJointsResult { JointList = new List<InstructionListJointsResult.JointsResult>() };
 
             string errorMessage;
             Mat jointList;
@@ -1506,11 +1505,11 @@ namespace RoboDk.API
                     joints[rowId] = jointList[rowId, colId];
                 }
 
-                var jointError = (int) jointList[numberOfJoints, colId];
-                var errorType = (ErrorPathType) Convert.ToUInt32(jointError.ToString(), 2);
+                var jointError = (int)jointList[numberOfJoints, colId];
+                var errorType = (ErrorPathType)Convert.ToUInt32(jointError.ToString(), 2);
                 var linearStep = jointList[numberOfJoints + 1, colId];
                 var jointStep = jointList[numberOfJoints + 2, colId];
-                var moveId = (int) jointList[numberOfJoints + 3, colId];
+                var moveId = (int)jointList[numberOfJoints + 3, colId];
 
                 var timeStep = 0.0;
                 var speeds = new double[0];
@@ -1571,7 +1570,7 @@ namespace RoboDk.API
             Link.check_connection();
             Link.send_line("G_ProgJointList");
             Link.send_item(this);
-            double[] parameter = {mmStep, degStep, (double) collisionCheck, (double)flags, time_step};
+            double[] parameter = { mmStep, degStep, (double)collisionCheck, (double)flags, time_step };
             Link.send_array(parameter);
 
             //joint_list = save_to_file;

@@ -367,10 +367,10 @@ namespace YaskawaNet
         public static extern short BscSetEServer(short nCid, string IPaddr);
 
         [DllImport("MotoCom32.dll", EntryPoint = "_BscSetEServerMode@12")]
-        public static extern short BscSetEServerMode(short nCid, StringBuilder IPaddr, short mode);
+        public static extern short BscSetEServerMode(short nCid, string IPaddr, short mode);
 
         [DllImport("MotoCom32.dll", EntryPoint = "_BscSetEther@16")]
-        public static extern short BscSetEther(short nCid, StringBuilder IPaddr, short mode, int hWnd);
+        public static extern short BscSetEther(short nCid, string IPaddr, short mode, int hWnd);
 
         // Declare Function BscSetHSL Lib "MotoCom32" Alias "_BscSetHSL@12" (ByVal nCid%, ByVal strName$, ByVal port%) As Integer
         [DllImport("MotoCom32.dll", EntryPoint = "_BscSetLineNumber@8")]

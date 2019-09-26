@@ -1483,28 +1483,35 @@ namespace YaskawaNet
             {
                 lock (_robotPulsePositionsLocker)
                 {
-                    _previousSJointPosition = _robotPulsePositions[0];
-                    _previousLJointPosition = _robotPulsePositions[1];
-                    _previousUJointPosition = _robotPulsePositions[2];
-                    _previousRJointPosition = _robotPulsePositions[3];
-                    _previousBJointPosition = _robotPulsePositions[4];
-                    _previousTJointPosition = _robotPulsePositions[5];
+                    //_previousSJointPosition = _robotPulsePositions[0];
+                    //_previousLJointPosition = _robotPulsePositions[1];
+                    //_previousUJointPosition = _robotPulsePositions[2];
+                    //_previousRJointPosition = _robotPulsePositions[3];
+                    //_previousBJointPosition = _robotPulsePositions[4];
+                    //_previousTJointPosition = _robotPulsePositions[5];
+
+                    _sJointInMotion = (_robotPulsePositions[0] != value[0]);
+                    _lJointInMotion = (_robotPulsePositions[1] != value[1]);
+                    _uJointInMotion = (_robotPulsePositions[2] != value[2]);
+                    _rJointInMotion = (_robotPulsePositions[3] != value[3]);
+                    _bJointInMotion = (_robotPulsePositions[4] != value[4]);
+                    _tJointInMotion = (_robotPulsePositions[5] != value[5]);
 
                     _robotPulsePositions = value;
 
-                    _actualSJointPosition = _robotPulsePositions[0];
-                    _actualLJointPosition = _robotPulsePositions[1];
-                    _actualUJointPosition = _robotPulsePositions[2];
-                    _actualRJointPosition = _robotPulsePositions[3];
-                    _actualBJointPosition = _robotPulsePositions[4];
-                    _actualTJointPosition = _robotPulsePositions[5];
+                    _actualSJointPosition = _actualRobotPositions[0] = _robotPulsePositions[0] / SJointPulsesDegreeRatio;
+                    _actualLJointPosition = _actualRobotPositions[1] = _robotPulsePositions[1] / LJointPulsesDegreeRatio;
+                    _actualUJointPosition = _actualRobotPositions[2] = _robotPulsePositions[2] / UJointPulsesDegreeRatio;
+                    _actualRJointPosition = _actualRobotPositions[3] = _robotPulsePositions[3] / RJointPulsesDegreeRatio;
+                    _actualBJointPosition = _actualRobotPositions[4] = _robotPulsePositions[4] / BJointPulsesDegreeRatio;
+                    _actualTJointPosition = _actualRobotPositions[5] = _robotPulsePositions[5] / TJointPulsesDegreeRatio;
 
-                    _sJointInMotion = (_previousSJointPosition != _actualSJointPosition);
-                    _lJointInMotion = (_previousLJointPosition != _actualLJointPosition);
-                    _uJointInMotion = (_previousUJointPosition != _actualUJointPosition);
-                    _rJointInMotion = (_previousRJointPosition != _actualRJointPosition);
-                    _bJointInMotion = (_previousBJointPosition != _actualBJointPosition);
-                    _tJointInMotion = (_previousTJointPosition != _actualTJointPosition);
+                    //_sJointInMotion = (_previousSJointPosition != _actualSJointPosition);
+                    //_lJointInMotion = (_previousLJointPosition != _actualLJointPosition);
+                    //_uJointInMotion = (_previousUJointPosition != _actualUJointPosition);
+                    //_rJointInMotion = (_previousRJointPosition != _actualRJointPosition);
+                    //_bJointInMotion = (_previousBJointPosition != _actualBJointPosition);
+                    //_tJointInMotion = (_previousTJointPosition != _actualTJointPosition);
                 }
             }
         }
