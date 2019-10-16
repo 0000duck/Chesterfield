@@ -783,7 +783,7 @@ namespace RoboDk.API
             lowerLlimits = Link.rec_array();
             upperLimits = Link.rec_array();
             var jointsType = Link.rec_int() / 1000.0;
-            Link.check_status();
+            //Link.check_status();
         }
 
         /// <inheritdoc />

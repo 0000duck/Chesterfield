@@ -188,6 +188,8 @@ namespace YaskawaNet
         short TCPRelativeMove(int tcpIndex, double speed);
         short TCPAxesRelativeMove(int tcpMask, double speed);
         short TrackLinearJogMove(int jointIndex, double speed);
+        short TrackLinearAbsoluteMove(int jointIndex, double speed);
+        short TrackLinearRelativeMove(int jointIndex, double speed);
         short TurnTableJogMove(int jointIndex, double speed);
         short HoldOn();
         short HoldOff();
@@ -210,9 +212,17 @@ namespace YaskawaNet
 
         #region Constatnts
 
-        const int _checkStatusTimerInterval = 400;
-        const int _getPositionsTimerInterval = 300;
+        const double _sJointMaxSpeed = 197.0;//degree/sec
+        const double _lJointMaxSpeed = 190.0;//degree/sec
+        const double _uJointMaxSpeed = 210.0;//degree/sec
+        const double _rJointMaxSpeed = 410.0;//degree/sec
+        const double _bJointMaxSpeed = 410.0;//degree/sec
+        const double _tJointMaxSpeed = 620.0;//degree/sec
+
         const int _motocom32FunctionsWaitTime = 50;
+
+        const double _maxControlPointSpeed = 500;
+        const double _maxPositionAngularSpeed = 360;
 
         #endregion
 
@@ -225,7 +235,7 @@ namespace YaskawaNet
         private string _ipAddress = "";
         private CommunicationStatus _communicationStatus = new CommunicationStatus();
         private volatile int _connectionCheckCounter = 0;
-        private RobotFrameType _actualReferenceFrame = RobotFrameType.Base;
+        private RobotFrameType _actualReferenceFrame = RobotFrameType.Robot;
         private Dictionary<RobotFrameType, string> _frameDictionary = new Dictionary<RobotFrameType, string>()
         {
             #region
@@ -314,12 +324,15 @@ namespace YaskawaNet
         private Configuration _actualRConf = new Configuration(0);
         private RobotStatusInformation _actualRobotStatus = new RobotStatusInformation();
 
-        #region Timers
-        System.Windows.Forms.Timer _statusTimer = null;
-        volatile int _lockStatusTimer = 0;
+        #region Threads
 
-        System.Windows.Forms.Timer _getPositionsTimer = null;
-        volatile int _lockGetPositionsTimer = 0;
+        Thread _getPositionsThread = null;
+        Thread _getStatusThread = null;
+        Thread _getAlarmsThread = null;
+
+        volatile bool _getPositionsThreadRun = false;
+        volatile bool _getStatusThreadRun = false;
+        volatile bool _getAlarmsThreadRun = false;
 
         #endregion
 
@@ -386,6 +399,10 @@ namespace YaskawaNet
 
         private volatile bool _jogRunning = false;
         private volatile bool _isBusy = false;
+
+        ErrorData _robotError = null;
+        ArrayList _alarmList = null;
+        int _alarmsCounter = 0;
 
         #endregion
 
@@ -839,11 +856,11 @@ namespace YaskawaNet
                 if (_autoStatusUpdate)
                 {
                     //** Initialize status timer **
-                    _statusTimer.Start();
+                    //_statusTimer.Start();
                 }
                 else
                 {
-                    _statusTimer.Stop();
+                    //_statusTimer.Stop();
                 }
             }
         }
@@ -860,6 +877,43 @@ namespace YaskawaNet
                     _actualRobotSpeed = value;
                     OnNotifyPropertyChanged();
                 }
+            }
+        }
+
+        public int AlarmsCounter
+        {
+            get
+            {
+                return _alarmsCounter;
+            }
+            set
+            {
+                _alarmsCounter = value;
+                OnNotifyPropertyChanged();
+            }
+        }
+        public ErrorData RobotError
+        {
+            get
+            {
+                return _robotError;
+            }
+            set
+            {
+                _robotError = value;
+                OnNotifyPropertyChanged();
+            }
+        }
+        public ArrayList AlarmList
+        {
+            get
+            {
+                return _alarmList;
+            }
+            set
+            {
+                _alarmList = value;
+                OnNotifyPropertyChanged();
             }
         }
 
@@ -914,13 +968,17 @@ namespace YaskawaNet
                     _ipAddress = (o != null) ? o as String : "192.168.255.1";
                 }
 
-                _statusTimer = new System.Windows.Forms.Timer();
-                _statusTimer.Tick += new EventHandler(StatusTimerTick);
-                _statusTimer.Interval = _checkStatusTimerInterval;
+                _getPositionsThread = new Thread(new ThreadStart(GetPositionsThread));
+                _getPositionsThread.IsBackground = true;
+                _getPositionsThread.Priority = ThreadPriority.Normal;
 
-                _getPositionsTimer = new System.Windows.Forms.Timer();
-                _getPositionsTimer.Tick += new EventHandler(GetPositionsTimerTick);
-                _getPositionsTimer.Interval = _getPositionsTimerInterval;
+                _getStatusThread = new Thread(new ThreadStart(GetStatusThread));
+                _getStatusThread.IsBackground = true;
+                _getStatusThread.Priority = ThreadPriority.Normal;
+
+                _getAlarmsThread = new Thread(new ThreadStart(GetAlarmsThread));
+                _getAlarmsThread.IsBackground = true;
+                _getAlarmsThread.Priority = ThreadPriority.Normal;
             }
             catch (Exception ex)
             {
@@ -932,14 +990,107 @@ namespace YaskawaNet
         /// </summary>
         ~DX200()
         {
-            short ret;
+            short returnValue = 0;
+            Task<short> task = null;
+            int taskWaitTimeCounter = 0;
+            int counterSendCommand = 0;
+            int maxSendCommands = 3;
 
-            _statusTimer.Stop();
-            _getPositionsTimer.Stop();
-            //close if there is a valid handle
-            if (_robotHandler >= 0)
+            try
             {
-                ret = Motocom.BscClose(_robotHandler);
+                _getStatusThreadRun = false;
+                _getPositionsThreadRun = false;
+                _getAlarmsThreadRun = false;
+
+                //close if there is a valid handle
+                if (_robotHandler >= 0)
+                {
+                    #region
+                    task = Task<short>.Factory.StartNew(() =>
+                                {
+                                    //Return Value
+                                    //0 : Normal completion
+                                    //Others: Failed to release
+                                    return Motocom.BscClose(_robotHandler);
+                                });
+
+                    while (!task.IsCompleted)
+                    {
+                        #region
+                        taskWaitTimeCounter++;
+                        task.Wait(_motocom32FunctionsWaitTime);
+                        if (taskWaitTimeCounter > 5) //wait 250 msec maximum
+                        {
+                            break;
+                        }
+                        #endregion
+                    }
+                    if (task.IsCompleted)
+                    {
+                        #region
+                        returnValue = Convert.ToInt16(task.Result);
+                        //TODO:check return and send more if needed
+                        if (returnValue != 0)
+                        {
+                            #region
+                            counterSendCommand = 0;
+                            while (counterSendCommand < maxSendCommands)
+                            {
+                                #region
+
+                                counterSendCommand++;
+
+                                task = Task<short>.Factory.StartNew(() =>
+                                {
+                                    return Motocom.BscConnect(_robotHandler);
+                                });
+
+                                taskWaitTimeCounter = 0;
+
+                                while (!task.IsCompleted)
+                                {
+                                    #region
+                                    taskWaitTimeCounter++;
+                                    task.Wait(_motocom32FunctionsWaitTime);
+                                    if (taskWaitTimeCounter > 10) //wait 500 msec maximum
+                                    {
+                                        break;
+                                    }
+                                    #endregion
+                                }
+                                if (task.IsCompleted)
+                                {
+                                    returnValue = Convert.ToInt16(task.Result);
+                                    if (returnValue == 0)
+                                    {
+                                        break;
+                                    }
+                                }
+                                else
+                                {
+                                    returnValue = -1;
+                                }
+                                #endregion
+                            }
+                            if (counterSendCommand == maxSendCommands)
+                            {
+                                Debug.WriteLine("DX200::~DX200()::Error::" + returnValue.ToString());
+                            }
+                            #endregion
+                        }
+                        #endregion
+                    }
+                    else
+                    {
+                        returnValue = -1;
+                    }
+                    #endregion
+                }
+            }
+            catch (Exception ex)
+            {
+                returnValue = -1;
+                DiagnosticException.ExceptionHandler(ex);
             }
         }
 
@@ -957,19 +1108,22 @@ namespace YaskawaNet
             short returnValue = 0;
             Task<short> task = null;
             int taskWaitTimeCounter = 0;
+            int counterSendCommand = 0;
+            int maxSendCommands = 3;
 
             try
             {
                 if (_robotHandler != -1 && _robotHandler != -8)
                 {
+                    #region
                     task = Task<short>.Factory.StartNew(() =>
-                    {
-                        //Return Value
-                        //0 : Error
-                        //1 : Normal completion
-                        //TODO:check why return 1 without connection to DX200 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-                        return Motocom.BscConnect(_robotHandler);
-                    });
+                               {
+                                   //Return Value
+                                   //0 : Error
+                                   //1 : Normal completion
+                                   //TODO:check why return 1 without connection to DX200 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+                                   return Motocom.BscConnect(_robotHandler);
+                               });
 
                     while (!task.IsCompleted)
                     {
@@ -984,7 +1138,58 @@ namespace YaskawaNet
                     }
                     if (task.IsCompleted)
                     {
+                        #region
                         returnValue = Convert.ToInt16(task.Result);
+                        //TODO:check return and send more if needed
+                        if (returnValue == 0)
+                        {
+                            #region
+                            counterSendCommand = 0;
+                            while (counterSendCommand < maxSendCommands)
+                            {
+                                #region
+
+                                counterSendCommand++;
+
+                                task = Task<short>.Factory.StartNew(() =>
+                                {
+                                    return Motocom.BscConnect(_robotHandler);
+                                });
+
+                                taskWaitTimeCounter = 0;
+
+                                while (!task.IsCompleted)
+                                {
+                                    #region
+                                    taskWaitTimeCounter++;
+                                    task.Wait(_motocom32FunctionsWaitTime);
+                                    if (taskWaitTimeCounter > 10) //wait 500 msec maximum
+                                    {
+                                        break;
+                                    }
+                                    #endregion
+                                }
+                                if (task.IsCompleted)
+                                {
+                                    returnValue = Convert.ToInt16(task.Result);
+                                    if (returnValue == 1)
+                                    {
+                                        break;
+                                    }
+                                }
+                                else
+                                {
+                                    returnValue = -1;
+                                }
+                                #endregion
+                            }
+                            if (counterSendCommand == maxSendCommands)
+                            {
+                                Debug.WriteLine("DX200::Connect()::Error::" + returnValue.ToString());
+                            }
+                            #endregion
+                        }
+                        #endregion
                     }
                     else
                     {
@@ -995,9 +1200,15 @@ namespace YaskawaNet
 
                     if (_communicationStatus.connected == true)
                     {
-                        _statusTimer.Start();
-                        _getPositionsTimer.Start();
+                        _getStatusThreadRun = true;
+                        _getPositionsThreadRun = true;
+                        _getAlarmsThreadRun = true;
+
+                        _getStatusThread.Start();
+                        _getPositionsThread.Start();
+                        _getAlarmsThread.Start();
                     }
+                    #endregion
                 }
             }
             catch (Exception ex)
@@ -1019,19 +1230,22 @@ namespace YaskawaNet
             short returnValue = 0;
             Task<short> task = null;
             int taskWaitTimeCounter = 0;
+            int counterSendCommand = 0;
+            int maxSendCommands = 3;
 
             try
             {
                 if (_robotHandler != -1 && _robotHandler != -8)
                 {
+                    #region
                     task = Task<short>.Factory.StartNew(() =>
-                     {
-                         //Return Value
-                         //0 : Error
-                         //1 : Normal completion
-                         //TODO:check why return 1 without connection to DX200 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-                         return Motocom.BscDisConnect(_robotHandler);
-                     });
+                                {
+                                    //Return Value
+                                    //0 : Error
+                                    //1 : Normal completion
+                                    //TODO:check why return 1 without connection to DX200 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+                                    return Motocom.BscDisConnect(_robotHandler);
+                                });
 
                     while (!task.IsCompleted)
                     {
@@ -1044,21 +1258,75 @@ namespace YaskawaNet
                         }
                         #endregion
                     }
-
                     if (task.IsCompleted)
                     {
+                        #region
                         returnValue = Convert.ToInt16(task.Result);
+                        //TODO:check return and send more if needed
+                        if (returnValue == 0)
+                        {
+                            #region
+                            counterSendCommand = 0;
+                            while (counterSendCommand < maxSendCommands)
+                            {
+                                #region
+
+                                counterSendCommand++;
+
+                                task = Task<short>.Factory.StartNew(() =>
+                                {
+                                    return Motocom.BscDisConnect(_robotHandler);
+                                });
+
+                                taskWaitTimeCounter = 0;
+
+                                while (!task.IsCompleted)
+                                {
+                                    #region
+                                    taskWaitTimeCounter++;
+                                    task.Wait(_motocom32FunctionsWaitTime);
+                                    if (taskWaitTimeCounter > 10) //wait 500 msec maximum
+                                    {
+                                        break;
+                                    }
+                                    #endregion
+                                }
+                                if (task.IsCompleted)
+                                {
+                                    returnValue = Convert.ToInt16(task.Result);
+                                    if (returnValue == 1)
+                                    {
+                                        break;
+                                    }
+                                }
+                                else
+                                {
+                                    returnValue = -1;
+                                }
+                                #endregion
+                            }
+                            if (counterSendCommand == maxSendCommands)
+                            {
+                                Debug.WriteLine("DX200::Disconnect()::Error::Real robot connection problem.");
+                            }
+                            #endregion
+                        }
+                        #endregion
                     }
                     else
                     {
                         returnValue = -1;
                     }
 
-                    if (returnValue > 0)
+                    _communicationStatus.connected = (returnValue > 0) ? false : true;
+
+                    if (_communicationStatus.connected == false)
                     {
-                        _statusTimer.Stop();
-                        _getPositionsTimer.Stop();
+                        _getStatusThreadRun = false;
+                        _getPositionsThreadRun = false;
+                        _getAlarmsThreadRun = false;
                     }
+                    #endregion
                 }
             }
             catch (Exception ex)
@@ -1078,34 +1346,113 @@ namespace YaskawaNet
             short returnValue = 0;
             Task<short> task = null;
             int taskWaitTimeCounter = 0;
+            int counterSendCommand = 0;
+            int maxSendCommands = 3;
 
             try
             {
-                //try to get a handle
-                //Return Value
-                //-1 : Acquisition Failure
-                //-8 : License Error
-                //Others: Communication handler ID number
-                _robotHandler = Motocom.BscOpen(_commDir, (short)RobotCommunicationType.ETHERNET_SERVER);
+                #region
+                task = Task<short>.Factory.StartNew(() =>
+                       {
+                           //try to get a handle
+                           //Return Value
+                           //-1 : Acquisition Failure
+                           //-8 : License Error
+                           //Others: Communication handler ID number
+                           return Motocom.BscOpen(_commDir, (short)RobotCommunicationType.ETHERNET_SERVER);
+                       });
+
+                while (!task.IsCompleted)
+                {
+                    #region
+                    taskWaitTimeCounter++;
+                    task.Wait(_motocom32FunctionsWaitTime);
+                    if (taskWaitTimeCounter > 5) //wait 250 msec maximum
+                    {
+                        break;
+                    }
+                    #endregion
+                }
+                if (task.IsCompleted)
+                {
+                    #region
+                    returnValue = Convert.ToInt16(task.Result);
+                    //TODO:check return and send more if needed
+                    if (returnValue != 0)
+                    {
+                        #region
+                        counterSendCommand = 0;
+                        while (counterSendCommand < maxSendCommands)
+                        {
+                            #region
+
+                            counterSendCommand++;
+
+                            task = Task<short>.Factory.StartNew(() =>
+                            {
+                                return Motocom.BscOpen(_commDir, (short)RobotCommunicationType.ETHERNET_SERVER);
+                            });
+
+                            taskWaitTimeCounter = 0;
+
+                            while (!task.IsCompleted)
+                            {
+                                #region
+                                taskWaitTimeCounter++;
+                                task.Wait(_motocom32FunctionsWaitTime);
+                                if (taskWaitTimeCounter > 10) //wait 500 msec maximum
+                                {
+                                    break;
+                                }
+                                #endregion
+                            }
+                            if (task.IsCompleted)
+                            {
+                                returnValue = Convert.ToInt16(task.Result);
+                                if (returnValue >= 0)
+                                {
+                                    break;
+                                }
+                            }
+                            else
+                            {
+                                returnValue = -1;
+                            }
+                            #endregion
+                        }
+                        if (counterSendCommand == maxSendCommands)
+                        {
+                            Debug.WriteLine("DX200::Initialize()::Motocom.BscOpen()::Error::Real robot connection problem.");
+                        }
+                        #endregion
+                    }
+                    #endregion
+                }
+                else
+                {
+                    returnValue = -1;
+                }
+
+                _robotHandler = returnValue;
 
                 if (_robotHandler >= 0 && _ipAddress != null)
                 {
                     #region
                     task = Task<short>.Factory.StartNew(() =>
-                               {
-                                   //Return Value
-                                   //0 : Error
-                                   //1 : Normal completion
-                                   //TODO:check why return 1 without connection to DX200 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-                                   return Motocom.BscSetEServer(_robotHandler, _ipAddress);
-                               });
+                     {
+                         //Return Value
+                         //0 : Error
+                         //1 : Normal completion
+                         //TODO:check why return 1 without connection to DX200 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+                         return Motocom.BscSetEServer(_robotHandler, _ipAddress);
+                     });
 
                     while (!task.IsCompleted)
                     {
                         #region
                         taskWaitTimeCounter++;
                         task.Wait(_motocom32FunctionsWaitTime);
-                        if (taskWaitTimeCounter > 5) //wait 250 msec maximum
+                        if (taskWaitTimeCounter > 10) //wait 500 msec maximum
                         {
                             break;
                         }
@@ -1113,7 +1460,58 @@ namespace YaskawaNet
                     }
                     if (task.IsCompleted)
                     {
+                        #region
                         returnValue = Convert.ToInt16(task.Result);
+                        //TODO:check return and send more if needed
+                        if (returnValue == 0)
+                        {
+                            #region
+                            counterSendCommand = 0;
+                            while (counterSendCommand < maxSendCommands)
+                            {
+                                #region
+
+                                counterSendCommand++;
+
+                                task = Task<short>.Factory.StartNew(() =>
+                                {
+                                    return Motocom.BscSetEServer(_robotHandler, _ipAddress);
+                                });
+
+                                taskWaitTimeCounter = 0;
+
+                                while (!task.IsCompleted)
+                                {
+                                    #region
+                                    taskWaitTimeCounter++;
+                                    task.Wait(_motocom32FunctionsWaitTime);
+                                    if (taskWaitTimeCounter > 10) //wait 500 msec maximum
+                                    {
+                                        break;
+                                    }
+                                    #endregion
+                                }
+                                if (task.IsCompleted)
+                                {
+                                    returnValue = Convert.ToInt16(task.Result);
+                                    if (returnValue == 1)
+                                    {
+                                        break;
+                                    }
+                                }
+                                else
+                                {
+                                    returnValue = -1;
+                                }
+                                #endregion
+                            }
+                            if (counterSendCommand == maxSendCommands)
+                            {
+                                Debug.WriteLine("DX200::Initialize()::Motocom.BscSetEServer()::Error::Real robot connection problem.");
+                            }
+                            #endregion
+                        }
+                        #endregion
                     }
                     else
                     {
@@ -1129,7 +1527,7 @@ namespace YaskawaNet
                         //1 : Normal completion
                         //Mode Server communication mode 1: Server mode,
                         //-1: Exclusive mode
-                        return Motocom.BscSetEServerMode(_robotHandler, _ipAddress, -1);
+                        return Motocom.BscSetEServerMode(_robotHandler, _ipAddress, 1);
                     });
 
                     while (!task.IsCompleted)
@@ -1145,7 +1543,58 @@ namespace YaskawaNet
                     }
                     if (task.IsCompleted)
                     {
+                        #region
                         returnValue = Convert.ToInt16(task.Result);
+                        //TODO:check return and send more if needed
+                        if (returnValue == 0)
+                        {
+                            #region
+                            counterSendCommand = 0;
+                            while (counterSendCommand < maxSendCommands)
+                            {
+                                #region
+
+                                counterSendCommand++;
+
+                                task = Task<short>.Factory.StartNew(() =>
+                                {
+                                    return Motocom.BscSetEServerMode(_robotHandler, _ipAddress, -1);
+                                });
+
+                                taskWaitTimeCounter = 0;
+
+                                while (!task.IsCompleted)
+                                {
+                                    #region
+                                    taskWaitTimeCounter++;
+                                    task.Wait(_motocom32FunctionsWaitTime);
+                                    if (taskWaitTimeCounter > 10) //wait 500 msec maximum
+                                    {
+                                        break;
+                                    }
+                                    #endregion
+                                }
+                                if (task.IsCompleted)
+                                {
+                                    returnValue = Convert.ToInt16(task.Result);
+                                    if (returnValue == 1)
+                                    {
+                                        break;
+                                    }
+                                }
+                                else
+                                {
+                                    returnValue = -1;
+                                }
+                                #endregion
+                            }
+                            if (counterSendCommand == maxSendCommands)
+                            {
+                                Debug.WriteLine("DX200::Initialize()::Motocom.BscSetEServerMode::Error::Real robot connection problem.");
+                            }
+                            #endregion
+                        }
+                        #endregion
                     }
                     else
                     {
@@ -1159,11 +1608,11 @@ namespace YaskawaNet
                     returnValue = 0;
                     if (_robotHandler == -1)
                     {
-                        Debug.WriteLine("DX200::Acquisition Failure");
+                        Debug.WriteLine("DX200::Initialize()::Error::Acquisition Failure");
                     }
                     if (_robotHandler == -8)
                     {
-                        Debug.WriteLine("DX200::License Error");
+                        Debug.WriteLine("DX200::Initialize()::Error::License Error");
                     }
                     #endregion
                 }
@@ -1175,14 +1624,14 @@ namespace YaskawaNet
 
                 ActualRobotJointPosition.Limits = DesiredRobotJointPosition.Limits = new double[12][]
                 {
-                    new double [2]{ -180.0,180.0 } ,
-                    new double [2]{-105.0,155.0 } ,
-                    new double [2]{-80.0,160.0 } ,
-                    new double [2]{-200.0,200.0 } ,
-                    new double [2]{-150.0,150.0 } ,
-                    new double [2]{-455.0,455.0 },
-                    new double [2]{0,3500},
-                    new double [2]{-720.0,720.0},
+                    new double [2]{ -180.0,180.0 } , //S degree
+                    new double [2]{-105.0,155.0 } , //L degree
+                    new double [2]{-80.0,160.0 } , //U degree
+                    new double [2]{-200.0,200.0 } , //R degree
+                    new double [2]{-150.0,150.0 } , //B degree
+                    new double [2]{-455.0,455.0 }, //T degree
+                    new double [2]{0.5,7030}, //Track mm
+                    new double [2]{-720.0,720.0}, //Turntable
                     new double [2]{0,0},
                     new double [2]{0,0},
                     new double [2]{0,0},
@@ -1190,12 +1639,12 @@ namespace YaskawaNet
                 };
                 ActualRobotTCPPosition.Limits = DesiredRobotTCPPosition.Limits = new double[12][]
                 {
-                    new double [2]{ -500,500  } ,
-                    new double [2]{ -500, 500 } ,
-                    new double [2]{ -500, 500 } ,
-                    new double [2]{ -500, 500 } ,
-                    new double [2]{ -500, 500 } ,
-                    new double [2]{ -500,500  },
+                    new double [2]{ -500,500  } , //X mm
+                    new double [2]{ -500, 500 } , //Y mm
+                    new double [2]{ -505, 900 } , //Z mm
+                    new double [2]{ -180, 180 } , //Rx degree
+                    new double [2]{ -180, 180 } , //Ry degree
+                    new double [2]{ -180,180  }, //Rz degree
                     new double [2]{0,0},
                     new double [2]{0,0},
                     new double [2]{0,0},
@@ -1203,6 +1652,7 @@ namespace YaskawaNet
                     new double [2]{0,0},
                     new double [2]{0,0}
                 };
+                #endregion
             }
             catch (Exception ex)
             {
@@ -1211,63 +1661,6 @@ namespace YaskawaNet
             }
 
             return returnValue;
-        }
-        /// <summary>
-        /// 
-        /// </summary>
-        /// <returns></returns>
-        public bool Open()
-        {
-            short returnValue = -1;
-            Task<short> task = null;
-            int taskWaitTimeCounter = 0;
-
-            try
-            {
-                _commDir = Directory.GetCurrentDirectory();
-                if (_commDir.Substring(_commDir.Length - 1, 1) != "\\")
-                {
-                    _commDir = _commDir + "\\";
-                }
-
-                task = Task<short>.Factory.StartNew(() =>
-                {
-                    //Return Value
-                    //-1 : Acquisition Failure
-                    //-8 : License Error
-                    //Others: Communication handler ID number
-                    return Motocom.BscOpen(_commDir, (short)RobotCommunicationType.ETHERNET_SERVER);
-                });
-
-                while (!task.IsCompleted)
-                {
-                    #region
-                    taskWaitTimeCounter++;
-                    task.Wait(_motocom32FunctionsWaitTime);
-                    if (taskWaitTimeCounter > 5) //wait 250 msec maximum
-                    {
-                        break;
-                    }
-                    #endregion
-                }
-                if (task.IsCompleted)
-                {
-                    returnValue = Convert.ToInt16(task.Result);
-                }
-                else
-                {
-                    returnValue = -1;
-                }
-
-                _robotHandler = returnValue;
-            }
-            catch (Exception ex)
-            {
-                returnValue = -1;
-                DiagnosticException.ExceptionHandler(ex);
-            }
-
-            return (returnValue >= 0);
         }
         /// <summary>
         /// 
@@ -1302,40 +1695,11 @@ namespace YaskawaNet
             short d1 = 0;
             short d2 = 0;
 
-            Task<short> task = null;
-            int taskWaitTimeCounter = 0;
-
             try
             {
                 #region
 
-                task = Task<short>.Factory.StartNew(() =>
-                {
-                    //Return Value
-                    //0 : Normal completion
-                    //Others: Error codes
-                    return Motocom.BscGetStatus(_robotHandler, ref d1, ref d2);
-                });
-
-                while (!task.IsCompleted)
-                {
-                    #region
-                    taskWaitTimeCounter++;
-                    task.Wait(_motocom32FunctionsWaitTime);
-                    if (taskWaitTimeCounter > 5) //wait 250 msec maximum
-                    {
-                        break;
-                    }
-                    #endregion
-                }
-                if (task.IsCompleted)
-                {
-                    returnValue = Convert.ToInt16(task.Result);
-                }
-                else
-                {
-                    returnValue = -1;
-                }
+                returnValue = Motocom.BscGetStatus(_robotHandler, ref d1, ref d2);
 
                 if (returnValue >= 0)
                 {
@@ -1368,7 +1732,7 @@ namespace YaskawaNet
                 }
                 else
                 {
-                    Debug.WriteLine("DX200::Cannot get robot status.Acquisition Failure.");
+                    Debug.WriteLine("DX200::GetStatus()::Error::" + returnValue.ToString());
                 }
 
                 #endregion
@@ -1446,40 +1810,18 @@ namespace YaskawaNet
             StringBuilder _frameName = null;
             Mat pose = null;
 
-            Task<short> task = null;
-            int taskWaitTimeCounter = 0;
-
             try
             {
-                _frameName = new StringBuilder(_frameDictionary[RobotFrameType.Robot]);
+                _frameName = new StringBuilder(_frameDictionary[ActualReferenceFrame]);
 
-                task = Task<short>.Factory.StartNew(() =>
-                {
-                    //Return Value
-                    //-1 : Acquisition Failure
-                    //0 : Normal completion
-                    //Takes 50 msec
-                    return Motocom.BscIsRobotPos(_robotHandler, _frameName, isex, ref _rConf, ref _toolNumber, ref _currentRobotTCPPositionReal[0]);
-                });
+                returnValue = Motocom.BscIsRobotPos(_robotHandler, _frameName, isex, ref _rConf, ref _toolNumber, ref _currentRobotTCPPositionReal[0]);
 
-                while (!task.IsCompleted)
+                if (returnValue != 0)
                 {
-                    taskWaitTimeCounter++;
-                    task.Wait(_motocom32FunctionsWaitTime);
-                    if (taskWaitTimeCounter > 10) //wait 1 second maximum
-                    {
-                        break;
-                    }
-                }
-                if (task.IsCompleted)
-                {
-                    returnValue = Convert.ToInt16(task.Result);
-                }
-                else
-                {
-                    returnValue = -1;
+                    Debug.WriteLine("DX200::GetCurrentRobotTCPPosition()::Error::" + returnValue.ToString());
                 }
 
+                #region Not in use now
                 //if (_useRoboDKSimulator)
                 //{
                 //    #region
@@ -1498,7 +1840,8 @@ namespace YaskawaNet
                 //        ActualRobotTCPPositionSimulator.RobotPositions = ReportedRobotTCPPositionSimulator.RobotPositions = _currentRobotTCPPositionSimulation;
                 //    }
                 //    #endregion
-                //}
+                //} 
+                #endregion
 
 #if DEBUG
                 if (returnValue == 0)
@@ -1539,38 +1882,16 @@ namespace YaskawaNet
             short ispulse = 1;//joints coordinate system
             double[] joints = null;
 
-            Task<short> task = null;
-            int taskWaitTimeCounter = 0;
-
             try
             {
-                task = Task<short>.Factory.StartNew(() =>
-                {
-                    //Return Value
-                    //0 : Normal completion
-                    //Others: Error codes
-                    //Takes 200 msec
-                    return Motocom.BscIsLoc(_robotHandler, ispulse, ref _rConf, ref _currentRobotJointsPositionReal[0]);
-                });
+                returnValue = Motocom.BscIsLoc(_robotHandler, ispulse, ref _rConf, ref _currentRobotJointsPositionReal[0]);
 
-                while (!task.IsCompleted)
+                if (returnValue != 0)
                 {
-                    taskWaitTimeCounter++;
-                    task.Wait(_motocom32FunctionsWaitTime);
-                    if (taskWaitTimeCounter > 10) //wait 1 second maximum
-                    {
-                        break;
-                    }
-                }
-                if (task.IsCompleted)
-                {
-                    returnValue = Convert.ToInt16(task.Result);
-                }
-                else
-                {
-                    returnValue = -1;
+                    Debug.WriteLine("DX200::GetCurrentRobotJointsPosition()::Error::" + returnValue.ToString());
                 }
 
+                #region Not in use now
                 //if (_useRoboDKSimulator)
                 //{
                 //    #region
@@ -1590,7 +1911,8 @@ namespace YaskawaNet
                 //        #endregion
                 //    }
                 //    #endregion
-                //}
+                //} 
+                #endregion
 
 #if DEBUG
                 if (returnValue == 0)
@@ -1722,44 +2044,51 @@ namespace YaskawaNet
         /// <param name="error">Object to hold error information</param>
         /// <param name="alarmlist">ArrayList that holds objects with alarm information</param>
         /// <returns>Number of active alarms</returns>
-        public int GetAlarm(out ErrorData error, out ArrayList alarmlist)
+        public int GetAlarms(out ErrorData error, out ArrayList alarmlist)
         {
-            short ret;
+            short returnValue = -1;
             short errorno = -1;
             StringBuilder errormsg = new StringBuilder(256);
             short alarmsubno = -1;
             StringBuilder alarmmsg = new StringBuilder(256);
 
-            lock (_robotAccessLock)
+            alarmlist = new ArrayList();
+            error = new ErrorData();
+
+            returnValue = Motocom.BscReadAlarmS(_robotHandler, ref errorno, errormsg);
+
+            if (returnValue == 0)
             {
-                alarmlist = new ArrayList();
-                error = new ErrorData();
-
-                ret = Motocom.BscReadAlarmS(_robotHandler, ref errorno, errormsg);
-                if (ret != 0)
-                    throw new Exception("Error reading error/alarm information !");
-
+                #region
                 error.ErrorNo = errorno;
                 error.ErrorMsg = errormsg.ToString();
 
-                ret = Motocom.BscGetFirstAlarmS(_robotHandler, ref alarmsubno, alarmmsg);
-                if (ret < 0)
-                    throw new Exception("Error reading alarms !");
+                returnValue = Motocom.BscGetFirstAlarmS(_robotHandler, ref alarmsubno, alarmmsg);
 
-                if (ret > 0)
+                if (returnValue > 0)
                 {
-                    alarmlist.Add(new AlarmHistoryItem(ret, alarmsubno, alarmmsg.ToString()));
+                    #region
+                    alarmlist.Add(new AlarmHistoryItem(returnValue, alarmsubno, alarmmsg.ToString()));
+                    Debug.WriteLine("DX200::GetAlarms()::Error::Alarm detected::" + alarmmsg.ToString());
                     do
                     {
-                        ret = Motocom.BscGetNextAlarmS(_robotHandler, ref alarmsubno, alarmmsg);
-                        if (ret < 0)
-                            throw new Exception("Error reading alarms !");
-                        if (ret > 0)
-                            alarmlist.Add(new AlarmHistoryItem(ret, alarmsubno, alarmmsg.ToString()));
+                        #region
+                        returnValue = Motocom.BscGetNextAlarmS(_robotHandler, ref alarmsubno, alarmmsg);
+
+                        if (returnValue > 0)
+                        {
+                            alarmlist.Add(new AlarmHistoryItem(returnValue, alarmsubno, alarmmsg.ToString()));
+                        }
+                        #endregion
                     }
-                    while (ret > 0);
+                    while (returnValue > 0);
+                    #endregion
+
+                    returnValue = Motocom.BscReset(_robotHandler);
                 }
+                #endregion
             }
+
             return alarmlist.Count;
         }
         /// <summary>
@@ -1786,43 +2115,101 @@ namespace YaskawaNet
             short returnValue = 0;
             int taskWaitTimeCounter = 0;
             Task<short> task = null;
+            int counterSendCommand = 0;
+            int maxSendCommands = 3;
 
             try
             {
                 lock (_robotAccessLock)
                 {
-                    //task = Task<short>.Factory.StartNew(() =>
-                    //       {
-                    //           //Return Value
-                    //           //0 : Normal completion
-                    //           //Others: Error codes
-                    //           return Motocom.BscServoOn(_robotHandler);
-                    //       });
+                    #region
 
-                    //taskWaitTimeCounter = 0;
+                    _actualRobotStatus.IsCommandHold = true;
 
-                    //while (!task.IsCompleted)
-                    //{
-                    //    #region
-                    //    taskWaitTimeCounter++;
-                    //    task.Wait(_motocom32FunctionsWaitTime);
-                    //    if (taskWaitTimeCounter > 10) //wait 1 second maximum
-                    //    {
-                    //        break;
-                    //    }
-                    //    #endregion
-                    //}
+                    task = Task<short>.Factory.StartNew(() =>
+                    {
+                        //Return Value
+                        //0 : Normal completion
+                        //Others: Error codes
+                        //Takes 800 msec
+                        return Motocom.BscServoOn(_robotHandler);
+                    });
 
-                    returnValue = Motocom.BscServoOn(_robotHandler);
+                    taskWaitTimeCounter = 0;
 
-                    //if (task.IsCompleted)
-                    //{
-                    //    returnValue = Convert.ToInt16(task.Result);
-                    //}
-                    //else
-                    //{
-                    //    returnValue = -1;
-                    //}
+                    while (!task.IsCompleted)
+                    {
+                        #region
+                        taskWaitTimeCounter++;
+                        task.Wait(_motocom32FunctionsWaitTime);
+                        if (taskWaitTimeCounter > 20) //wait 1000 msec maximum
+                        {
+                            break;
+                        }
+                        #endregion
+                    }
+
+                    if (task.IsCompleted)
+                    {
+                        #region
+                        returnValue = Convert.ToInt16(task.Result);
+                        //TODO:check return and send more if needed
+                        if (returnValue != 0)
+                        {
+                            #region
+                            counterSendCommand = 0;
+                            while (counterSendCommand < maxSendCommands)
+                            {
+                                #region
+
+                                counterSendCommand++;
+
+                                task = Task<short>.Factory.StartNew(() =>
+                                {
+                                    return Motocom.BscServoOn(_robotHandler);
+                                });
+
+                                taskWaitTimeCounter = 0;
+
+                                while (!task.IsCompleted)
+                                {
+                                    #region
+                                    taskWaitTimeCounter++;
+                                    task.Wait(_motocom32FunctionsWaitTime);
+                                    if (taskWaitTimeCounter > 10) //wait 500 msec maximum
+                                    {
+                                        break;
+                                    }
+                                    #endregion
+                                }
+                                if (task.IsCompleted)
+                                {
+                                    returnValue = Convert.ToInt16(task.Result);
+                                    if (returnValue == 0)
+                                    {
+                                        break;
+                                    }
+                                }
+                                else
+                                {
+                                    returnValue = -1;
+                                }
+                                #endregion
+                            }
+                            if (counterSendCommand == maxSendCommands)
+                            {
+                                Debug.WriteLine("DX200::SetServoOn()::Error::" + returnValue.ToString());
+                            }
+                            #endregion
+                        }
+                        #endregion
+                    }
+                    else
+                    {
+                        returnValue = -1;
+                    }
+
+                    #endregion
                 }
             }
             catch (Exception ex)
@@ -1841,40 +2228,101 @@ namespace YaskawaNet
             short returnValue = 0;
             int taskWaitTimeCounter = 0;
             Task<short> task = null;
+            int counterSendCommand = 0;
+            int maxSendCommands = 3;
 
             try
             {
                 lock (_robotAccessLock)
                 {
-                    //task = Task<short>.Factory.StartNew(() =>
-                    //       {
-                    //           //Return Value
-                    //           //0 : Normal completion
-                    //           //Others: Error codes
-                    //           return Motocom.BscServoOff(_robotHandler); 
-                    //       });
+                    #region
 
-                    //taskWaitTimeCounter = 0;
+                    _actualRobotStatus.IsCommandHold = true;
 
-                    //while (!task.IsCompleted)
-                    //{
-                    //    taskWaitTimeCounter++;
-                    //    task.Wait(_motocom32FunctionsWaitTime);
-                    //    if (taskWaitTimeCounter > 10) //wait 1 second maximum
-                    //    {
-                    //        break;
-                    //    }
-                    //}
-                    //if (task.IsCompleted)
-                    //{
-                    //    returnValue = Convert.ToInt16(task.Result);
-                    //}
-                    //else
-                    //{
-                    //    returnValue = -1;
-                    //}
+                    task = Task<short>.Factory.StartNew(() =>
+                    {
+                        //Return Value
+                        //0 : Normal completion
+                        //Others: Error codes
+                        //Takes 400 msec
+                        return Motocom.BscServoOff(_robotHandler);
+                    });
 
-                    returnValue = Motocom.BscServoOff(_robotHandler);
+                    taskWaitTimeCounter = 0;
+
+                    while (!task.IsCompleted)
+                    {
+                        #region
+                        taskWaitTimeCounter++;
+                        task.Wait(_motocom32FunctionsWaitTime);
+                        if (taskWaitTimeCounter > 10) //wait 500 msec maximum
+                        {
+                            break;
+                        }
+                        #endregion
+                    }
+
+                    if (task.IsCompleted)
+                    {
+                        #region
+                        returnValue = Convert.ToInt16(task.Result);
+                        //TODO:check return and send more if needed
+                        if (returnValue != 0)
+                        {
+                            #region
+                            counterSendCommand = 0;
+                            while (counterSendCommand < maxSendCommands)
+                            {
+                                #region
+
+                                counterSendCommand++;
+
+                                task = Task<short>.Factory.StartNew(() =>
+                                {
+                                    return Motocom.BscServoOff(_robotHandler);
+                                });
+
+                                taskWaitTimeCounter = 0;
+
+                                while (!task.IsCompleted)
+                                {
+                                    #region
+                                    taskWaitTimeCounter++;
+                                    task.Wait(_motocom32FunctionsWaitTime);
+                                    if (taskWaitTimeCounter > 10) //wait 500 msec maximum
+                                    {
+                                        break;
+                                    }
+                                    #endregion
+                                }
+                                if (task.IsCompleted)
+                                {
+                                    returnValue = Convert.ToInt16(task.Result);
+                                    if (returnValue == 0)
+                                    {
+                                        break;
+                                    }
+                                }
+                                else
+                                {
+                                    returnValue = -1;
+                                }
+                                #endregion
+                            }
+                            if (counterSendCommand == maxSendCommands)
+                            {
+                                Debug.WriteLine("DX200::SetServoOff()::Error::" + returnValue.ToString());
+                            }
+                            #endregion
+                        }
+                        #endregion
+                    }
+                    else
+                    {
+                        returnValue = -1;
+                    }
+
+                    #endregion
                 }
             }
             catch (Exception ex)
@@ -1920,9 +2368,13 @@ namespace YaskawaNet
         public short HoldOn()
         {
             short returnValue = 0;
+
+            double[] jointsPositionsSimulator = new double[12] { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+
             int taskWaitTimeCounter = 0;
             Task<short> task = null;
             int counterSendCommand = 0;
+            int maxSendCommands = 3;
 
             try
             {
@@ -1944,31 +2396,91 @@ namespace YaskawaNet
 
                     while (!task.IsCompleted)
                     {
+                        #region
                         taskWaitTimeCounter++;
                         task.Wait(_motocom32FunctionsWaitTime);
-                        if (taskWaitTimeCounter > 10) //wait 1 second maximum
+                        if (taskWaitTimeCounter > 10) //wait 500 msec maximum
                         {
                             break;
                         }
+                        #endregion
                     }
 
                     if (task.IsCompleted)
                     {
+                        #region
                         returnValue = Convert.ToInt16(task.Result);
                         //TODO:check return and send more if needed
                         if (returnValue != 0)
                         {
-                            counterSendCommand++;
-                            if (counterSendCommand < 3)
+                            #region
+                            counterSendCommand = 0;
+                            while (counterSendCommand < maxSendCommands)
                             {
-                                task.Start();
+                                #region
+
+                                counterSendCommand++;
+
+                                task = Task<short>.Factory.StartNew(() =>
+                                  {
+                                      //Return Value
+                                      //0 : Normal completion
+                                      //Others: Error codes
+                                      return Motocom.BscHoldOn(_robotHandler);
+                                  });
+
+                                taskWaitTimeCounter = 0;
+
+                                while (!task.IsCompleted)
+                                {
+                                    #region
+                                    taskWaitTimeCounter++;
+                                    task.Wait(_motocom32FunctionsWaitTime);
+                                    if (taskWaitTimeCounter > 10) //wait 500 msec maximum
+                                    {
+                                        break;
+                                    }
+                                    #endregion
+                                }
+                                if (task.IsCompleted)
+                                {
+                                    returnValue = Convert.ToInt16(task.Result);
+                                    if (returnValue == 0)
+                                    {
+                                        break;
+                                    }
+                                }
+                                else
+                                {
+                                    returnValue = -1;
+                                }
+                                #endregion
                             }
+                            if (counterSendCommand == maxSendCommands)
+                            {
+                                Debug.WriteLine("DX200::HoldOn()::Error::" + returnValue.ToString());
+                            }
+                            #endregion
                         }
+                        #endregion
                     }
                     else
                     {
                         returnValue = -1;
                     }
+
+                    #endregion
+                }
+
+                if (_useRoboDKSimulator)
+                {
+                    #region
+
+                    ReportedRobotJointPosition.RobotPositions.CopyTo(jointsPositionsSimulator, 0);
+
+                    jointsPositionsSimulator[6] = (jointsPositionsSimulator[6] > 3500) ? 3500 : jointsPositionsSimulator[6];
+
+                    _roboDKRobot.MoveJ(jointsPositionsSimulator, MOVE_BLOCKING);
 
                     #endregion
                 }
@@ -1989,13 +2501,14 @@ namespace YaskawaNet
             short returnValue = 0;
             int taskWaitTimeCounter = 0;
             Task<short> task = null;
-
             int counterSendCommand = 0;
+            int maxSendCommands = 3;
 
             try
             {
                 lock (_robotAccessLock)
                 {
+                    #region
                     _actualRobotStatus.IsCommandHold = false;
 
                     task = Task<short>.Factory.StartNew(() =>
@@ -2010,22 +2523,78 @@ namespace YaskawaNet
 
                     while (!task.IsCompleted)
                     {
+                        #region
                         taskWaitTimeCounter++;
                         task.Wait(_motocom32FunctionsWaitTime);
                         if (taskWaitTimeCounter > 10) //wait 1 second maximum
                         {
                             break;
                         }
+                        #endregion
                     }
                     if (task.IsCompleted)
                     {
+                        #region
                         returnValue = Convert.ToInt16(task.Result);
+                        //TODO:check return and send more if needed
+                        if (returnValue != 0)
+                        {
+                            #region
+                            counterSendCommand = 0;
+                            while (counterSendCommand < maxSendCommands)
+                            {
+                                #region
+
+                                counterSendCommand++;
+
+                                task = Task<short>.Factory.StartNew(() =>
+                                {
+                                    //Return Value
+                                    //0 : Normal completion
+                                    //Others: Error codes
+                                    return Motocom.BscHoldOff(_robotHandler);
+                                });
+
+                                taskWaitTimeCounter = 0;
+
+                                while (!task.IsCompleted)
+                                {
+                                    #region
+                                    taskWaitTimeCounter++;
+                                    task.Wait(_motocom32FunctionsWaitTime);
+                                    if (taskWaitTimeCounter > 10) //wait 1 second maximum
+                                    {
+                                        break;
+                                    }
+                                    #endregion
+                                }
+                                if (task.IsCompleted)
+                                {
+                                    returnValue = Convert.ToInt16(task.Result);
+                                    if (returnValue == 0)
+                                    {
+                                        break;
+                                    }
+                                }
+                                else
+                                {
+                                    returnValue = -1;
+                                }
+                                #endregion
+                            }
+                            if (counterSendCommand == maxSendCommands)
+                            {
+                                Debug.WriteLine("DX200::HoldOff()::Error::" + returnValue.ToString());
+                            }
+                            #endregion
+                        }
+                        #endregion
                     }
                     else
                     {
                         returnValue = -1;
                     }
-
+                    #endregion
                 }
             }
             catch (Exception ex)
@@ -2544,7 +3113,7 @@ namespace YaskawaNet
         public short JointJogMove(int jointIndex, double speed)
         {
             short returnValue = -1;
-            double[] jointsPositionsSimulator = null;
+            double[] jointsPositionsSimulator = new double[12] { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
             double[] jointsPositionsReal = new double[12] { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
             double[] _currentRobotJointsPositionReal = new double[12] { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
             double realRobotSpeed = 0.0;
@@ -2552,83 +3121,157 @@ namespace YaskawaNet
 
             Task<short> task = null;
             int taskWaitTimeCounter = 0;
+            int counterSendCommand = 0;
+            int maxSendCommands = 3;
 
             try
             {
-                if (_actualRobotStatus.IsCommandHold == true)
+                lock (_robotAccessLock)
                 {
-                    HoldOff();
-                }
-
-                realRobotSpeed = simulatorSpeed = speed;
-
-                realRobotSpeed = (realRobotSpeed > 100) ? 100 : realRobotSpeed;
-                realRobotSpeed = (realRobotSpeed < -100) ? -100 : realRobotSpeed;
-
-                ReportedRobotJointPosition.RobotPulsePositions.CopyTo(jointsPositionsReal, 0);
-
-                jointsPositionsReal[jointIndex] = (realRobotSpeed > 0) ? DesiredRobotJointPosition.LimitsPulse[jointIndex][1] : DesiredRobotJointPosition.LimitsPulse[jointIndex][0];
-                //Return Value
-                //0 : Normal completion
-                //Others: Error codes
-                realRobotSpeed = 10;//TODO:for safety !!!!!!!!!!!!!!!!!!!! Math.Abs(realRobotSpeed);
-
-                task = Task<short>.Factory.StartNew(() =>
-                {
-                    //Return Value
-                    //0 : Normal completion
-                    //Others: Error codes
-                    return Motocom.BscPMovj(_robotHandler, realRobotSpeed, _toolNumber, ref jointsPositionsReal[0]);
-                });
-
-                taskWaitTimeCounter = 0;
-
-                while (!task.IsCompleted)
-                {
-                    taskWaitTimeCounter++;
-                    task.Wait(_motocom32FunctionsWaitTime);
-                    if (taskWaitTimeCounter > 5) //wait 250 msec maximum
+                    #region
+                    if (_actualRobotStatus.IsCommandHold == true)
                     {
-                        break;
+                        HoldOff();
                     }
-                }
-                if (task.IsCompleted)
-                {
-                    returnValue = Convert.ToInt16(task.Result);
-                }
-                else
-                {
-                    returnValue = -1;
-                }
 
-                if (returnValue != 0)
-                {
-                    Debug.WriteLine("DX200::JointJogMove::Error while moving");
+                    realRobotSpeed = simulatorSpeed = speed;
+
+                    realRobotSpeed = (realRobotSpeed > 100) ? 100 : realRobotSpeed;
+                    realRobotSpeed = (realRobotSpeed < -100) ? -100 : realRobotSpeed;
+
+                    ReportedRobotJointPosition.RobotPulsePositions.CopyTo(jointsPositionsReal, 0);
+
+                    jointsPositionsReal[jointIndex] = (realRobotSpeed > 0) ? DesiredRobotJointPosition.LimitsPulse[jointIndex][1] : DesiredRobotJointPosition.LimitsPulse[jointIndex][0];
+
+                    realRobotSpeed = 10;//TODO:for safety !!!!!!!!!!!!!!!!!!!! Math.Abs(realRobotSpeed);
+
+                    if (jointIndex == 0)
+                    {
+                        realRobotSpeed = (realRobotSpeed > _sJointMaxSpeed) ? _sJointMaxSpeed : realRobotSpeed;
+                    }
+                    if (jointIndex == 1)
+                    {
+                        realRobotSpeed = (realRobotSpeed > _lJointMaxSpeed) ? _lJointMaxSpeed : realRobotSpeed;
+                    }
+                    if (jointIndex == 2)
+                    {
+                        realRobotSpeed = (realRobotSpeed > _uJointMaxSpeed) ? _uJointMaxSpeed : realRobotSpeed;
+                    }
+                    if (jointIndex == 3)
+                    {
+                        realRobotSpeed = (realRobotSpeed > _rJointMaxSpeed) ? _rJointMaxSpeed : realRobotSpeed;
+                    }
+                    if (jointIndex == 4)
+                    {
+                        realRobotSpeed = (realRobotSpeed > _bJointMaxSpeed) ? _bJointMaxSpeed : realRobotSpeed;
+                    }
+                    if (jointIndex == 5)
+                    {
+                        realRobotSpeed = (realRobotSpeed > _tJointMaxSpeed) ? _tJointMaxSpeed : realRobotSpeed;
+                    }
+
+                    task = Task<short>.Factory.StartNew(() =>
+                    {
+                        //Return Value
+                        //0 : Normal completion
+                        //Others: Error codes
+                        return Motocom.BscPMovj(_robotHandler, realRobotSpeed, _toolNumber, ref jointsPositionsReal[0]);
+                    });
+
+                    taskWaitTimeCounter = 0;
+
+                    while (!task.IsCompleted)
+                    {
+                        #region
+                        taskWaitTimeCounter++;
+                        task.Wait(_motocom32FunctionsWaitTime);
+                        if (taskWaitTimeCounter > 10) //wait 500 msec maximum
+                        {
+                            break;
+                        }
+                        #endregion
+                    }
+                    if (task.IsCompleted)
+                    {
+                        #region
+                        returnValue = Convert.ToInt16(task.Result);
+                        //TODO:check return and send more if needed
+                        if (returnValue != 0)
+                        {
+                            #region
+                            counterSendCommand = 0;
+                            while (counterSendCommand < maxSendCommands)
+                            {
+                                #region
+
+                                counterSendCommand++;
+
+                                task = Task<short>.Factory.StartNew(() =>
+                                {
+                                    return Motocom.BscPMovj(_robotHandler, realRobotSpeed, _toolNumber, ref jointsPositionsReal[0]);
+                                });
+
+                                taskWaitTimeCounter = 0;
+
+                                while (!task.IsCompleted)
+                                {
+                                    #region
+                                    taskWaitTimeCounter++;
+                                    task.Wait(_motocom32FunctionsWaitTime);
+                                    if (taskWaitTimeCounter > 10) //wait 500 msec maximum
+                                    {
+                                        break;
+                                    }
+                                    #endregion
+                                }
+                                if (task.IsCompleted)
+                                {
+                                    returnValue = Convert.ToInt16(task.Result);
+                                    if (returnValue == 0)
+                                    {
+                                        break;
+                                    }
+                                }
+                                else
+                                {
+                                    returnValue = -1;
+                                }
+                                #endregion
+                            }
+                            if (counterSendCommand == maxSendCommands)
+                            {
+                                Debug.WriteLine("DX200::JointJogMove()::Error::Real robot connection problem.");
+                            }
+                            #endregion
+                        }
+                        #endregion
+                    }
+                    else
+                    {
+                        returnValue = -1;
+                    }
+
+                    if (returnValue != 0)
+                    {
+                        Debug.WriteLine("DX200::JointJogMove()::Error::" + returnValue.ToString());
+                    }
+                    Debug.WriteLine("DX200::JointJogMove:" + jointIndex.ToString() + "::" + "desired position: " + jointsPositionsReal[jointIndex].ToString());
+
+                    #endregion
                 }
-                Debug.WriteLine("DX200::JointJogMove:" + jointIndex.ToString() + "::" + "desired position: " + jointsPositionsReal[jointIndex].ToString());
 
                 if (_useRoboDKSimulator)
                 {
                     #region
 
-                    jointsPositionsSimulator = _roboDKRobot.Joints();
+                    //get actual robot position
+                    ReportedRobotJointPosition.RobotPositions.CopyTo(jointsPositionsSimulator, 0);
 
-                    if (jointsPositionsSimulator != null)
-                    {
-                        #region
-                        //get actual robot position
-                        for (int i = 0; i < jointsPositionsSimulator.Length; i++)
-                        {
-                            jointsPositionsSimulator[i] = ReportedRobotJointPositionSimulator.RobotPositions[i];
-                        }
+                    _roboDKRobot.SetSpeed(-1, Math.Abs(simulatorSpeed));
 
-                        _roboDKRobot.SetSpeed(-1, Math.Abs(simulatorSpeed));
+                    jointsPositionsSimulator[jointIndex] = (simulatorSpeed > 0) ? DesiredRobotJointPosition.Limits[jointIndex][1] : DesiredRobotJointPosition.Limits[jointIndex][0];
 
-                        jointsPositionsSimulator[jointIndex] = (simulatorSpeed > 0) ? DesiredRobotJointPosition.Limits[jointIndex][1] : DesiredRobotJointPosition.Limits[jointIndex][0];
-
-                        _roboDKRobot.MoveJ(jointsPositionsSimulator, MOVE_BLOCKING);
-                        #endregion
-                    }
+                    _roboDKRobot.MoveJ(jointsPositionsSimulator, MOVE_BLOCKING);
 
                     #endregion
                 }
@@ -2759,37 +3402,146 @@ namespace YaskawaNet
         /// <returns></returns>
         public short JointAbsoluteMove(int jointIndex, double speed)
         {
-            RobotFunctionReturnType_2 returnValue = RobotFunctionReturnType_2.Other;
+            short returnValue = -1;
             double[] jointsPositionsSimulator = new double[12] { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
             double[] jointsPositionsReal = new double[12] { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+            double realRobotSpeed = 0.0;
+            double simulatorSpeed = 0.0;
+
+            Task<short> task = null;
+            int taskWaitTimeCounter = 0;
+            int counterSendCommand = 0;
+            int maxSendCommands = 3;
 
             try
             {
-                #region
+                lock (_robotAccessLock)
+                {
+                    #region
 
-                DesiredRobotJointPosition.RobotPulsePositions.CopyTo(jointsPositionsReal, 0);
+                    if (_actualRobotStatus.IsCommandHold == true)
+                    {
+                        HoldOff();
+                    }
 
-                returnValue = (RobotFunctionReturnType_2)Motocom.BscPMovj(_robotHandler, speed, _toolNumber, ref jointsPositionsReal[0]);
+                    realRobotSpeed = simulatorSpeed = speed;
+
+                    realRobotSpeed = (realRobotSpeed > 100) ? 100 : realRobotSpeed;
+                    realRobotSpeed = (realRobotSpeed < -100) ? -100 : realRobotSpeed;
+
+                    ReportedRobotJointPosition.RobotPulsePositions.CopyTo(jointsPositionsReal, 0);
+                    jointsPositionsReal[jointIndex] = DesiredRobotJointPosition.RobotPulsePositions[jointIndex];
+
+                    realRobotSpeed = 10;//TODO:for safety !!!!!!!!!!!!!!!!!!!! Math.Abs(realRobotSpeed);
+
+                    task = Task<short>.Factory.StartNew(() =>
+                    {
+                        //Return Value
+                        //0 : Normal completion
+                        //Others: Error codes
+                        return Motocom.BscPMovj(_robotHandler, realRobotSpeed, _toolNumber, ref jointsPositionsReal[0]);
+                    });
+
+                    taskWaitTimeCounter = 0;
+
+                    while (!task.IsCompleted)
+                    {
+                        #region
+                        taskWaitTimeCounter++;
+                        task.Wait(_motocom32FunctionsWaitTime);
+                        if (taskWaitTimeCounter > 10) //wait 500 msec maximum
+                        {
+                            break;
+                        }
+                        #endregion
+                    }
+                    if (task.IsCompleted)
+                    {
+                        #region
+                        returnValue = Convert.ToInt16(task.Result);
+                        //TODO:check return and send more if needed
+                        if (returnValue != 0)
+                        {
+                            #region
+                            counterSendCommand = 0;
+                            while (counterSendCommand < maxSendCommands)
+                            {
+                                #region
+
+                                counterSendCommand++;
+
+                                task = Task<short>.Factory.StartNew(() =>
+                                {
+                                    return Motocom.BscPMovj(_robotHandler, realRobotSpeed, _toolNumber, ref jointsPositionsReal[0]);
+                                });
+
+                                taskWaitTimeCounter = 0;
+
+                                while (!task.IsCompleted)
+                                {
+                                    #region
+                                    taskWaitTimeCounter++;
+                                    task.Wait(_motocom32FunctionsWaitTime);
+                                    if (taskWaitTimeCounter > 10) //wait 500 msec maximum
+                                    {
+                                        break;
+                                    }
+                                    #endregion
+                                }
+                                if (task.IsCompleted)
+                                {
+                                    returnValue = Convert.ToInt16(task.Result);
+                                    if (returnValue == 0)
+                                    {
+                                        break;
+                                    }
+                                }
+                                else
+                                {
+                                    returnValue = -1;
+                                }
+                                #endregion
+                            }
+                            if (counterSendCommand == maxSendCommands)
+                            {
+                                Debug.WriteLine("DX200::JointAbsoluteMove()::Error::Real robot connection problem.");
+                            }
+                            #endregion
+                        }
+                        #endregion
+                    }
+                    else
+                    {
+                        returnValue = -1;
+                    }
+
+                    if (returnValue != 0)
+                    {
+                        Debug.WriteLine("DX200::JointAbsoluteMove()::Error::" + returnValue.ToString());
+                    }
+
+                    #endregion
+                }
 
                 if (_useRoboDKSimulator)
                 {
-                    _roboDKRobot.SetSpeed(-1, Math.Abs(speed));
+                    #region
+                    _roboDKRobot.SetSpeed(-1, Math.Abs(simulatorSpeed));
 
-                    jointsPositionsSimulator = ReportedRobotJointPosition.RobotPositions;
+                    ReportedRobotJointPosition.RobotPositions.CopyTo(jointsPositionsSimulator, 0);
 
                     jointsPositionsSimulator[jointIndex] = DesiredRobotJointPosition.RobotPositions[jointIndex];
 
                     _roboDKRobot.MoveJ(jointsPositionsSimulator, MOVE_BLOCKING);
+                    #endregion
                 }
-
-                #endregion
             }
             catch (Exception ex)
             {
                 DiagnosticException.ExceptionHandler(ex);
             }
 
-            return (short)returnValue;
+            return returnValue;
         }
         /// <summary>
         /// 
@@ -2799,25 +3551,137 @@ namespace YaskawaNet
         /// <returns></returns>
         public short JointsAbsoluteMove(int jointMask, double speed)
         {
-            RobotFunctionReturnType_2 returnValue = RobotFunctionReturnType_2.Other;
+            short returnValue = -1;
             double[] jointsPositionsReal = new double[12] { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
             double[] jointsPositionsSimulator = new double[12] { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+
+            double realRobotSpeed = 0.0;
+            double simulatorSpeed = 0.0;
+
+            Task<short> task = null;
+            int taskWaitTimeCounter = 0;
+            int counterSendCommand = 0;
+            int maxSendCommands = 3;
 
             try
             {
                 #region
 
-                for (int i = 0; i < jointsPositionsReal.Length; i++)
+                lock (_robotAccessLock)
                 {
                     #region
-                    if ((jointMask & (1 << i)) > 0)
+
+                    if (_actualRobotStatus.IsCommandHold == true)
                     {
-                        jointsPositionsReal[i] = DesiredRobotJointPosition.RobotPulsePositions[i];
+                        HoldOff();
                     }
+
+                    realRobotSpeed = simulatorSpeed = speed;
+
+                    realRobotSpeed = (realRobotSpeed > 100) ? 100 : realRobotSpeed;
+                    realRobotSpeed = (realRobotSpeed < -100) ? -100 : realRobotSpeed;
+
+                    ReportedRobotJointPosition.RobotPulsePositions.CopyTo(jointsPositionsReal, 0);
+                    for (int i = 0; i < jointsPositionsReal.Length; i++)
+                    {
+                        #region
+                        if ((jointMask & (1 << i)) > 0)
+                        {
+                            jointsPositionsReal[i] = DesiredRobotJointPosition.RobotPulsePositions[i];
+                        }
+                        #endregion
+                    }
+
+                    realRobotSpeed = 10;//TODO:for safety !!!!!!!!!!!!!!!!!!!! Math.Abs(realRobotSpeed);
+
+                    task = Task<short>.Factory.StartNew(() =>
+                    {
+                        //Return Value
+                        //0 : Normal completion
+                        //Others: Error codes
+                        return Motocom.BscPMovj(_robotHandler, realRobotSpeed, _toolNumber, ref jointsPositionsReal[0]);
+                    });
+
+                    taskWaitTimeCounter = 0;
+
+                    while (!task.IsCompleted)
+                    {
+                        #region
+                        taskWaitTimeCounter++;
+                        task.Wait(_motocom32FunctionsWaitTime);
+                        if (taskWaitTimeCounter > 10) //wait 500 msec maximum
+                        {
+                            break;
+                        }
+                        #endregion
+                    }
+                    if (task.IsCompleted)
+                    {
+                        #region
+                        returnValue = Convert.ToInt16(task.Result);
+                        //TODO:check return and send more if needed
+                        if (returnValue != 0)
+                        {
+                            #region
+                            counterSendCommand = 0;
+                            while (counterSendCommand < maxSendCommands)
+                            {
+                                #region
+
+                                counterSendCommand++;
+
+                                task = Task<short>.Factory.StartNew(() =>
+                                {
+                                    return Motocom.BscPMovj(_robotHandler, realRobotSpeed, _toolNumber, ref jointsPositionsReal[0]);
+                                });
+
+                                taskWaitTimeCounter = 0;
+
+                                while (!task.IsCompleted)
+                                {
+                                    #region
+                                    taskWaitTimeCounter++;
+                                    task.Wait(_motocom32FunctionsWaitTime);
+                                    if (taskWaitTimeCounter > 10) //wait 500 msec maximum
+                                    {
+                                        break;
+                                    }
+                                    #endregion
+                                }
+                                if (task.IsCompleted)
+                                {
+                                    returnValue = Convert.ToInt16(task.Result);
+                                    if (returnValue == 0)
+                                    {
+                                        break;
+                                    }
+                                }
+                                else
+                                {
+                                    returnValue = -1;
+                                }
+                                #endregion
+                            }
+                            if (counterSendCommand == maxSendCommands)
+                            {
+                                Debug.WriteLine("DX200::JointAbsoluteMove()::Error::Real robot connection problem.");
+                            }
+                            #endregion
+                        }
+                        #endregion
+                    }
+                    else
+                    {
+                        returnValue = -1;
+                    }
+
+                    if (returnValue != 0)
+                    {
+                        Debug.WriteLine("DX200::JointAbsoluteMove()::Error::" + returnValue.ToString());
+                    }
+
                     #endregion
                 }
-
-                returnValue = (RobotFunctionReturnType_2)Motocom.BscPMovj(_robotHandler, speed, _toolNumber, ref jointsPositionsReal[0]);
 
                 if (_useRoboDKSimulator)
                 {
@@ -2843,7 +3707,7 @@ namespace YaskawaNet
                 DiagnosticException.ExceptionHandler(ex);
             }
 
-            return (short)returnValue;
+            return returnValue;
         }
         /// <summary>
         /// 
@@ -2853,33 +3717,144 @@ namespace YaskawaNet
         /// <returns></returns>
         public short JointHomeMove(int jointIndex, double speed)
         {
-            RobotFunctionReturnType_2 returnValue = RobotFunctionReturnType_2.Other;
-            double[] joints = new double[6] { 0, 0, 0, 0, 0, 0 };
+            short returnValue = -1;
+            double[] jointsPositionsSimulator = new double[12] { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+            double[] jointsPositionsReal = new double[12] { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+            double realRobotSpeed = 0.0;
+            double simulatorSpeed = 0.0;
+
+            Task<short> task = null;
+            int taskWaitTimeCounter = 0;
+            int counterSendCommand = 0;
+            int maxSendCommands = 3;
 
             try
             {
-                #region
-
-                //get actual robot position
-                for (int i = 0; i < joints.Length; i++)
+                lock (_robotAccessLock)
                 {
-                    joints[i] = ReportedRobotJointPosition.RobotPositions[i];
+                    #region
+                    if (_actualRobotStatus.IsCommandHold == true)
+                    {
+                        HoldOff();
+                    }
+
+                    realRobotSpeed = simulatorSpeed = speed;
+
+                    realRobotSpeed = (realRobotSpeed > 100) ? 100 : realRobotSpeed;
+                    realRobotSpeed = (realRobotSpeed < -100) ? -100 : realRobotSpeed;
+
+                    ReportedRobotJointPosition.RobotPulsePositions.CopyTo(jointsPositionsReal, 0);
+                    jointsPositionsReal[jointIndex] = DesiredRobotJointPosition.RobotHomePositions[jointIndex];
+
+                    realRobotSpeed = 10;//TODO:for safety !!!!!!!!!!!!!!!!!!!! Math.Abs(realRobotSpeed);
+
+                    task = Task<short>.Factory.StartNew(() =>
+                    {
+                        //Return Value
+                        //0 : Normal completion
+                        //Others: Error codes
+                        return Motocom.BscPMovj(_robotHandler, realRobotSpeed, _toolNumber, ref jointsPositionsReal[0]);
+                    });
+
+                    taskWaitTimeCounter = 0;
+
+                    while (!task.IsCompleted)
+                    {
+                        #region
+                        taskWaitTimeCounter++;
+                        task.Wait(_motocom32FunctionsWaitTime);
+                        if (taskWaitTimeCounter > 10) //wait 500 msec maximum
+                        {
+                            break;
+                        }
+                        #endregion
+                    }
+                    if (task.IsCompleted)
+                    {
+                        #region
+                        returnValue = Convert.ToInt16(task.Result);
+                        //TODO:check return and send more if needed
+                        if (returnValue != 0)
+                        {
+                            #region
+                            counterSendCommand = 0;
+                            while (counterSendCommand < maxSendCommands)
+                            {
+                                #region
+
+                                counterSendCommand++;
+
+                                task = Task<short>.Factory.StartNew(() =>
+                                {
+                                    return Motocom.BscPMovj(_robotHandler, realRobotSpeed, _toolNumber, ref jointsPositionsReal[0]);
+                                });
+
+                                taskWaitTimeCounter = 0;
+
+                                while (!task.IsCompleted)
+                                {
+                                    #region
+                                    taskWaitTimeCounter++;
+                                    task.Wait(_motocom32FunctionsWaitTime);
+                                    if (taskWaitTimeCounter > 10) //wait 500 msec maximum
+                                    {
+                                        break;
+                                    }
+                                    #endregion
+                                }
+                                if (task.IsCompleted)
+                                {
+                                    returnValue = Convert.ToInt16(task.Result);
+                                    if (returnValue == 0)
+                                    {
+                                        break;
+                                    }
+                                }
+                                else
+                                {
+                                    returnValue = -1;
+                                }
+                                #endregion
+                            }
+                            if (counterSendCommand == maxSendCommands)
+                            {
+                                Debug.WriteLine("DX200::JointHomeMove()::Error::Real robot connection problem.");
+                            }
+                            #endregion
+                        }
+                        #endregion
+                    }
+                    else
+                    {
+                        returnValue = -1;
+                    }
+
+                    if (returnValue != 0)
+                    {
+                        Debug.WriteLine("DX200::JointHomeMove()::Error::" + returnValue.ToString());
+                    }
+                    #endregion
                 }
 
-                _roboDKRobot.SetSpeed(-1, Math.Abs(speed));
+                if (_useRoboDKSimulator)
+                {
+                    #region
+                    _roboDKRobot.SetSpeed(-1, Math.Abs(speed));
 
-                joints[jointIndex] = DesiredRobotJointPosition.RobotHomePositions[jointIndex];
+                    jointsPositionsSimulator = ReportedRobotJointPosition.RobotPositions;
 
-                _roboDKRobot.MoveJ(joints, MOVE_BLOCKING);
+                    jointsPositionsSimulator[jointIndex] = DesiredRobotJointPosition.RobotHomePositions[jointIndex];
 
-                #endregion
+                    _roboDKRobot.MoveJ(jointsPositionsSimulator, MOVE_BLOCKING);
+                    #endregion
+                }
             }
             catch (Exception ex)
             {
                 DiagnosticException.ExceptionHandler(ex);
             }
 
-            return (short)returnValue;
+            return returnValue;
         }
         /// <summary>
         /// 
@@ -2889,33 +3864,144 @@ namespace YaskawaNet
         /// <returns></returns>
         public short JointParkMove(int jointIndex, double speed)
         {
-            RobotFunctionReturnType_2 returnValue = RobotFunctionReturnType_2.Other;
-            double[] joints = new double[6] { 0, 0, 0, 0, 0, 0 };
+            short returnValue = -1;
+            double[] jointsPositionsSimulator = new double[12] { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+            double[] jointsPositionsReal = new double[12] { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+            double realRobotSpeed = 0.0;
+            double simulatorSpeed = 0.0;
+
+            Task<short> task = null;
+            int taskWaitTimeCounter = 0;
+            int counterSendCommand = 0;
+            int maxSendCommands = 3;
 
             try
             {
-                #region
-
-                //get actual robot position
-                for (int i = 0; i < joints.Length; i++)
+                lock (_robotAccessLock)
                 {
-                    joints[i] = ReportedRobotJointPosition.RobotPositions[i];
+                    #region
+
+                    if (_actualRobotStatus.IsCommandHold == true)
+                    {
+                        HoldOff();
+                    }
+
+                    realRobotSpeed = simulatorSpeed = speed;
+
+                    realRobotSpeed = (realRobotSpeed > 100) ? 100 : realRobotSpeed;
+                    realRobotSpeed = (realRobotSpeed < -100) ? -100 : realRobotSpeed;
+
+                    ReportedRobotJointPosition.RobotPulsePositions.CopyTo(jointsPositionsReal, 0);
+                    jointsPositionsReal[jointIndex] = DesiredRobotJointPosition.RobotParkPositions[jointIndex];
+
+                    realRobotSpeed = 10;//TODO:for safety !!!!!!!!!!!!!!!!!!!! Math.Abs(realRobotSpeed);
+
+                    task = Task<short>.Factory.StartNew(() =>
+                    {
+                        //Return Value
+                        //0 : Normal completion
+                        //Others: Error codes
+                        return Motocom.BscPMovj(_robotHandler, realRobotSpeed, _toolNumber, ref jointsPositionsReal[0]);
+                    });
+
+                    taskWaitTimeCounter = 0;
+
+                    while (!task.IsCompleted)
+                    {
+                        #region
+                        taskWaitTimeCounter++;
+                        task.Wait(_motocom32FunctionsWaitTime);
+                        if (taskWaitTimeCounter > 10) //wait 500 msec maximum
+                        {
+                            break;
+                        }
+                        #endregion
+                    }
+                    if (task.IsCompleted)
+                    {
+                        #region
+                        returnValue = Convert.ToInt16(task.Result);
+                        //TODO:check return and send more if needed
+                        if (returnValue != 0)
+                        {
+                            #region
+                            counterSendCommand = 0;
+                            while (counterSendCommand < maxSendCommands)
+                            {
+                                #region
+
+                                counterSendCommand++;
+
+                                task = Task<short>.Factory.StartNew(() =>
+                                {
+                                    return Motocom.BscPMovj(_robotHandler, realRobotSpeed, _toolNumber, ref jointsPositionsReal[0]);
+                                });
+
+                                taskWaitTimeCounter = 0;
+
+                                while (!task.IsCompleted)
+                                {
+                                    #region
+                                    taskWaitTimeCounter++;
+                                    task.Wait(_motocom32FunctionsWaitTime);
+                                    if (taskWaitTimeCounter > 10) //wait 500 msec maximum
+                                    {
+                                        break;
+                                    }
+                                    #endregion
+                                }
+                                if (task.IsCompleted)
+                                {
+                                    returnValue = Convert.ToInt16(task.Result);
+                                    if (returnValue == 0)
+                                    {
+                                        break;
+                                    }
+                                }
+                                else
+                                {
+                                    returnValue = -1;
+                                }
+                                #endregion
+                            }
+                            if (counterSendCommand == maxSendCommands)
+                            {
+                                Debug.WriteLine("DX200::JointParkMove()::Error::Real robot connection problem.");
+                            }
+                            #endregion
+                        }
+                        #endregion
+                    }
+                    else
+                    {
+                        returnValue = -1;
+                    }
+
+                    if (returnValue != 0)
+                    {
+                        Debug.WriteLine("DX200::JointParkMove()::Error::" + returnValue.ToString());
+                    }
+
+                    if (_useRoboDKSimulator)
+                    {
+                        _roboDKRobot.SetSpeed(-1, Math.Abs(speed));
+
+                        jointsPositionsSimulator = ReportedRobotJointPosition.RobotPositions;
+
+                        jointsPositionsSimulator[jointIndex] = DesiredRobotJointPosition.RobotParkPositions[jointIndex];
+
+                        _roboDKRobot.MoveJ(jointsPositionsSimulator, MOVE_BLOCKING);
+                    }
+
+                    #endregion
                 }
-
-                _roboDKRobot.SetSpeed(-1, Math.Abs(speed));
-
-                joints[jointIndex] = DesiredRobotJointPosition.RobotParkPositions[jointIndex];
-
-                _roboDKRobot.MoveJ(joints, MOVE_BLOCKING);
-
-                #endregion
             }
             catch (Exception ex)
             {
                 DiagnosticException.ExceptionHandler(ex);
             }
 
-            return (short)returnValue;
+            return returnValue;
         }
         /// <summary>
         /// 
@@ -2925,28 +4011,138 @@ namespace YaskawaNet
         /// <returns></returns>
         public short JointRelativeMove(int jointIndex, double speed)
         {
-            RobotFunctionReturnType_2 returnValue = RobotFunctionReturnType_2.Other;
+            short returnValue = -1;
             double[] jointsPositionsReal = new double[12] { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
             double[] jointsPositionsSimulator = new double[12] { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+            double realRobotSpeed = 0.0;
+            double simulatorSpeed = 0.0;
+
+            Task<short> task = null;
+            int taskWaitTimeCounter = 0;
+            int counterSendCommand = 0;
+            int maxSendCommands = 3;
 
             try
             {
-                #region
+                lock (_robotAccessLock)
+                {
+                    #region
 
-                jointsPositionsReal[jointIndex] += DesiredRobotJointPosition.RobotPulsePositions[jointIndex];
-                returnValue = (RobotFunctionReturnType_2)Motocom.BscPMovj(_robotHandler, speed, _toolNumber, ref jointsPositionsReal[0]);
+                    if (_actualRobotStatus.IsCommandHold == true)
+                    {
+                        HoldOff();
+                    }
+
+                    realRobotSpeed = simulatorSpeed = speed;
+
+                    realRobotSpeed = (realRobotSpeed > 100) ? 100 : realRobotSpeed;
+                    realRobotSpeed = (realRobotSpeed < -100) ? -100 : realRobotSpeed;
+
+                    ReportedRobotJointPosition.RobotPulsePositions.CopyTo(jointsPositionsReal, 0);
+                    jointsPositionsReal[jointIndex] += DesiredRobotJointPosition.RobotPulsePositions[jointIndex];
+
+                    realRobotSpeed = 10;//TODO:for safety !!!!!!!!!!!!!!!!!!!! Math.Abs(realRobotSpeed);
+
+                    task = Task<short>.Factory.StartNew(() =>
+                    {
+                        //Return Value
+                        //0 : Normal completion
+                        //Others: Error codes
+                        return Motocom.BscPMovj(_robotHandler, realRobotSpeed, _toolNumber, ref jointsPositionsReal[0]);
+                    });
+
+                    taskWaitTimeCounter = 0;
+
+                    while (!task.IsCompleted)
+                    {
+                        #region
+                        taskWaitTimeCounter++;
+                        task.Wait(_motocom32FunctionsWaitTime);
+                        if (taskWaitTimeCounter > 10) //wait 500 msec maximum
+                        {
+                            break;
+                        }
+                        #endregion
+                    }
+                    if (task.IsCompleted)
+                    {
+                        #region
+                        returnValue = Convert.ToInt16(task.Result);
+                        //TODO:check return and send more if needed
+                        if (returnValue != 0)
+                        {
+                            #region
+                            counterSendCommand = 0;
+                            while (counterSendCommand < maxSendCommands)
+                            {
+                                #region
+
+                                counterSendCommand++;
+
+                                task = Task<short>.Factory.StartNew(() =>
+                                {
+                                    return Motocom.BscPMovj(_robotHandler, realRobotSpeed, _toolNumber, ref jointsPositionsReal[0]);
+                                });
+
+                                taskWaitTimeCounter = 0;
+
+                                while (!task.IsCompleted)
+                                {
+                                    #region
+                                    taskWaitTimeCounter++;
+                                    task.Wait(_motocom32FunctionsWaitTime);
+                                    if (taskWaitTimeCounter > 10) //wait 500 msec maximum
+                                    {
+                                        break;
+                                    }
+                                    #endregion
+                                }
+                                if (task.IsCompleted)
+                                {
+                                    returnValue = Convert.ToInt16(task.Result);
+                                    if (returnValue == 0)
+                                    {
+                                        break;
+                                    }
+                                }
+                                else
+                                {
+                                    returnValue = -1;
+                                }
+                                #endregion
+                            }
+                            if (counterSendCommand == maxSendCommands)
+                            {
+                                Debug.WriteLine("DX200::JointRelativeMove()::Error::Real robot connection problem.");
+                            }
+                            #endregion
+                        }
+                        #endregion
+                    }
+                    else
+                    {
+                        returnValue = -1;
+                    }
+
+                    if (returnValue != 0)
+                    {
+                        Debug.WriteLine("DX200::JointRelativeMove()::Error::" + returnValue.ToString());
+                    }
+
+                    #endregion
+                }
 
                 if (_useRoboDKSimulator)
                 {
-                    _roboDKRobot.SetSpeed(-1, Math.Abs(speed));
+                    #region
+                    _roboDKRobot.SetSpeed(-1, Math.Abs(simulatorSpeed));
 
                     ReportedRobotJointPosition.RobotPositions.CopyTo(jointsPositionsSimulator, 0);
                     jointsPositionsSimulator[jointIndex] += DesiredRobotJointPosition.RobotPositions[jointIndex];
 
                     _roboDKRobot.MoveJ(jointsPositionsSimulator, MOVE_BLOCKING);
+                    #endregion
                 }
-
-                #endregion
             }
             catch (Exception ex)
             {
@@ -3017,17 +4213,129 @@ namespace YaskawaNet
         /// <returns></returns>
         public short TCPJogMove(int tcpIndex, double speed)
         {
-            RobotFunctionReturnType_2 returnValue = RobotFunctionReturnType_2.Other;
+            short returnValue = -1;
             double[] tcpAxesPositionsSimulator = new double[12] { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
             double[] tcpAxesPositionsReal = new double[12] { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
             double[] shortTCPAxesPositionsSimulator = new double[6] { 0, 0, 0, 0, 0, 0 };
 
+            double realRobotSpeed = 0.0;
+            double simulatorSpeed = 0.0;
+
+            Task<short> task = null;
+            int taskWaitTimeCounter = 0;
+            int counterSendCommand = 0;
+            int maxSendCommands = 3;
+
             try
             {
-                ReportedRobotTCPPosition.RobotPositions.CopyTo(tcpAxesPositionsReal, 0);
-                tcpAxesPositionsReal[tcpIndex] = (speed > 0) ? DesiredRobotTCPPosition.Limits[tcpIndex][1] : DesiredRobotJointPosition.Limits[tcpIndex][0];
+                lock (_robotAccessLock)
+                {
+                    #region
 
-                Motocom.BscMovj(_robotHandler, speed, new StringBuilder(_frameDictionary[_actualReferenceFrame]), _actualRConf.Formcode, _toolNumber, ref tcpAxesPositionsReal[0]);
+                    if (_actualRobotStatus.IsCommandHold == true)
+                    {
+                        HoldOff();
+                    }
+
+                    realRobotSpeed = simulatorSpeed = speed;
+
+                    realRobotSpeed = (realRobotSpeed > 100) ? 100 : realRobotSpeed;
+                    realRobotSpeed = (realRobotSpeed < -100) ? -100 : realRobotSpeed;
+
+                    ReportedRobotTCPPosition.RobotPositions.CopyTo(tcpAxesPositionsReal, 0);
+                    tcpAxesPositionsReal[tcpIndex] = (speed > 0) ? DesiredRobotTCPPosition.Limits[tcpIndex][1] : DesiredRobotTCPPosition.Limits[tcpIndex][0];
+
+                    realRobotSpeed = 100;//TODO:for safety !!!!!!!!!!!!!!!!!!!! Math.Abs(realRobotSpeed);
+
+                    task = Task<short>.Factory.StartNew(() =>
+                    {
+                        //Return Value
+                        //0 : Normal completion
+                        //Others: Error codes
+                        return Motocom.BscMovl(_robotHandler, new StringBuilder(_moveSpeedSelectionDictionary[_actualMoveSpeedSelection]), realRobotSpeed, new StringBuilder(_frameDictionary[_actualReferenceFrame]), _actualRConf.Formcode, _toolNumber, ref tcpAxesPositionsReal[0]);
+                    });
+
+                    taskWaitTimeCounter = 0;
+
+                    while (!task.IsCompleted)
+                    {
+                        #region
+                        taskWaitTimeCounter++;
+                        task.Wait(_motocom32FunctionsWaitTime);
+                        if (taskWaitTimeCounter > 10) //wait 500 msec maximum
+                        {
+                            break;
+                        }
+                        #endregion
+                    }
+                    if (task.IsCompleted)
+                    {
+                        #region
+                        returnValue = Convert.ToInt16(task.Result);
+                        //TODO:check return and send more if needed
+                        if (returnValue != 0)
+                        {
+                            #region
+                            counterSendCommand = 0;
+                            while (counterSendCommand < maxSendCommands)
+                            {
+                                #region
+
+                                counterSendCommand++;
+
+                                task = Task<short>.Factory.StartNew(() =>
+                                {
+                                    return Motocom.BscMovl(_robotHandler, new StringBuilder(_moveSpeedSelectionDictionary[_actualMoveSpeedSelection]), realRobotSpeed, new StringBuilder(_frameDictionary[_actualReferenceFrame]), _actualRConf.Formcode, _toolNumber, ref tcpAxesPositionsReal[0]);
+                                    //return Motocom.BscMovj(_robotHandler, realRobotSpeed, new StringBuilder(_frameDictionary[_actualReferenceFrame]), _actualRConf.Formcode, _toolNumber, ref tcpAxesPositionsReal[0]);
+                                });
+
+                                taskWaitTimeCounter = 0;
+
+                                while (!task.IsCompleted)
+                                {
+                                    #region
+                                    taskWaitTimeCounter++;
+                                    task.Wait(_motocom32FunctionsWaitTime);
+                                    if (taskWaitTimeCounter > 10) //wait 500 msec maximum
+                                    {
+                                        break;
+                                    }
+                                    #endregion
+                                }
+                                if (task.IsCompleted)
+                                {
+                                    returnValue = Convert.ToInt16(task.Result);
+                                    if (returnValue == 0)
+                                    {
+                                        break;
+                                    }
+                                }
+                                else
+                                {
+                                    returnValue = -1;
+                                }
+                                #endregion
+                            }
+                            if (counterSendCommand == maxSendCommands)
+                            {
+                                Debug.WriteLine("DX200::TCPJogMove()::Error::Real robot connection problem.");
+                            }
+                            #endregion
+                        }
+                        #endregion
+                    }
+                    else
+                    {
+                        returnValue = -1;
+                    }
+
+                    if (returnValue != 0)
+                    {
+                        Debug.WriteLine("DX200::TCPJogMove()::Error::" + returnValue.ToString());
+                    }
+
+                    #endregion
+                }
 
                 if (_useRoboDKSimulator)
                 {
@@ -3038,7 +4346,7 @@ namespace YaskawaNet
                         shortTCPAxesPositionsSimulator[i] = tcpAxesPositionsSimulator[i];
                     }
 
-                    shortTCPAxesPositionsSimulator[tcpIndex] = (speed > 0) ? DesiredRobotTCPPosition.Limits[tcpIndex][1] : DesiredRobotTCPPosition.Limits[tcpIndex][0];
+                    shortTCPAxesPositionsSimulator[tcpIndex] = (simulatorSpeed > 0) ? DesiredRobotTCPPosition.Limits[tcpIndex][1] : DesiredRobotTCPPosition.Limits[tcpIndex][0];
 
                     Mat movement_pose = Mat.FromTxyzRxyz(shortTCPAxesPositionsSimulator);
 
@@ -3118,33 +4426,158 @@ namespace YaskawaNet
         /// <returns></returns>
         public short TCPAbsoluteMove(int tcpIndex, double speed)
         {
-            RobotFunctionReturnType_2 returnValue = RobotFunctionReturnType_2.Other;
-            double[] tcpAxes = new double[6] { 0, 0, 0, 0, 0, 0 };
+            short returnValue = -1;
+            double[] tcpAxesPositionsSimulator = new double[12] { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+            double[] tcpAxesPositionsReal = new double[12] { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+            double[] shortTCPAxesPositionsSimulator = new double[6] { 0, 0, 0, 0, 0, 0 };
+
+            double realRobotSpeed = 0.0;
+            double simulatorSpeed = 0.0;
+
+            Task<short> task = null;
+            int taskWaitTimeCounter = 0;
+            int counterSendCommand = 0;
+            int maxSendCommands = 3;
 
             try
             {
-                #region
-
-                //get actual robot position
-                for (int i = 0; i < tcpAxes.Length; i++)
+                lock (_robotAccessLock)
                 {
-                    tcpAxes[i] = ReportedRobotTCPPosition.RobotPositions[i];
+                    #region
+
+                    if (_actualRobotStatus.IsCommandHold == true)
+                    {
+                        HoldOff();
+                    }
+
+                    realRobotSpeed = simulatorSpeed = speed;
+
+                    ReportedRobotTCPPosition.RobotPositions.CopyTo(tcpAxesPositionsReal, 0);
+                    tcpAxesPositionsReal[tcpIndex] = DesiredRobotTCPPosition.RobotPositions[tcpIndex];
+
+                    _actualMoveSpeedSelection = (tcpIndex > -1 && tcpIndex < 3) ? RobotMoveSpeedSelectionType.ControlPoint : RobotMoveSpeedSelectionType.PositionAngular;
+
+                    if (_actualMoveSpeedSelection == RobotMoveSpeedSelectionType.ControlPoint)
+                    {
+                        realRobotSpeed = Math.Abs(realRobotSpeed) < _maxControlPointSpeed ? Math.Abs(realRobotSpeed) : _maxControlPointSpeed;
+                    }
+                    if (_actualMoveSpeedSelection == RobotMoveSpeedSelectionType.PositionAngular)
+                    {
+                        realRobotSpeed = Math.Abs(realRobotSpeed) < _maxPositionAngularSpeed ? Math.Abs(realRobotSpeed) : _maxPositionAngularSpeed;
+                    }
+
+                    task = Task<short>.Factory.StartNew(() =>
+                   {
+                       //Return Value
+                       //0 : Normal completion
+                       //Others: Error codes
+                       return Motocom.BscMovl(_robotHandler, new StringBuilder(_moveSpeedSelectionDictionary[_actualMoveSpeedSelection]), realRobotSpeed, new StringBuilder(_frameDictionary[_actualReferenceFrame]), _actualRConf.Formcode, _toolNumber, ref tcpAxesPositionsReal[0]);
+                   });
+
+                    taskWaitTimeCounter = 0;
+
+                    while (!task.IsCompleted)
+                    {
+                        #region
+                        taskWaitTimeCounter++;
+                        task.Wait(_motocom32FunctionsWaitTime);
+                        if (taskWaitTimeCounter > 10) //wait 500 msec maximum
+                        {
+                            break;
+                        }
+                        #endregion
+                    }
+                    if (task.IsCompleted)
+                    {
+                        #region
+                        returnValue = Convert.ToInt16(task.Result);
+                        //TODO:check return and send more if needed
+                        if (returnValue != 0)
+                        {
+                            #region
+                            counterSendCommand = 0;
+                            while (counterSendCommand < maxSendCommands)
+                            {
+                                #region
+
+                                counterSendCommand++;
+
+                                task = Task<short>.Factory.StartNew(() =>
+                                {
+                                    return Motocom.BscMovl(_robotHandler, new StringBuilder(_moveSpeedSelectionDictionary[_actualMoveSpeedSelection]), realRobotSpeed, new StringBuilder(_frameDictionary[_actualReferenceFrame]), _actualRConf.Formcode, _toolNumber, ref tcpAxesPositionsReal[0]);
+                                    //return Motocom.BscMovj(_robotHandler, realRobotSpeed, new StringBuilder(_frameDictionary[_actualReferenceFrame]), _actualRConf.Formcode, _toolNumber, ref tcpAxesPositionsReal[0]);
+                                });
+
+                                taskWaitTimeCounter = 0;
+
+                                while (!task.IsCompleted)
+                                {
+                                    #region
+                                    taskWaitTimeCounter++;
+                                    task.Wait(_motocom32FunctionsWaitTime);
+                                    if (taskWaitTimeCounter > 10) //wait 500 msec maximum
+                                    {
+                                        break;
+                                    }
+                                    #endregion
+                                }
+                                if (task.IsCompleted)
+                                {
+                                    returnValue = Convert.ToInt16(task.Result);
+                                    if (returnValue == 0)
+                                    {
+                                        break;
+                                    }
+                                }
+                                else
+                                {
+                                    returnValue = -1;
+                                }
+                                #endregion
+                            }
+                            if (counterSendCommand == maxSendCommands)
+                            {
+                                Debug.WriteLine("DX200::TCPJogMove()::Error::Real robot connection problem.");
+                            }
+                            #endregion
+                        }
+                        #endregion
+                    }
+                    else
+                    {
+                        returnValue = -1;
+                    }
+
+                    if (returnValue != 0)
+                    {
+                        Debug.WriteLine("DX200::TCPAbsoluteMove()::Error::" + returnValue.ToString());
+                    }
+
+                    #endregion
                 }
+                if (_useRoboDKSimulator)
+                {
+                    #region
+                    ReportedRobotTCPPosition.RobotPositions.CopyTo(tcpAxesPositionsSimulator, 0);
+                    for (int i = 0; i < shortTCPAxesPositionsSimulator.Length; i++)
+                    {
+                        shortTCPAxesPositionsSimulator[i] = tcpAxesPositionsSimulator[i];
+                    }
 
-                tcpAxes[tcpIndex] = DesiredRobotTCPPosition.RobotPositions[tcpIndex];
+                    shortTCPAxesPositionsSimulator[tcpIndex] = DesiredRobotTCPPosition.RobotPositions[tcpIndex];
 
-                Mat movement_pose = Mat.FromTxyzRxyz(tcpAxes);
+                    Mat movement_pose = Mat.FromTxyzRxyz(shortTCPAxesPositionsSimulator);
 
-                _roboDKRobot.MoveJ(movement_pose, MOVE_BLOCKING);
-
-                #endregion
+                    _roboDKRobot.MoveJ(movement_pose, MOVE_BLOCKING);
+                    #endregion
+                }
             }
             catch (Exception ex)
             {
                 DiagnosticException.ExceptionHandler(ex);
             }
 
-            return (short)returnValue;
+            return returnValue;
         }
         /// <summary>
         /// 
@@ -3154,24 +4587,140 @@ namespace YaskawaNet
         /// <returns></returns>
         public short TCPAxesAbsoluteMove(int tcpMask, double speed)
         {
-            RobotFunctionReturnType_2 returnValue = RobotFunctionReturnType_2.Other;
+            short returnValue = -1;
             double[] tcpAxesPositionsSimulator = new double[12] { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
             double[] tcpAxesPositionsReal = new double[12] { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
             double[] shortTCPAxesPositionsSimulator = new double[6] { 0, 0, 0, 0, 0, 0 };
 
+            double realRobotSpeed = 0.0;
+            double simulatorSpeed = 0.0;
+
+            Task<short> task = null;
+            int taskWaitTimeCounter = 0;
+            int counterSendCommand = 0;
+            int maxSendCommands = 3;
+
             try
             {
-                ReportedRobotTCPPosition.RobotPositions.CopyTo(tcpAxesPositionsReal, 0);
-
-                for (int i = 0; i < tcpAxesPositionsReal.Length; i++)
+                lock (_robotAccessLock)
                 {
-                    if ((tcpMask & (1 << i)) > 0)
-                    {
-                        tcpAxesPositionsReal[i] = DesiredRobotTCPPosition.RobotPositions[i];
-                    }
-                }
+                    #region
+                    ReportedRobotTCPPosition.RobotPositions.CopyTo(tcpAxesPositionsReal, 0);
 
-                Motocom.BscMovj(_robotHandler, speed, new StringBuilder(_frameDictionary[_actualReferenceFrame]), _actualRConf.Formcode, _toolNumber, ref tcpAxesPositionsReal[0]);
+                    for (int i = 0; i < tcpAxesPositionsReal.Length; i++)
+                    {
+                        if ((tcpMask & (1 << i)) > 0)
+                        {
+                            tcpAxesPositionsReal[i] = DesiredRobotTCPPosition.RobotPositions[i];
+                        }
+                    }
+
+                    if (_actualRobotStatus.IsCommandHold == true)
+                    {
+                        HoldOff();
+                    }
+
+                    realRobotSpeed = simulatorSpeed = speed;
+
+                    _actualMoveSpeedSelection = RobotMoveSpeedSelectionType.ControlPoint;
+
+                    if (_actualMoveSpeedSelection == RobotMoveSpeedSelectionType.ControlPoint)
+                    {
+                        realRobotSpeed = Math.Abs(realRobotSpeed) < _maxControlPointSpeed ? Math.Abs(realRobotSpeed) : _maxControlPointSpeed;
+                    }
+                    if (_actualMoveSpeedSelection == RobotMoveSpeedSelectionType.PositionAngular)
+                    {
+                        realRobotSpeed = Math.Abs(realRobotSpeed) < _maxPositionAngularSpeed ? Math.Abs(realRobotSpeed) : _maxPositionAngularSpeed;
+                    }
+
+                    task = Task<short>.Factory.StartNew(() =>
+                    {
+                        //Return Value
+                        //0 : Normal completion
+                        //Others: Error codes
+                        return Motocom.BscMovl(_robotHandler, new StringBuilder(_moveSpeedSelectionDictionary[_actualMoveSpeedSelection]), realRobotSpeed, new StringBuilder(_frameDictionary[_actualReferenceFrame]), _actualRConf.Formcode, _toolNumber, ref tcpAxesPositionsReal[0]);
+                    });
+
+                    taskWaitTimeCounter = 0;
+
+                    while (!task.IsCompleted)
+                    {
+                        #region
+                        taskWaitTimeCounter++;
+                        task.Wait(_motocom32FunctionsWaitTime);
+                        if (taskWaitTimeCounter > 10) //wait 500 msec maximum
+                        {
+                            break;
+                        }
+                        #endregion
+                    }
+                    if (task.IsCompleted)
+                    {
+                        #region
+                        returnValue = Convert.ToInt16(task.Result);
+                        //TODO:check return and send more if needed
+                        if (returnValue != 0)
+                        {
+                            #region
+                            counterSendCommand = 0;
+                            while (counterSendCommand < maxSendCommands)
+                            {
+                                #region
+
+                                counterSendCommand++;
+
+                                task = Task<short>.Factory.StartNew(() =>
+                                {
+                                    return Motocom.BscMovl(_robotHandler, new StringBuilder(_moveSpeedSelectionDictionary[_actualMoveSpeedSelection]), realRobotSpeed, new StringBuilder(_frameDictionary[_actualReferenceFrame]), _actualRConf.Formcode, _toolNumber, ref tcpAxesPositionsReal[0]);
+                                    //return Motocom.BscMovj(_robotHandler, realRobotSpeed, new StringBuilder(_frameDictionary[_actualReferenceFrame]), _actualRConf.Formcode, _toolNumber, ref tcpAxesPositionsReal[0]);
+                                });
+
+                                taskWaitTimeCounter = 0;
+
+                                while (!task.IsCompleted)
+                                {
+                                    #region
+                                    taskWaitTimeCounter++;
+                                    task.Wait(_motocom32FunctionsWaitTime);
+                                    if (taskWaitTimeCounter > 10) //wait 500 msec maximum
+                                    {
+                                        break;
+                                    }
+                                    #endregion
+                                }
+                                if (task.IsCompleted)
+                                {
+                                    returnValue = Convert.ToInt16(task.Result);
+                                    if (returnValue == 0)
+                                    {
+                                        break;
+                                    }
+                                }
+                                else
+                                {
+                                    returnValue = -1;
+                                }
+                                #endregion
+                            }
+                            if (counterSendCommand == maxSendCommands)
+                            {
+                                Debug.WriteLine("DX200::TCPAxesAbsoluteMove()::Error::Real robot connection problem.");
+                            }
+                            #endregion
+                        }
+                        #endregion
+                    }
+                    else
+                    {
+                        returnValue = -1;
+                    }
+
+                    if (returnValue != 0)
+                    {
+                        Debug.WriteLine("DX200::TCPAxesAbsoluteMove()::Error::" + returnValue.ToString());
+                    }
+                    #endregion
+                }
 
                 if (_useRoboDKSimulator)
                 {
@@ -3201,7 +4750,7 @@ namespace YaskawaNet
                 DiagnosticException.ExceptionHandler(ex);
             }
 
-            return (short)returnValue;
+            return returnValue;
         }
         /// <summary>
         /// 
@@ -3211,38 +4760,152 @@ namespace YaskawaNet
         /// <returns></returns>
         public short TCPRelativeMove(int tcpIndex, double speed)
         {
-            RobotFunctionReturnType_2 returnValue = RobotFunctionReturnType_2.Other;
-            double[] tcpAxes = new double[6] { 0, 0, 0, 0, 0, 0 };
+            short returnValue = -1;
+            double[] tcpAxesPositionsSimulator = new double[12] { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+            double[] tcpAxesPositionsReal = new double[12] { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+            double[] shortTCPAxesPositionsSimulator = new double[6] { 0, 0, 0, 0, 0, 0 };
+
+            double realRobotSpeed = 0.0;
+            double simulatorSpeed = 0.0;
+
+            Task<short> task = null;
+            int taskWaitTimeCounter = 0;
+            int counterSendCommand = 0;
+            int maxSendCommands = 3;
 
             try
             {
-                #region
+                lock (_robotAccessLock)
+                {
+                    #region
 
-                tcpAxes[tcpIndex] = DesiredRobotTCPPosition.RobotPositions[tcpIndex];
+                    if (_actualRobotStatus.IsCommandHold == true)
+                    {
+                        HoldOff();
+                    }
 
-                Mat movement_pose = Mat.FromTxyzRxyz(tcpAxes);
+                    realRobotSpeed = simulatorSpeed = speed;
 
-                // the the current position of the robot (as a 4x4 matrix)
-                Mat robot_pose = _roboDKRobot.Pose();
+                    realRobotSpeed = (realRobotSpeed > 100) ? 100 : realRobotSpeed;
+                    realRobotSpeed = (realRobotSpeed < -100) ? -100 : realRobotSpeed;
 
-                // Calculate the new position of the robot
-                Mat new_robot_pose;
+                    ReportedRobotTCPPosition.RobotPositions.CopyTo(tcpAxesPositionsReal, 0);
+                    tcpAxesPositionsReal[tcpIndex] += DesiredRobotTCPPosition.RobotPositions[tcpIndex];
 
-                Mat transformation_axes = new Mat(robot_pose);
-                transformation_axes.setPos(0, 0, 0);
-                Mat movement_pose_aligned = transformation_axes.inv() * movement_pose * transformation_axes;
-                new_robot_pose = robot_pose * movement_pose_aligned;
+                    realRobotSpeed = 100;//TODO:for safety !!!!!!!!!!!!!!!!!!!! Math.Abs(realRobotSpeed);
 
-                _roboDKRobot.MoveJ(new_robot_pose, MOVE_BLOCKING);
+                    task = Task<short>.Factory.StartNew(() =>
+                    {
+                        //Return Value
+                        //0 : Normal completion
+                        //Others: Error codes
+                        return Motocom.BscMovl(_robotHandler, new StringBuilder(_moveSpeedSelectionDictionary[_actualMoveSpeedSelection]), realRobotSpeed, new StringBuilder(_frameDictionary[_actualReferenceFrame]), _actualRConf.Formcode, _toolNumber, ref tcpAxesPositionsReal[0]);
+                    });
 
-                #endregion
+                    taskWaitTimeCounter = 0;
+
+                    while (!task.IsCompleted)
+                    {
+                        #region
+                        taskWaitTimeCounter++;
+                        task.Wait(_motocom32FunctionsWaitTime);
+                        if (taskWaitTimeCounter > 10) //wait 500 msec maximum
+                        {
+                            break;
+                        }
+                        #endregion
+                    }
+                    if (task.IsCompleted)
+                    {
+                        #region
+                        returnValue = Convert.ToInt16(task.Result);
+                        //TODO:check return and send more if needed
+                        if (returnValue != 0)
+                        {
+                            #region
+                            counterSendCommand = 0;
+                            while (counterSendCommand < maxSendCommands)
+                            {
+                                #region
+
+                                counterSendCommand++;
+
+                                task = Task<short>.Factory.StartNew(() =>
+                                {
+                                    return Motocom.BscMovl(_robotHandler, new StringBuilder(_moveSpeedSelectionDictionary[_actualMoveSpeedSelection]), realRobotSpeed, new StringBuilder(_frameDictionary[_actualReferenceFrame]), _actualRConf.Formcode, _toolNumber, ref tcpAxesPositionsReal[0]);
+                                    //return Motocom.BscMovj(_robotHandler, realRobotSpeed, new StringBuilder(_frameDictionary[_actualReferenceFrame]), _actualRConf.Formcode, _toolNumber, ref tcpAxesPositionsReal[0]);
+                                });
+
+                                taskWaitTimeCounter = 0;
+
+                                while (!task.IsCompleted)
+                                {
+                                    #region
+                                    taskWaitTimeCounter++;
+                                    task.Wait(_motocom32FunctionsWaitTime);
+                                    if (taskWaitTimeCounter > 10) //wait 500 msec maximum
+                                    {
+                                        break;
+                                    }
+                                    #endregion
+                                }
+                                if (task.IsCompleted)
+                                {
+                                    returnValue = Convert.ToInt16(task.Result);
+                                    if (returnValue == 0)
+                                    {
+                                        break;
+                                    }
+                                }
+                                else
+                                {
+                                    returnValue = -1;
+                                }
+                                #endregion
+                            }
+                            if (counterSendCommand == maxSendCommands)
+                            {
+                                Debug.WriteLine("DX200::TCPJogMove()::Error::Real robot connection problem.");
+                            }
+                            #endregion
+                        }
+                        #endregion
+                    }
+                    else
+                    {
+                        returnValue = -1;
+                    }
+
+                    if (returnValue != 0)
+                    {
+                        Debug.WriteLine("DX200::TCPRelativeMove()::Error::" + returnValue.ToString());
+                    }
+
+                    #endregion
+                }
+                if (_useRoboDKSimulator)
+                {
+                    #region
+                    ReportedRobotTCPPosition.RobotPositions.CopyTo(tcpAxesPositionsSimulator, 0);
+                    for (int i = 0; i < shortTCPAxesPositionsSimulator.Length; i++)
+                    {
+                        shortTCPAxesPositionsSimulator[i] = tcpAxesPositionsSimulator[i];
+                    }
+
+                    shortTCPAxesPositionsSimulator[tcpIndex] += DesiredRobotTCPPosition.RobotPositions[tcpIndex];
+
+                    Mat movement_pose = Mat.FromTxyzRxyz(shortTCPAxesPositionsSimulator);
+
+                    _roboDKRobot.MoveJ(movement_pose, MOVE_BLOCKING);
+                    #endregion
+                }
             }
             catch (Exception ex)
             {
                 DiagnosticException.ExceptionHandler(ex);
             }
 
-            return (short)returnValue;
+            return returnValue;
         }
         /// <summary>
         /// 
@@ -3252,23 +4915,136 @@ namespace YaskawaNet
         /// <returns></returns>
         public short TCPAxesRelativeMove(int tcpMask, double speed)
         {
-            RobotFunctionReturnType_2 returnValue = RobotFunctionReturnType_2.Other;
+            short returnValue = -1;
             double[] tcpAxesPositionsSimulator = new double[12] { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
             double[] tcpAxesPositionsReal = new double[12] { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
             double[] shortTCPAxesPositionsSimulator = new double[6] { 0, 0, 0, 0, 0, 0 };
 
+            double realRobotSpeed = 0.0;
+            double simulatorSpeed = 0.0;
+
+            Task<short> task = null;
+            int taskWaitTimeCounter = 0;
+            int counterSendCommand = 0;
+            int maxSendCommands = 3;
+
             try
             {
-                ReportedRobotTCPPosition.RobotPositions.CopyTo(tcpAxesPositionsReal, 0);
-
-                for (int i = 0; i < tcpAxesPositionsReal.Length; i++)
+                lock (_robotAccessLock)
                 {
-                    if ((tcpMask & (1 << i)) > 0)
-                    {
-                        tcpAxesPositionsReal[i] += DesiredRobotTCPPosition.RobotPositions[i];
-                    }
-                }
+                    #region
 
+                    if (_actualRobotStatus.IsCommandHold == true)
+                    {
+                        HoldOff();
+                    }
+
+                    realRobotSpeed = simulatorSpeed = speed;
+
+                    realRobotSpeed = (realRobotSpeed > 100) ? 100 : realRobotSpeed;
+                    realRobotSpeed = (realRobotSpeed < -100) ? -100 : realRobotSpeed;
+
+                    ReportedRobotTCPPosition.RobotPositions.CopyTo(tcpAxesPositionsReal, 0);
+
+                    for (int i = 0; i < tcpAxesPositionsReal.Length; i++)
+                    {
+                        if ((tcpMask & (1 << i)) > 0)
+                        {
+                            tcpAxesPositionsReal[i] += DesiredRobotTCPPosition.RobotPositions[i];
+                        }
+                    }
+
+                    realRobotSpeed = 100;//TODO:for safety !!!!!!!!!!!!!!!!!!!! Math.Abs(realRobotSpeed);
+
+                    task = Task<short>.Factory.StartNew(() =>
+                    {
+                        //Return Value
+                        //0 : Normal completion
+                        //Others: Error codes
+                        return Motocom.BscMovl(_robotHandler, new StringBuilder(_moveSpeedSelectionDictionary[_actualMoveSpeedSelection]), realRobotSpeed, new StringBuilder(_frameDictionary[_actualReferenceFrame]), _actualRConf.Formcode, _toolNumber, ref tcpAxesPositionsReal[0]);
+                    });
+
+                    taskWaitTimeCounter = 0;
+
+                    while (!task.IsCompleted)
+                    {
+                        #region
+                        taskWaitTimeCounter++;
+                        task.Wait(_motocom32FunctionsWaitTime);
+                        if (taskWaitTimeCounter > 10) //wait 500 msec maximum
+                        {
+                            break;
+                        }
+                        #endregion
+                    }
+                    if (task.IsCompleted)
+                    {
+                        #region
+                        returnValue = Convert.ToInt16(task.Result);
+                        //TODO:check return and send more if needed
+                        if (returnValue != 0)
+                        {
+                            #region
+                            counterSendCommand = 0;
+                            while (counterSendCommand < maxSendCommands)
+                            {
+                                #region
+
+                                counterSendCommand++;
+
+                                task = Task<short>.Factory.StartNew(() =>
+                                {
+                                    return Motocom.BscMovl(_robotHandler, new StringBuilder(_moveSpeedSelectionDictionary[_actualMoveSpeedSelection]), realRobotSpeed, new StringBuilder(_frameDictionary[_actualReferenceFrame]), _actualRConf.Formcode, _toolNumber, ref tcpAxesPositionsReal[0]);
+                                    //return Motocom.BscMovj(_robotHandler, realRobotSpeed, new StringBuilder(_frameDictionary[_actualReferenceFrame]), _actualRConf.Formcode, _toolNumber, ref tcpAxesPositionsReal[0]);
+                                });
+
+                                taskWaitTimeCounter = 0;
+
+                                while (!task.IsCompleted)
+                                {
+                                    #region
+                                    taskWaitTimeCounter++;
+                                    task.Wait(_motocom32FunctionsWaitTime);
+                                    if (taskWaitTimeCounter > 10) //wait 500 msec maximum
+                                    {
+                                        break;
+                                    }
+                                    #endregion
+                                }
+                                if (task.IsCompleted)
+                                {
+                                    returnValue = Convert.ToInt16(task.Result);
+                                    if (returnValue == 0)
+                                    {
+                                        break;
+                                    }
+                                }
+                                else
+                                {
+                                    returnValue = -1;
+                                }
+                                #endregion
+                            }
+                            if (counterSendCommand == maxSendCommands)
+                            {
+                                Debug.WriteLine("DX200::TCPJogMove()::Error::Real robot connection problem.");
+                            }
+                            #endregion
+                        }
+                        #endregion
+                    }
+                    else
+                    {
+                        returnValue = -1;
+                    }
+
+                    if (returnValue != 0)
+                    {
+                        Debug.WriteLine("DX200::TCPAxesRelativeMove()::Error::" + returnValue.ToString());
+                    }
+
+                    #endregion
+                }
                 if (_useRoboDKSimulator)
                 {
                     #region
@@ -3293,8 +5069,6 @@ namespace YaskawaNet
                     _roboDKRobot.MoveJ(movement_pose, MOVE_BLOCKING);
                     #endregion
                 }
-
-                Motocom.BscMovj(_robotHandler, speed, new StringBuilder(_frameDictionary[_actualReferenceFrame]), _actualRConf.Formcode, _toolNumber, ref tcpAxesPositionsReal[0]);
             }
             catch (Exception ex)
             {
@@ -3311,64 +5085,450 @@ namespace YaskawaNet
         /// <returns></returns>
         public short TrackLinearJogMove(int jointIndex, double speed)
         {
-            RobotFunctionReturnType_2 returnValue = RobotFunctionReturnType_2.Other;
-            double[] jointsPositionsSimulator = null;
-            double[] jointsPositions = new double[12] { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+            short returnValue = -1;
+            double[] jointsPositionsSimulator = new double[12] { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+            double[] jointsPositionsReal = new double[12] { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+            double[] _currentRobotJointsPositionReal = new double[12] { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+            double realRobotSpeed = 0.0;
+            double simulatorSpeed = 0.0;
+
+            Task<short> task = null;
+            int taskWaitTimeCounter = 0;
+            int counterSendCommand = 0;
+            int maxSendCommands = 3;
 
             try
             {
-                ReportedRobotJointPosition.RobotPulsePositions.CopyTo(jointsPositions, 0);
-
-                if (speed > 0)
+                lock (_robotAccessLock)
                 {
-                    jointsPositions[jointIndex] = DesiredRobotJointPosition.LimitsPulse[jointIndex][1];
+                    #region
+                    if (_actualRobotStatus.IsCommandHold == true)
+                    {
+                        HoldOff();
+                    }
+
+                    realRobotSpeed = simulatorSpeed = speed;
+
+                    realRobotSpeed = (realRobotSpeed > 100) ? 100 : realRobotSpeed;
+                    realRobotSpeed = (realRobotSpeed < -100) ? -100 : realRobotSpeed;
+
+                    ReportedRobotJointPosition.RobotPulsePositions.CopyTo(jointsPositionsReal, 0);
+
+                    jointsPositionsReal[jointIndex] = (realRobotSpeed > 0) ? DesiredRobotJointPosition.LimitsPulse[jointIndex][1] : DesiredRobotJointPosition.LimitsPulse[jointIndex][0];
+
+                    realRobotSpeed = 10;//TODO:for safety !!!!!!!!!!!!!!!!!!!! Math.Abs(realRobotSpeed);
+
+                    task = Task<short>.Factory.StartNew(() =>
+                    {
+                        //Return Value
+                        //0 : Normal completion
+                        //Others: Error codes
+                        return Motocom.BscPMovj(_robotHandler, realRobotSpeed, _toolNumber, ref jointsPositionsReal[0]);
+                    });
+
+                    taskWaitTimeCounter = 0;
+
+                    while (!task.IsCompleted)
+                    {
+                        #region
+                        taskWaitTimeCounter++;
+                        task.Wait(_motocom32FunctionsWaitTime);
+                        if (taskWaitTimeCounter > 10) //wait 500 msec maximum
+                        {
+                            break;
+                        }
+                        #endregion
+                    }
+                    if (task.IsCompleted)
+                    {
+                        #region
+                        returnValue = Convert.ToInt16(task.Result);
+                        //TODO:check return and send more if needed
+                        if (returnValue != 0)
+                        {
+                            #region
+                            counterSendCommand = 0;
+                            while (counterSendCommand < maxSendCommands)
+                            {
+                                #region
+
+                                counterSendCommand++;
+
+                                task = Task<short>.Factory.StartNew(() =>
+                                {
+                                    return Motocom.BscPMovj(_robotHandler, realRobotSpeed, _toolNumber, ref jointsPositionsReal[0]);
+                                });
+
+                                taskWaitTimeCounter = 0;
+
+                                while (!task.IsCompleted)
+                                {
+                                    #region
+                                    taskWaitTimeCounter++;
+                                    task.Wait(_motocom32FunctionsWaitTime);
+                                    if (taskWaitTimeCounter > 10) //wait 500 msec maximum
+                                    {
+                                        break;
+                                    }
+                                    #endregion
+                                }
+                                if (task.IsCompleted)
+                                {
+                                    returnValue = Convert.ToInt16(task.Result);
+                                    if (returnValue == 0)
+                                    {
+                                        break;
+                                    }
+                                }
+                                else
+                                {
+                                    returnValue = -1;
+                                }
+                                #endregion
+                            }
+                            if (counterSendCommand == maxSendCommands)
+                            {
+                                Debug.WriteLine("DX200::TrackLinearJogMove()::Error::Real robot connection problem.");
+                            }
+                            #endregion
+                        }
+                        #endregion
+                    }
+                    else
+                    {
+                        returnValue = -1;
+                    }
+
+                    if (returnValue != 0)
+                    {
+                        Debug.WriteLine("DX200::TrackLinearJogMove()::Error::" + returnValue.ToString());
+                    }
+
+                    #endregion
                 }
-                if (speed < 0)
+
+                if (_useRoboDKSimulator)
                 {
-                    jointsPositions[jointIndex] = DesiredRobotJointPosition.LimitsPulse[jointIndex][0];
+                    #region
+
+                    if (jointsPositionsSimulator != null)
+                    {
+                        #region
+                        //get actual robot position
+
+                        ReportedRobotJointPosition.RobotPositions.CopyTo(jointsPositionsSimulator, 0);
+
+                        _roboDKRobot.SetSpeed(-1, Math.Abs(simulatorSpeed));
+
+                        jointsPositionsSimulator[jointIndex] = (simulatorSpeed > 0) ? 3500 : 0;// (simulatorSpeed > 0) ? DesiredRobotJointPosition.Limits[jointIndex][1] : DesiredRobotJointPosition.Limits[jointIndex][0];
+
+                        _roboDKRobot.MoveJ(jointsPositionsSimulator, MOVE_BLOCKING);
+                        #endregion
+                    }
+
+                    #endregion
                 }
-
-                Motocom.BscPMovj(_robotHandler, speed, _toolNumber, ref jointsPositions[0]);
-
-                //if (_useRoboDKSimulator)
-                //{
-                //    #region
-
-                //    jointsPositionsSimulator = _roboDKRobot.Joints();
-
-                //    if (jointsPositionsSimulator != null)
-                //    {
-                //        #region
-                //        //get actual robot position
-                //        for (int i = 0; i < jointsPositionsSimulator.Length; i++)
-                //        {
-                //            jointsPositionsSimulator[i] = ReportedRobotJointPositionSimulator.RobotPositions[i];
-                //        }
-
-                //        _roboDKRobot.SetSpeed(-1, Math.Abs(speed));
-
-                //        if (speed > 0)
-                //        {
-                //            jointsPositionsSimulator[jointIndex] = DesiredRobotJointPosition.Limits[jointIndex][1];
-                //        }
-                //        if (speed < 0)
-                //        {
-                //            jointsPositionsSimulator[jointIndex] = DesiredRobotJointPosition.Limits[jointIndex][0];
-                //        }
-
-                //        _roboDKRobot.MoveJ(jointsPositionsSimulator, MOVE_BLOCKING);
-                //        #endregion
-                //    }
-
-                //    #endregion
-                //}
             }
             catch (Exception ex)
             {
                 DiagnosticException.ExceptionHandler(ex);
             }
 
-            return (short)returnValue;
+            return returnValue;
+        }
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="jointIndex"></param>
+        /// <param name="speed"></param>
+        /// <returns></returns>
+        public short TrackLinearAbsoluteMove(int jointIndex, double speed)
+        {
+            short returnValue = -1;
+            double[] jointsPositionsSimulator = new double[12] { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+            double[] jointsPositionsReal = new double[12] { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+            double realRobotSpeed = 0.0;
+            double simulatorSpeed = 0.0;
+
+            Task<short> task = null;
+            int taskWaitTimeCounter = 0;
+            int counterSendCommand = 0;
+            int maxSendCommands = 3;
+
+            try
+            {
+                lock (_robotAccessLock)
+                {
+                    #region
+
+                    if (_actualRobotStatus.IsCommandHold == true)
+                    {
+                        HoldOff();
+                    }
+
+                    realRobotSpeed = simulatorSpeed = speed;
+
+                    realRobotSpeed = (realRobotSpeed > 100) ? 100 : realRobotSpeed;
+                    realRobotSpeed = (realRobotSpeed < -100) ? -100 : realRobotSpeed;
+
+                    ReportedRobotJointPosition.RobotPulsePositions.CopyTo(jointsPositionsReal, 0);
+                    jointsPositionsReal[jointIndex] = DesiredRobotJointPosition.RobotPulsePositions[jointIndex];
+
+                    realRobotSpeed = 10;//TODO:for safety !!!!!!!!!!!!!!!!!!!! Math.Abs(realRobotSpeed);
+
+                    task = Task<short>.Factory.StartNew(() =>
+                    {
+                        //Return Value
+                        //0 : Normal completion
+                        //Others: Error codes
+                        return Motocom.BscPMovj(_robotHandler, realRobotSpeed, _toolNumber, ref jointsPositionsReal[0]);
+                    });
+
+                    taskWaitTimeCounter = 0;
+
+                    while (!task.IsCompleted)
+                    {
+                        #region
+                        taskWaitTimeCounter++;
+                        task.Wait(_motocom32FunctionsWaitTime);
+                        if (taskWaitTimeCounter > 10) //wait 500 msec maximum
+                        {
+                            break;
+                        }
+                        #endregion
+                    }
+                    if (task.IsCompleted)
+                    {
+                        #region
+                        returnValue = Convert.ToInt16(task.Result);
+                        //TODO:check return and send more if needed
+                        if (returnValue != 0)
+                        {
+                            #region
+                            counterSendCommand = 0;
+                            while (counterSendCommand < maxSendCommands)
+                            {
+                                #region
+
+                                counterSendCommand++;
+
+                                task = Task<short>.Factory.StartNew(() =>
+                                {
+                                    return Motocom.BscPMovj(_robotHandler, realRobotSpeed, _toolNumber, ref jointsPositionsReal[0]);
+                                });
+
+                                taskWaitTimeCounter = 0;
+
+                                while (!task.IsCompleted)
+                                {
+                                    #region
+                                    taskWaitTimeCounter++;
+                                    task.Wait(_motocom32FunctionsWaitTime);
+                                    if (taskWaitTimeCounter > 10) //wait 500 msec maximum
+                                    {
+                                        break;
+                                    }
+                                    #endregion
+                                }
+                                if (task.IsCompleted)
+                                {
+                                    returnValue = Convert.ToInt16(task.Result);
+                                    if (returnValue == 0)
+                                    {
+                                        break;
+                                    }
+                                }
+                                else
+                                {
+                                    returnValue = -1;
+                                }
+                                #endregion
+                            }
+                            if (counterSendCommand == maxSendCommands)
+                            {
+                                Debug.WriteLine("DX200::JointAbsoluteMove()::Error::Real robot connection problem.");
+                            }
+                            #endregion
+                        }
+                        #endregion
+                    }
+                    else
+                    {
+                        returnValue = -1;
+                    }
+
+                    if (returnValue != 0)
+                    {
+                        Debug.WriteLine("DX200::JointAbsoluteMove()::Error while moving");
+                    }
+
+                    #endregion
+                }
+
+                if (_useRoboDKSimulator)
+                {
+                    _roboDKRobot.SetSpeed(-1, Math.Abs(simulatorSpeed));
+
+                    ReportedRobotJointPosition.RobotPositions.CopyTo(jointsPositionsSimulator, 0);
+
+                    jointsPositionsSimulator[jointIndex] = DesiredRobotJointPosition.RobotPositions[jointIndex];
+
+                    _roboDKRobot.MoveJ(jointsPositionsSimulator, MOVE_BLOCKING);
+                }
+            }
+            catch (Exception ex)
+            {
+                DiagnosticException.ExceptionHandler(ex);
+            }
+
+            return returnValue;
+        }
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="jointIndex"></param>
+        /// <param name="speed"></param>
+        /// <returns></returns>
+        public short TrackLinearRelativeMove(int jointIndex, double speed)
+        {
+            short returnValue = -1;
+            double[] jointsPositionsSimulator = new double[12] { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+            double[] jointsPositionsReal = new double[12] { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+            double realRobotSpeed = 0.0;
+            double simulatorSpeed = 0.0;
+
+            Task<short> task = null;
+            int taskWaitTimeCounter = 0;
+            int counterSendCommand = 0;
+            int maxSendCommands = 3;
+
+            try
+            {
+                lock (_robotAccessLock)
+                {
+                    #region
+
+                    if (_actualRobotStatus.IsCommandHold == true)
+                    {
+                        HoldOff();
+                    }
+
+                    realRobotSpeed = simulatorSpeed = speed;
+
+                    realRobotSpeed = (realRobotSpeed > 100) ? 100 : realRobotSpeed;
+                    realRobotSpeed = (realRobotSpeed < -100) ? -100 : realRobotSpeed;
+
+                    ReportedRobotJointPosition.RobotPulsePositions.CopyTo(jointsPositionsReal, 0);
+                    jointsPositionsReal[jointIndex] += DesiredRobotJointPosition.RobotPulsePositions[jointIndex];
+
+                    realRobotSpeed = 10;//TODO:for safety !!!!!!!!!!!!!!!!!!!! Math.Abs(realRobotSpeed);
+
+                    task = Task<short>.Factory.StartNew(() =>
+                    {
+                        //Return Value
+                        //0 : Normal completion
+                        //Others: Error codes
+                        return Motocom.BscPMovj(_robotHandler, realRobotSpeed, _toolNumber, ref jointsPositionsReal[0]);
+                    });
+
+                    taskWaitTimeCounter = 0;
+
+                    while (!task.IsCompleted)
+                    {
+                        #region
+                        taskWaitTimeCounter++;
+                        task.Wait(_motocom32FunctionsWaitTime);
+                        if (taskWaitTimeCounter > 10) //wait 500 msec maximum
+                        {
+                            break;
+                        }
+                        #endregion
+                    }
+                    if (task.IsCompleted)
+                    {
+                        #region
+                        returnValue = Convert.ToInt16(task.Result);
+                        //TODO:check return and send more if needed
+                        if (returnValue != 0)
+                        {
+                            #region
+                            counterSendCommand = 0;
+                            while (counterSendCommand < maxSendCommands)
+                            {
+                                #region
+
+                                counterSendCommand++;
+
+                                task = Task<short>.Factory.StartNew(() =>
+                                {
+                                    return Motocom.BscPMovj(_robotHandler, realRobotSpeed, _toolNumber, ref jointsPositionsReal[0]);
+                                });
+
+                                taskWaitTimeCounter = 0;
+
+                                while (!task.IsCompleted)
+                                {
+                                    #region
+                                    taskWaitTimeCounter++;
+                                    task.Wait(_motocom32FunctionsWaitTime);
+                                    if (taskWaitTimeCounter > 10) //wait 500 msec maximum
+                                    {
+                                        break;
+                                    }
+                                    #endregion
+                                }
+                                if (task.IsCompleted)
+                                {
+                                    returnValue = Convert.ToInt16(task.Result);
+                                    if (returnValue == 0)
+                                    {
+                                        break;
+                                    }
+                                }
+                                else
+                                {
+                                    returnValue = -1;
+                                }
+                                #endregion
+                            }
+                            if (counterSendCommand == maxSendCommands)
+                            {
+                                Debug.WriteLine("DX200::JointAbsoluteMove()::Error::Real robot connection problem.");
+                            }
+                            #endregion
+                        }
+                        #endregion
+                    }
+                    else
+                    {
+                        returnValue = -1;
+                    }
+
+                    if (returnValue != 0)
+                    {
+                        Debug.WriteLine("DX200::JointAbsoluteMove()::Error while moving");
+                    }
+
+                    #endregion
+                }
+
+                if (_useRoboDKSimulator)
+                {
+                    _roboDKRobot.SetSpeed(-1, Math.Abs(simulatorSpeed));
+
+                    ReportedRobotJointPosition.RobotPositions.CopyTo(jointsPositionsSimulator, 0);
+
+                    jointsPositionsSimulator[jointIndex] = DesiredRobotJointPosition.RobotPositions[jointIndex];
+
+                    _roboDKRobot.MoveJ(jointsPositionsSimulator, MOVE_BLOCKING);
+                }
+            }
+            catch (Exception ex)
+            {
+                DiagnosticException.ExceptionHandler(ex);
+            }
+
+            return returnValue;
         }
         /// <summary>
         /// 
@@ -3618,38 +5778,54 @@ namespace YaskawaNet
 
         #endregion
 
-        #region Event handler
+        #region Threads
         /// <summary>
         /// 
         /// </summary>
-        /// <param name="state"></param>
-        private void StatusTimerTick(object state, EventArgs e)
+        private void GetStatusThread()
         {
             try
             {
-                //TODO:Check connection ping and any relevant parameter
-                //CheckConnection();
+                while (_getStatusThreadRun)
+                {
+                    lock (_robotAccessLock)
+                    {
+                        #region
+                        try
+                        {
+                            //TODO:Check connection ping and any relevant parameter
+                            //CheckConnection();
 #if DEBUG
-                //TODO:check if it possible fix problem with ping in thread
-                _communicationStatus.connectionStatus = ConnectionStatus.Reachable;
+                            //TODO:check if it possible fix problem with ping in thread
+                            _communicationStatus.connectionStatus = ConnectionStatus.Reachable;
 #else
                      _communicationStatus.connectionStatus = DX200Communication.CheckPing(_ipAddress);
 #endif
 
-                _communicationStatus.ipAddress = _ipAddress;
+                            _communicationStatus.ipAddress = _ipAddress;
 
-                GetStatus();
+                            GetStatus();
 
-                //TODO:if not connected try connect
+                            //TODO:if not connected try connect  
+                        }
+                        catch (Exception ex)
+                        {
+                            DiagnosticException.ExceptionHandler(ex);
+                        }
+                        #endregion
+                    }
 
+                    Thread.Sleep(100);
+                }
             }
             catch (Exception ex)
             {
                 DiagnosticException.ExceptionHandler(ex);
             }
-
-            _lockStatusTimer = 0;
         }
+        /// <summary>
+        /// 
+        /// </summary>
         private void CheckConnection()
         {
             try
@@ -3673,15 +5849,60 @@ namespace YaskawaNet
         /// <summary>
         /// 
         /// </summary>
-        /// <param name="state"></param>
-        private void GetPositionsTimerTick(object state, EventArgs e)
+        private void GetPositionsThread()
         {
             try
             {
-                GetCurrentRobotTCPPosition();
-                GetCurrentRobotJointsPosition();
+                while (_getPositionsThreadRun)
+                {
+                    lock (_robotAccessLock)
+                    {
+                        #region
+                        try
+                        {
+                            GetCurrentRobotTCPPosition();
+                            GetCurrentRobotJointsPosition();
+                        }
+                        catch (Exception ex)
+                        {
+                            DiagnosticException.ExceptionHandler(ex);
+                        }
+                        #endregion
+                    }
 
-                // _getPositionsTimer.Change(_getPositionsTimerInterval, Timeout.Infinite); //enable timer
+                    Thread.Sleep(50);
+                }
+            }
+            catch (Exception ex)
+            {
+                DiagnosticException.ExceptionHandler(ex);
+            }
+        }
+        /// <summary>
+        /// 
+        /// </summary>
+        private void GetAlarmsThread()
+        {
+            try
+            {
+                while (_getAlarmsThreadRun)
+                {
+                    lock (_robotAccessLock)
+                    {
+                        #region
+                        try
+                        {
+                            _alarmsCounter = GetAlarms(out _robotError, out _alarmList);
+                        }
+                        catch (Exception ex)
+                        {
+                            DiagnosticException.ExceptionHandler(ex);
+                        }
+                        #endregion
+                    }
+
+                    Thread.Sleep(100);
+                }
             }
             catch (Exception ex)
             {
@@ -3757,14 +5978,47 @@ namespace YaskawaNet
         /// </summary>
         public void SelectRoboDKRobot()
         {
+            int _waitTimeCounter = 0;
             try
             {
                 // select robot among available robots
                 //ROBOT = RL.getItem("ABB IRB120", ITEM_TYPE_ROBOT); // select by name
                 //ITEM = RL.ItemUserPick("Select an item"); // Select any item in the station
                 _roboDKRobot = RDK.GetItemByName("Motoman MH24", ItemType.Robot);
+                while (_roboDKRobot == null)
+                {
+                    _waitTimeCounter++;
+                    if (_waitTimeCounter > 100)
+                    {
+                        break;
+                    }
+
+                    Thread.Sleep(100);
+                }
+                _waitTimeCounter = 0;
                 _roboDKLinearTrack = RDK.GetItemByName("ABB IRBT 6004 Standard 3.5m Base", ItemType.Frame);
+                while (_roboDKLinearTrack == null)
+                {
+                    _waitTimeCounter++;
+                    if (_waitTimeCounter > 100)
+                    {
+                        break;
+                    }
+
+                    Thread.Sleep(100);
+                }
                 _roboDKTurnTable = RDK.GetItemByName("ABB IRBP L2000 L4000 Base", ItemType.Frame);
+                _waitTimeCounter = 0;
+                while (_roboDKLinearTrack == null)
+                {
+                    _waitTimeCounter++;
+                    if (_waitTimeCounter > 100)
+                    {
+                        break;
+                    }
+
+                    Thread.Sleep(100);
+                }
                 if (_roboDKRobot.Valid())
                 {
                     // This will create a new communication link (another instance of the RoboDK API), this is useful if we are moving 2 robots at the same time. 
@@ -3925,6 +6179,9 @@ namespace YaskawaNet
         /// <param name="run"></param>
         public void RoboDKSimulatorRun(bool run)
         {
+            int _waitTimeCounter = 0;
+            string stationName = string.Empty;
+
             try
             {
                 if (run == true)
@@ -3933,32 +6190,58 @@ namespace YaskawaNet
                     RDK = new RoboDK();
 
                     // Check if RoboDK started properly
-                    if (Check_RDK())
+                    while (!Check_RDK())
                     {
-                        RDK.SetRunMode(RunMode.Simulate);
-
-                        Thread.Sleep(200);
-
-                        IItem activeStation = RDK.GetActiveStation();
-
-                        Thread.Sleep(200);
-
-                        string stationName = activeStation.Name();
-
-                        Thread.Sleep(200);
-
-                        if (stationName.IndexOf("ChesterfieldProject") < 0)
+                        #region
+                        _waitTimeCounter++;
+                        if (_waitTimeCounter > 100)
                         {
-                            RDK.AddFile(@"F:\Yaskawa\ChesterfieldProject.rdk");
+                            break;
                         }
-                        // attempt to auto select the robot:
-                        SelectRoboDKRobot();
+                        Thread.Sleep(100);
+                        #endregion
                     }
+
+                    RDK.SetRunMode(RunMode.Simulate);
+
+                    IItem activeStation = RDK.GetActiveStation();
+                    _waitTimeCounter = 0;
+                    while (activeStation == null)
+                    {
+                        #region
+                        _waitTimeCounter++;
+                        if (_waitTimeCounter > 100)
+                        {
+                            break;
+                        }
+                        Thread.Sleep(100);
+                        #endregion
+                    }
+
+                    stationName = activeStation.Name();
+
+                    if (stationName.IndexOf("ChesterfieldProject") < 0)
+                    {
+                        #region
+                        RDK.AddFile(@"F:\Yaskawa\ChesterfieldProject.rdk");
+                        activeStation = RDK.GetActiveStation();
+                        _waitTimeCounter = 0;
+                        while (activeStation == null)
+                        {
+                            _waitTimeCounter++;
+                            if (_waitTimeCounter > 100)
+                            {
+                                break;
+                            }
+                            Thread.Sleep(100);
+                        }
+                        #endregion
+                    }
+                    // attempt to auto select the robot:
+                    SelectRoboDKRobot();
 
                     ShowRoboDKForm();
 
-                    //_getPositionsTimer.Change(0, _getPositionsTimerInterval); //enable timer 
-                    //_getPositionsTimer.Start();
                     #endregion
                 }
                 else
@@ -3974,3 +6257,10 @@ namespace YaskawaNet
         #endregion
     }
 }
+//DiagnosticException.globalStopWatch.Reset();
+//DiagnosticException.globalStopWatch.Start();
+
+//short ret = Motocom.BscServoOff(_robotHandler);
+
+//DiagnosticException.globalStopWatch.Stop();
+//long time = DiagnosticException.globalStopWatch.ElapsedMilliseconds;
