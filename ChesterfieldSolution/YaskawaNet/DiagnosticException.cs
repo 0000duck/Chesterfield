@@ -13,7 +13,7 @@ namespace YaskawaNet
         {
 #if DEBUG
 
-            Debug.WriteLine("DX200::" + DateTime.Now.ToShortTimeString() + "::" + exception.Source + "::" + exception.StackTrace + "::" + exception.Message);
+            Debug.WriteLine("DX200::" + DateTime.Now.ToShortTimeString() + "::" + "Error" + "::" + exception.Source + "::" + exception.StackTrace + "::" + exception.Message);
             LogToFile("DX200::" + DateTime.Now.ToShortTimeString() + "::" + exception.Source + "::" + exception.StackTrace + "::" + exception.Message);
 
 #endif

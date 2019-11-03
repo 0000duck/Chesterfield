@@ -13,7 +13,7 @@ namespace RoboDk.API
         {
 #if DEBUG
 
-            Debug.WriteLine(DateTime.Now.ToShortTimeString() + "::" + exception.Source + "::" + exception.StackTrace + "::" + exception.Message);
+            Debug.WriteLine(DateTime.Now.ToShortTimeString() + "::" + "Error" + "::" + exception.Source + "::" + exception.StackTrace + "::" + exception.Message);
             LogToFile(DateTime.Now.ToShortTimeString() + "::" + exception.Source + "::" + exception.StackTrace + "::" + exception.Message);
 
 #endif
