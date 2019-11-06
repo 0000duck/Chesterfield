@@ -38,7 +38,7 @@ namespace YaskawaNet
         {
             _frequency = frequency;
         }
-        #endregion CTOR
+        #endregion
 
         #region Properties
         /// <summary>
@@ -55,7 +55,7 @@ namespace YaskawaNet
                 _frequency = value;
             }
         }
-        public string TargetFileName
+        public string FileName
         {
             get
             {
@@ -66,65 +66,68 @@ namespace YaskawaNet
                 _fileName = value;
             }
         }
-        /// <summary>
-        /// Get or set the R1 robot trajectory position to be written to the controller JBI file.
-        /// </summary>
-        public Trajectory RTrajectory { get; set; }
-        #endregion SETTERS_GETTERS
+        #endregion
 
         #region Methods
         public void SerializePosition(string jbiFileName, RobotPosition position, double velocity)
         {
             StreamWriter _fileStreamWriter = new StreamWriter(_fileName);
-
             StringBuilder lineStringBuilder = new StringBuilder();
 
-            _fileStreamWriter.WriteLine("/JOB");
-            _fileStreamWriter.WriteLine("//NAME " + jbiFileName);
-            _fileStreamWriter.WriteLine("//POS");
-            _fileStreamWriter.WriteLine("///NPOS 0,0,0,4,0,0");
-            _fileStreamWriter.WriteLine("///TOOL 0");
-            _fileStreamWriter.WriteLine("///POSTYPE ROBOT");
-            _fileStreamWriter.WriteLine("///RECTAN");
-            _fileStreamWriter.WriteLine("///RCONF 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0");
-            _fileStreamWriter.WriteLine("P00000=10.000,0.000,0.000,0.0000,0.0000,0.0000");
-            _fileStreamWriter.WriteLine("///POSTYPE BASE");
+            try
+            {
+                #region
+                _fileStreamWriter.WriteLine("/JOB");
+                _fileStreamWriter.WriteLine("//NAME " + jbiFileName);
+                _fileStreamWriter.WriteLine("//POS");
+                _fileStreamWriter.WriteLine("///NPOS 0,0,0,4,0,0");
+                _fileStreamWriter.WriteLine("///TOOL 0");
+                _fileStreamWriter.WriteLine("///POSTYPE ROBOT");
+                _fileStreamWriter.WriteLine("///RECTAN");
+                _fileStreamWriter.WriteLine("///RCONF 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0");
+                _fileStreamWriter.WriteLine("P00000=10.000,0.000,0.000,0.0000,0.0000,0.0000");
+                _fileStreamWriter.WriteLine("///POSTYPE BASE");
 
-            lineStringBuilder.Append("P00001=");
-            lineStringBuilder.Append(position.X.ToString("0000.0000000"));
-            lineStringBuilder.Append(",");
-            lineStringBuilder.Append(position.Y.ToString("0000.0000000"));
-            lineStringBuilder.Append(",");
-            lineStringBuilder.Append(position.Z.ToString("0000.0000000"));
-            lineStringBuilder.Append(",");
-            lineStringBuilder.Append(position.Rx.ToString("0000.0000000"));
-            lineStringBuilder.Append(",");
-            lineStringBuilder.Append(position.Ry.ToString("0000.0000000"));
-            lineStringBuilder.Append(",");
-            lineStringBuilder.Append(position.Rz.ToString("0000.0000000"));
+                lineStringBuilder.Append("P00001=");
+                lineStringBuilder.Append(position.X.ToString("0000.0000000"));
+                lineStringBuilder.Append(",");
+                lineStringBuilder.Append(position.Y.ToString("0000.0000000"));
+                lineStringBuilder.Append(",");
+                lineStringBuilder.Append(position.Z.ToString("0000.0000000"));
+                lineStringBuilder.Append(",");
+                lineStringBuilder.Append(position.Rx.ToString("0000.0000000"));
+                lineStringBuilder.Append(",");
+                lineStringBuilder.Append(position.Ry.ToString("0000.0000000"));
+                lineStringBuilder.Append(",");
+                lineStringBuilder.Append(position.Rz.ToString("0000.0000000"));
 
-            _fileStreamWriter.WriteLine(lineStringBuilder.ToString());
-            lineStringBuilder.Clear();
+                _fileStreamWriter.WriteLine(lineStringBuilder.ToString());
+                lineStringBuilder.Clear();
 
-            _fileStreamWriter.WriteLine("//INST");
-            _fileStreamWriter.WriteLine("///DATE 2017/03/31 08:11");
-            _fileStreamWriter.WriteLine("///COMM PLAYINGTWOROBOTS");
-            _fileStreamWriter.WriteLine("///ATTR SC,RW");
-            _fileStreamWriter.WriteLine("///GROUP1 RB1");
-            _fileStreamWriter.WriteLine("///GROUP2 RB2");
-            _fileStreamWriter.WriteLine("NOP");
+                _fileStreamWriter.WriteLine("//INST");
+                _fileStreamWriter.WriteLine("///DATE 2017/03/31 08:11");
+                _fileStreamWriter.WriteLine("///COMM PLAYINGTWOROBOTS");
+                _fileStreamWriter.WriteLine("///ATTR SC,RW");
+                _fileStreamWriter.WriteLine("///GROUP1 RB1");
+                _fileStreamWriter.WriteLine("///GROUP2 RB2");
+                _fileStreamWriter.WriteLine("NOP");
 
-            lineStringBuilder.Append("MOVL P00001 V=");
-            lineStringBuilder.Append(velocity.ToString("0000.0000000"));
+                lineStringBuilder.Append("MOVL P00001 V=");
+                lineStringBuilder.Append(velocity.ToString("0000.0000000"));
 
-            _fileStreamWriter.WriteLine(lineStringBuilder);
-            lineStringBuilder.Clear();
+                _fileStreamWriter.WriteLine(lineStringBuilder);
+                lineStringBuilder.Clear();
 
-            _fileStreamWriter.WriteLine("END");
+                _fileStreamWriter.WriteLine("END");
 
-            _fileStreamWriter.Close();
+                _fileStreamWriter.Close();
+                #endregion
+            }
+            catch (Exception ex)
+            {
+                DiagnosticException.ExceptionHandler(ex);
+            }
         }
-
         /// <summary>
         /// Decode the trajectory commands to a JBI file.
         /// <param name="clonedR1Traj">The r1 robot traj to be written to the file as the protocol format.</param>
@@ -132,85 +135,117 @@ namespace YaskawaNet
         /// <param name="updateJobType">The robots type to update the job trajectory with.</param>
         /// <param name="returnBackMotion">Indicate if the motion is backword.</param>
         /// </summary>
-        private void SerializeTrajectory(Trajectory traj)
+        public void SerializeJointsPulseTrajectory(Trajectory traj)
         {
             StreamWriter _fileStreamWriter = new StreamWriter(_fileName);
-
-            _fileStreamWriter.WriteLine("/JOB");
-            _fileStreamWriter.WriteLine("//NAME GAUSSIANMOVING2");
-            _fileStreamWriter.WriteLine("//POS");
-
-            _fileStreamWriter.Write("///NPOS 0,0,0,"); _fileStreamWriter.Write(traj.Count + 1); _fileStreamWriter.WriteLine(",0,0");
-
-            _fileStreamWriter.WriteLine("///TOOL 0");
-            _fileStreamWriter.WriteLine("///POSTYPE ROBOT");
-            _fileStreamWriter.WriteLine("///RECTAN");
-            _fileStreamWriter.WriteLine("///RCONF 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0");
-            _fileStreamWriter.WriteLine("P00000=10.000,0.000,0.000,0.0000,0.0000,0.0000");
-            _fileStreamWriter.WriteLine("///POSTYPE BASE");
-
-
-
-            Trajectory clonedR1Traj = traj.Clone();
-            //adding the zero point place for the trajectory (for the velocity calculaion behind) at the end if it is backward or at the beginning if it is forward movement.
-            //also, for the backward movement it skip the last point (because the robot is already there from the forward movement) and added the 0 placed to the end of the trajectory.
-
-            foreach (string lineString in TrajectoryToLine(clonedR1Traj))
-            {
-                _fileStreamWriter.WriteLine(lineString);
-            }
-
-            clonedR1Traj.InsertOriginPlace(true);
-
-            _fileStreamWriter.WriteLine("//INST");
-            _fileStreamWriter.WriteLine("///DATE 2017/03/31 08:11");
-
-            _fileStreamWriter.WriteLine("///ATTR SC,RW");
-
-            _fileStreamWriter.WriteLine("///GROUP1 RB1");
-
-            _fileStreamWriter.WriteLine("NOP");
-
+            Trajectory clonedR1Traj = null;
             StringBuilder sb = new StringBuilder();
+            int fileExtPos = 0;
+            string _fileNameWithoutExtension = string.Empty;
 
-            //make the f * duration velocity points vector from the f * duratoin + 1 places points in the trajectory.
-            for (int i = 0; i < clonedR1Traj.Count - 1; i++)
+            try
             {
-                //decode the velocity for the selected robot (if only one of then) or the first robot (r1) if both of them.
-                sb.Append("MOVL ");
-                sb.Append("P");
-                sb.Append((i + 1).ToString("D" + 5));
-                double velocity = Velocity3D(clonedR1Traj[i + 1], clonedR1Traj[i]) * 10000.0 / (1000.0 / (double)(_frequency));
-                sb.Append(" V=");
-                sb.Append(velocity.ToString("0000.00000000"));
+                #region
+                _fileNameWithoutExtension = Path.GetFileName(_fileName);
+                fileExtPos = _fileNameWithoutExtension.LastIndexOf(".");
+                if (fileExtPos >= 0)
+                {
+                    _fileNameWithoutExtension = _fileNameWithoutExtension.Substring(0, fileExtPos);
+                }
 
-                _fileStreamWriter.WriteLine(sb.ToString());
-                sb.Clear();
+                _fileStreamWriter.WriteLine("/JOB");
+                _fileStreamWriter.Write("//NAME ");
+                _fileStreamWriter.WriteLine(_fileNameWithoutExtension);
+                _fileStreamWriter.WriteLine("//POS");
+
+                _fileStreamWriter.Write("///NPOS ");
+                _fileStreamWriter.Write(traj.Count); _fileStreamWriter.Write(",");
+                _fileStreamWriter.Write(traj.Count); _fileStreamWriter.Write(",");
+                _fileStreamWriter.WriteLine("0,0,0,0");
+
+                _fileStreamWriter.WriteLine("///TOOL 0");
+                _fileStreamWriter.WriteLine("///POSTYPE PULSE");
+                _fileStreamWriter.WriteLine("///PULSE");
+                //_fileStreamWriter.WriteLine("///RCONF 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0");
+                //_fileStreamWriter.WriteLine("P00000=10.000,0.000,0.000,0.0000,0.0000,0.0000");
+                //_fileStreamWriter.WriteLine("///POSTYPE BASE");
+
+                clonedR1Traj = traj.Clone();
+                //adding the zero point place for the trajectory (for the velocity calculaion behind) at the end if it is backward or at the beginning if it is forward movement.
+                //also, for the backward movement it skip the last point (because the robot is already there from the forward movement) and added the 0 placed to the end of the trajectory.
+                foreach (string lineString in TrajectoryToLine(clonedR1Traj))
+                {
+                    _fileStreamWriter.WriteLine(lineString);
+                }
+
+                clonedR1Traj.InsertOriginPlace(true);
+
+                _fileStreamWriter.WriteLine("//INST");
+                _fileStreamWriter.WriteLine("///DATE 2019/01/31 09:00");
+
+                _fileStreamWriter.WriteLine("///ATTR SC,RW");
+
+                _fileStreamWriter.WriteLine("///GROUP1 RB1,BS1");
+
+                _fileStreamWriter.WriteLine("NOP");
+
+                //make the f * duration velocity points vector from the f * duratoin + 1 places points in the trajectory.
+                for (int i = 0; i < clonedR1Traj.Count - 1; i++)
+                {
+                    #region
+                    //decode the velocity for the selected robot (if only one of then) or the first robot (r1) if both of them.
+                    sb.Append("MOVJ ");
+                    sb.Append("C");
+                    sb.Append((i).ToString("D" + 5));
+                    sb.Append(" BC");
+                    sb.Append((i).ToString("D" + 5));
+                    double velocity = 10;// Velocity3D(clonedR1Traj[i + 1], clonedR1Traj[i]) * 10000.0 / (1000.0 / (double)(_frequency));
+                    sb.Append(" VJ=");
+                    sb.Append(velocity.ToString("00.00"));
+
+                    _fileStreamWriter.WriteLine(sb.ToString());
+                    sb.Clear();
+                    #endregion
+                }
+
+                _fileStreamWriter.WriteLine("END");
+
+                _fileStreamWriter.Close();
+                #endregion
             }
-
-            _fileStreamWriter.WriteLine("END");
-
-            _fileStreamWriter.Close();
+            catch (Exception ex)
+            {
+                DiagnosticException.ExceptionHandler(ex);
+            }
         }
         #endregion
 
-        #region PRIVATE_FUNCTIONS
+        #region Private
         /// <summary>
         /// Reset the Dout Pins 1-13 for the trial data number.
         /// </summary>
         /// <returns>The reset trial data number string.</returns>
         private string ResetDoutPins()
         {
+            string returnValue = string.Empty;
             bool[] binValue = new bool[14];
 
-            for (int i = 0; i < binValue.Length; i++)
+            try
             {
-                binValue[i] = false;
+                for (int i = 0; i < binValue.Length; i++)
+                {
+                    binValue[i] = false;
+                }
+
+                returnValue = MakeDoutsPins(binValue);
+            }
+            catch (Exception ex)
+            {
+                DiagnosticException.ExceptionHandler(ex);
             }
 
-            return MakeDoutsPins(binValue);
+            return returnValue;
         }
-
         /// <summary>
         /// Making the string for the output pins (1-13) for the AlphaOmega.
         /// </summary>
@@ -218,30 +253,41 @@ namespace YaskawaNet
         /// <returns>The string represents the command for the AlphaOmega for the number sending.</returns>
         private string MakeDoutsPins(bool[] binValue)
         {
+            string returnValue = string.Empty;
             int bitIndex = 0;
             StringBuilder sb = new StringBuilder();
 
-            foreach (bool bitValue in binValue)
+            try
             {
-                sb.Append("DOUT OT#(");
-                if (bitIndex + 1 < 9)
-                    sb.Append((bitIndex + 1).ToString("0"));
-                else
-                    sb.Append((bitIndex + 1).ToString("00"));
+                foreach (bool bitValue in binValue)
+                {
+                    #region
+                    sb.Append("DOUT OT#(");
+                    if (bitIndex + 1 < 9)
+                        sb.Append((bitIndex + 1).ToString("0"));
+                    else
+                        sb.Append((bitIndex + 1).ToString("00"));
 
-                if (bitValue)
-                    sb.Append(") ON");
-                else
-                    sb.Append(") OFF");
+                    if (bitValue)
+                        sb.Append(") ON");
+                    else
+                        sb.Append(") OFF");
 
-                sb.AppendLine();
+                    sb.AppendLine();
 
-                bitIndex++;
+                    bitIndex++;
+                    #endregion
+                }
+
+                returnValue = sb.ToString();
+            }
+            catch (Exception ex)
+            {
+                DiagnosticException.ExceptionHandler(ex);
             }
 
-            return sb.ToString();
+            return returnValue;
         }
-
         /// <summary>
         /// Convert commands of one points in the trajectory to a commands lines in a JBI format.
         /// </summary>
@@ -254,43 +300,66 @@ namespace YaskawaNet
         private List<string> TrajectoryToLine(Trajectory traj)
         {
             List<string> stringLinesList = new List<string>();
-
             StringBuilder currectStringValue = new StringBuilder();
+            int i = 0;
 
-            //if need to encode the r1 robot for movement.
-            int i = 1;
-
-            //setting the tool0 for the robot0.
-            currectStringValue.Append("///TOOL0");
-            stringLinesList.Add(currectStringValue.ToString());
-            currectStringValue.Clear();
-
-            //setting all the points for the robot.
-            foreach (double point in traj.X)
+            try
             {
-                currectStringValue.Append("P");
-                currectStringValue.Append(i.ToString("D" + 5));
-                currectStringValue.Append("=");
-                currectStringValue.Append(((double)(point * 10 + ROriginalX)).ToString("0000.00000000"));
-                currectStringValue.Append(",");
-                currectStringValue.Append(((double)(traj.Y[i - 1] * 10 + ROriginalY)).ToString("0000.00000000"));
-                currectStringValue.Append(",");
-                currectStringValue.Append(((double)(traj.Z[i - 1] * 10 + ROriginalZ)).ToString("0000.00000000"));
-                currectStringValue.Append(",");
-                currectStringValue.Append(((double)(traj.Rx[i - 1] * 10 + ROriginalRx)).ToString("0000.00000000"));
-                currectStringValue.Append(",");
-                currectStringValue.Append(((double)(traj.Ry[i - 1] * 10 + ROriginalRy)).ToString("0000.00000000"));
-                currectStringValue.Append(",");
-                currectStringValue.Append(((double)(traj.Rz[i - 1] * 10 + ROriginalRz)).ToString("0000.00000000"));
-                currectStringValue.Append(",");
-                i++;
-                stringLinesList.Add(currectStringValue.ToString());
+                #region
+                //if need to encode the r1 robot for movement.
+                //setting the tool0 for the robot0.
+                //currectStringValue.Append("///TOOL0");
+                //stringLinesList.Add(currectStringValue.ToString());
                 currectStringValue.Clear();
+
+                //setting all the points for the robot.
+                foreach (double point in traj.S)
+                {
+                    #region
+                    currectStringValue.Append("C");
+                    currectStringValue.Append(i.ToString("D" + 5));
+                    currectStringValue.Append("=");
+                    currectStringValue.Append(((double)(point + ROriginalX)).ToString("0"));
+                    currectStringValue.Append(",");
+                    currectStringValue.Append(((double)(traj.L[i] + ROriginalY)).ToString("0"));
+                    currectStringValue.Append(",");
+                    currectStringValue.Append(((double)(traj.U[i] + ROriginalZ)).ToString("0"));
+                    currectStringValue.Append(",");
+                    currectStringValue.Append(((double)(traj.R[i] + ROriginalRx)).ToString("0"));
+                    currectStringValue.Append(",");
+                    currectStringValue.Append(((double)(traj.B[i] + ROriginalRy)).ToString("0"));
+                    currectStringValue.Append(",");
+                    currectStringValue.Append(((double)(traj.T[i] + ROriginalRz)).ToString("0"));
+                    //currectStringValue.Append(",");
+                    i++;
+                    stringLinesList.Add(currectStringValue.ToString());
+                    currectStringValue.Clear();
+                    #endregion
+                }
+
+                i = 0;
+                //setting all the points for the robot.
+                foreach (double point in traj.EX7)
+                {
+                    #region
+                    currectStringValue.Append("BC");
+                    currectStringValue.Append(i.ToString("D" + 5));
+                    currectStringValue.Append("=");
+                    currectStringValue.Append(((double)(point + ROriginalX)).ToString("0"));
+                    i++;
+                    stringLinesList.Add(currectStringValue.ToString());
+                    currectStringValue.Clear();
+                    #endregion
+                }
+                #endregion
+            }
+            catch (Exception ex)
+            {
+                DiagnosticException.ExceptionHandler(ex);
             }
 
             return stringLinesList;
         }
-
         /// <summary>
         /// Converts a 14 digits decimal number to a binary array. Throw exception if the number is bigger than 14 disits representation.
         /// </summary>
@@ -298,29 +367,38 @@ namespace YaskawaNet
         /// <returns>The binary representation of the number.</returns>
         private bool[] DecToBin(int num)
         {
-            if (num > Math.Pow(2, 14))
-            {
-                throw new Exception("The number cannot be represented by 13 digits");
-            }
+            int index = 0;
+            bool[] binValue = new bool[14];
 
-            else
+            try
             {
-                int index = 0;
-                bool[] binValue = new bool[14];
-
-                while (num > 0)
+                #region
+                if (num > Math.Pow(2, 14))
                 {
-                    binValue[index] = !((num % 2) == 0);
-
-                    index++;
-
-                    num = num / 2;
+                    throw new Exception("The number cannot be represented by 13 digits");
                 }
+                else
+                {
+                    while (num > 0)
+                    {
+                        #region
+                        binValue[index] = !((num % 2) == 0);
 
-                return binValue;
+                        index++;
+
+                        num = num / 2;
+                        #endregion
+                    }
+                }
+                #endregion
             }
-        }
+            catch (Exception ex)
+            {
+                DiagnosticException.ExceptionHandler(ex);
+            }
 
+            return binValue;
+        }
         /// <summary>
         /// Velocity between 3D points.
         /// </summary>
@@ -335,15 +413,21 @@ namespace YaskawaNet
         {
             double result = 0;
 
-            result += Math.Pow((xDesdination - xSource), 2);
-            result += Math.Pow((yDestination - ySource), 2);
-            result += Math.Pow((zDestination - zSource), 2);
+            try
+            {
+                result += Math.Pow((xDesdination - xSource), 2);
+                result += Math.Pow((yDestination - ySource), 2);
+                result += Math.Pow((zDestination - zSource), 2);
 
-            result = Math.Sqrt(result);
+                result = Math.Sqrt(result);
+            }
+            catch (Exception ex)
+            {
+                DiagnosticException.ExceptionHandler(ex);
+            }
 
             return result;
         }
-
         /// <summary>
         /// Calaculates the velocity between 3D Points.
         /// </summary>
@@ -352,11 +436,20 @@ namespace YaskawaNet
         /// <returns>The 3D velocity for the points.</returns>
         private double Velocity3D(RobotPosition source, RobotPosition destination)
         {
+            double returnValue = 0.0;
             //todo:chek what about the other 3 axes : rx , ry , rz.
-            return Velocity3D(source.X, destination.X,
-                              source.Y, destination.Y,
-                              source.Z, destination.Z);
+
+            try
+            {
+                returnValue = Velocity3D(source.X, destination.X, source.Y, destination.Y, source.Z, destination.Z);
+            }
+            catch (Exception ex)
+            {
+                DiagnosticException.ExceptionHandler(ex);
+            }
+
+            return returnValue;
         }
-        #endregion PRIVATE_FUNCTIONS
+        #endregion
     }
 }

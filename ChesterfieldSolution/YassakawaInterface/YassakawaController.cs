@@ -454,7 +454,7 @@ namespace YassakawaInterface
         /// <returns>0 for complete operation , others , error codes.</returns>
         public short ContinueExecuting()
         {
-            return m_cDX200.Start();
+            return m_cDX200.ContinueJob();
         }
         #endregion JOBS_OPERATION
 

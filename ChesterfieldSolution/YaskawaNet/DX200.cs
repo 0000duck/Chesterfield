@@ -31,7 +31,9 @@ namespace YaskawaNet
         #region Properties
         string IPAddress
         {
+            [return: MarshalAs(UnmanagedType.BStr)]
             get;
+            [param: MarshalAs(UnmanagedType.BStr)]
             set;
         }
         short ToolNumber
@@ -159,12 +161,6 @@ namespace YaskawaNet
             set;
         }
 
-        RobotPosition[] PositionTrajectory
-        {
-            get;
-            set;
-        }
-
         ArrayList AlarmList
         {
             get;
@@ -208,6 +204,16 @@ namespace YaskawaNet
         [return: MarshalAs(UnmanagedType.Bool)]
         bool IsInMotion(int axis, int frame);
 
+        short CaptureTrajectoryPoint();
+
+        short CreateJobFile([MarshalAs(UnmanagedType.BStr)] string fileName);
+        short DownloadJobFile([MarshalAs(UnmanagedType.BStr)] string fileName);
+        short StartJob([MarshalAs(UnmanagedType.BStr)]string fileName);
+        short DeleteJob([MarshalAs(UnmanagedType.BStr)]string fileName);
+        short ContinueJob();
+        short GetCurrentLine(short taskID);
+        short SetCurrentJob(short taskID, [MarshalAs(UnmanagedType.BStr)]string fileName, short lineNumber);
+
         #endregion
     }
     /// <summary>
@@ -216,12 +222,11 @@ namespace YaskawaNet
     [ComVisible(true)]
     public class DX200 : IDX200, INotifyPropertyChanged
     {
-        //TODO:set diagnostic exception handler for all functions
         #region Events
         public event PropertyChangedEventHandler PropertyChanged;
         #endregion
 
-        #region Constatnts
+        #region Constants
 
         const double _maxJointSpeed = 50.0;//percent
         const double _sJointMaxSpeed = 197.0;//degree/sec
@@ -394,8 +399,7 @@ namespace YaskawaNet
         private RobotPosition _desiredRobotIncrementPosition = new RobotPosition();
         private RobotPosition _reportedRobotIncrementPosition = new RobotPosition();
 
-        private ObservableCollection<RobotPositionVariable> _variableTrajectory = new ObservableCollection<RobotPositionVariable>();
-        private RobotPosition[] _positionTrajectory = new RobotPosition[5];
+        private volatile RobotPosition _actualCapturedRobotTCPPosition = new RobotPosition();
 
         #endregion
 
@@ -420,6 +424,9 @@ namespace YaskawaNet
         ErrorData _robotError = null;
         ArrayList _alarmList = null;
         int _alarmsCounter = 0;
+
+        Trajectory _actualTrajectory = new Trajectory();
+        JobFile _actualJobFile = new JobFile();
 
         #endregion
 
@@ -523,6 +530,7 @@ namespace YaskawaNet
                 OnNotifyPropertyChanged();
             }
         }
+        //TODO:Problem this property !!!!!!!!!!!!!!!!!
         public RobotModeType ActualMode
         {
             get
@@ -532,45 +540,117 @@ namespace YaskawaNet
             set
             {
                 short returnValue = -1;
-                Task<short> task = null;
                 int taskWaitTimeCounter = 0;
+                Task<short> task = null;
+                int counterSendCommand = 0;
+                int maxSendCommands = 3;
 
-                if ((short)value > 0 && (short)value < 3)
+                try
                 {
-                    //if (_robotHandler != -1 && _robotHandler != -8)
-                    //{                        
-                    //    task = Task<short>.Factory.StartNew(() =>
-                    //    {
-                    //        //Return Value
-                    //        //0 : Normal completion
-                    //        //Others: Error codes
-                    //        return Motocom.BscSelectMode(_robotHandler, (short)value);
-                    //    });
+                    lock (_robotAccessLock)
+                    {
+                        #region
+                        if ((int)value > 0 && (int)value < 3)
+                        {
+                            task = Task<short>.Factory.StartNew(() =>
+                            {
+                                //Return Value
+                                //0 : Normal completion
+                                //Others: Error codes
+                                return Motocom.BscSelectMode(_robotHandler, (short)value);
+                            });
 
-                    //    while (!task.IsCompleted)
-                    //    {
-                    //        #region
-                    //        taskWaitTimeCounter++;
-                    //        task.Wait(_motocom32FunctionsWaitTime);
-                    //        if (taskWaitTimeCounter > 5) //wait 250 msec maximum
-                    //        {
-                    //            break;
-                    //        }
-                    //        #endregion
-                    //    }
-                    //    if (task.IsCompleted)
-                    //    {
-                    //        returnValue = Convert.ToInt16(task.Result);
-                    //    }
-                    //    else
-                    //    {
-                    //        returnValue = -1;
-                    //    }
-                    //}
-                    _actualMode = (returnValue == 0) ? value : _actualMode;
+                            taskWaitTimeCounter = 0;
 
-                    OnNotifyPropertyChanged();
+                            while (!task.IsCompleted)
+                            {
+                                #region
+                                taskWaitTimeCounter++;
+                                task.Wait(_motocom32FunctionsWaitTime);
+                                if (taskWaitTimeCounter > 10) //wait 500 msec maximum
+                                {
+                                    break;
+                                }
+                                #endregion
+                            }
+
+                            if (task.IsCompleted)
+                            {
+                                #region
+                                returnValue = Convert.ToInt16(task.Result);
+                                //TODO:check return and send more if needed
+                                if (returnValue != 0)
+                                {
+                                    #region
+                                    counterSendCommand = 0;
+                                    while (counterSendCommand < maxSendCommands)
+                                    {
+                                        #region
+
+                                        counterSendCommand++;
+
+                                        task = Task<short>.Factory.StartNew(() =>
+                                        {
+                                            //Return Value
+                                            //0 : Normal completion
+                                            //Others: Error codes
+                                            return Motocom.BscSelectMode(_robotHandler, (short)value);
+                                        });
+
+                                        taskWaitTimeCounter = 0;
+
+                                        while (!task.IsCompleted)
+                                        {
+                                            #region
+                                            taskWaitTimeCounter++;
+                                            task.Wait(_motocom32FunctionsWaitTime);
+                                            if (taskWaitTimeCounter > 10) //wait 500 msec maximum
+                                            {
+                                                break;
+                                            }
+                                            #endregion
+                                        }
+                                        if (task.IsCompleted)
+                                        {
+                                            returnValue = Convert.ToInt16(task.Result);
+                                            if (returnValue == 0)
+                                            {
+                                                break;
+                                            }
+                                        }
+                                        else
+                                        {
+                                            returnValue = -1;
+                                        }
+                                        #endregion
+                                    }
+                                    if (counterSendCommand == maxSendCommands)
+                                    {
+                                        Debug.WriteLine("DX200::ActualMode()::Error::" + returnValue.ToString());
+                                    }
+                                    #endregion
+                                }
+                                #endregion
+                            }
+                            else
+                            {
+                                returnValue = -1;
+                            }
+                        }
+
+                        #endregion
+                    }
                 }
+                catch (Exception ex)
+                {
+                    returnValue = -1;
+                    DiagnosticException.ExceptionHandler(ex);
+                }
+
+                _actualMode = (returnValue == 0) ? value : _actualMode;
+                //_actualMode = value;
+
+                OnNotifyPropertyChanged();
             }
         }
 
@@ -820,18 +900,6 @@ namespace YaskawaNet
             {
                 _reportedRobotIncrementPosition = value;
                 OnNotifyPropertyChanged();
-            }
-        }
-
-        public RobotPosition[] PositionTrajectory
-        {
-            get
-            {
-                return _positionTrajectory;
-            }
-            set
-            {
-                _positionTrajectory = value;
             }
         }
 
@@ -1234,10 +1302,18 @@ namespace YaskawaNet
                         returnValue = -1;
                     }
 
+                    // _actualJobFile.TargetFileName = @"D:\Program Files\ScanMaster\IRTUSScanner\JobFiles\ACTUAL.JBI";
+                    //_actualJobFile.SerializeTrajectory(_actualTrajectory);
+                    //WriteFile(@"D:\Program Files\ScanMaster\IRTUSScanner\JobFiles\ACTUAL.JBI");
+                    //returnValue = Motocom.BscSelectJob(_robotHandler, "ACTUAL.JBI");
+                    //returnValue = Motocom.BscStartJob(_robotHandler);
+
                     _communicationStatus.connected = (returnValue > 0) ? true : false;
 
                     if (_communicationStatus.connected == true)
                     {
+                        ActualMode = RobotModeType.PLAY;
+
                         _getStatusThreadRun = true;
                         _getPositionsThreadRun = true;
                         _getAlarmsThreadRun = true;
@@ -2122,37 +2198,6 @@ namespace YaskawaNet
             }
         }
         /// <summary>
-        /// Download a file from controller
-        /// </summary>
-        /// <param name="Filetitle">Name of the file</param>
-        /// <param name="Path">Folder to store the file</param>
-        public void ReadFile(string Filetitle, string Path)
-        {
-            StringBuilder _Filetitle = new StringBuilder(Filetitle, 255);
-            short ret;
-            if (Path.Substring(Path.Length - 1, 1) != "\\")
-                Path = Path + "\\";
-            lock (_fileAccessDirLock)
-            {
-                lock (_robotAccessLock)
-                {
-                    ret = Motocom.BscUpLoad(_robotHandler, _Filetitle);
-                }
-                if (ret != 0)
-                    throw new Exception("Error executing BscUpLoadEx");
-                else
-                    File.Copy(_commDir + Filetitle, Path + Filetitle, true);
-            }
-        }
-        /// <summary>
-        /// Reads file and stores it to default folder
-        /// </summary>
-        /// <param name="Filetitle">Filename</param>
-        public void ReadFile(string Filetitle)
-        {
-            ReadFile(Filetitle, _path);
-        }
-        /// <summary>
         /// Writes one single IO
         /// </summary>
         /// <param name="Address">Address of IO</param>
@@ -2247,30 +2292,263 @@ namespace YaskawaNet
             }
             return (IOVal > 0 ? true : false);
         }
+        #endregion
+
+        #region Job files methods
+        /// <summary>
+        /// Download a file from controller
+        /// </summary>
+        /// <param name="Filetitle">Name of the file</param>
+        /// <param name="Path">Folder to store the file</param>
+        public void ReadFile(string fileName, string path)
+        {
+            short returnValue = 0;
+
+            int taskWaitTimeCounter = 0;
+            Task<short> task = null;
+            int counterSendCommand = 0;
+            int maxSendCommands = 3;
+
+            StringBuilder _fileName = new StringBuilder(fileName, 255);
+
+            try
+            {
+                #region
+                if (path.Substring(path.Length - 1, 1) != "\\")
+                {
+                    path = path + "\\";
+                }
+
+                lock (_fileAccessDirLock)
+                {
+                    lock (_robotAccessLock)
+                    {
+                        #region
+
+                        task = Task<short>.Factory.StartNew(() =>
+                        {
+                            //Return Value
+                            //0 : Normal completion
+                            //Others: Transmission error
+                            return Motocom.BscUpLoad(_robotHandler, _fileName);
+                        });
+
+                        taskWaitTimeCounter = 0;
+
+                        while (!task.IsCompleted)
+                        {
+                            #region
+                            taskWaitTimeCounter++;
+                            task.Wait(_motocom32FunctionsWaitTime);
+                            if (taskWaitTimeCounter > 10) //wait 500 msec maximum
+                            {
+                                break;
+                            }
+                            #endregion
+                        }
+
+                        if (task.IsCompleted)
+                        {
+                            #region
+                            returnValue = Convert.ToInt16(task.Result);
+                            //TODO:check return and send more if needed
+                            if (returnValue != 0)
+                            {
+                                #region
+                                counterSendCommand = 0;
+                                while (counterSendCommand < maxSendCommands)
+                                {
+                                    #region
+
+                                    counterSendCommand++;
+
+                                    task = Task<short>.Factory.StartNew(() =>
+                                    {
+                                        //Return Value
+                                        //0 : Normal completion
+                                        //Others: Error codes
+                                        return Motocom.BscUpLoad(_robotHandler, _fileName);
+                                    });
+
+                                    taskWaitTimeCounter = 0;
+
+                                    while (!task.IsCompleted)
+                                    {
+                                        #region
+                                        taskWaitTimeCounter++;
+                                        task.Wait(_motocom32FunctionsWaitTime);
+                                        if (taskWaitTimeCounter > 10) //wait 500 msec maximum
+                                        {
+                                            break;
+                                        }
+                                        #endregion
+                                    }
+                                    if (task.IsCompleted)
+                                    {
+                                        returnValue = Convert.ToInt16(task.Result);
+                                        if (returnValue == 0)
+                                        {
+                                            break;
+                                        }
+                                    }
+                                    else
+                                    {
+                                        returnValue = -1;
+                                    }
+                                    #endregion
+                                }
+                                if (counterSendCommand == maxSendCommands)
+                                {
+                                    Debug.WriteLine("DX200::ReadFile()::Error::" + returnValue.ToString());
+                                }
+                                #endregion
+                            }
+                            #endregion
+                        }
+                        else
+                        {
+                            returnValue = -1;
+                        }
+
+                        if (returnValue == 0)
+                        {
+                            File.Copy(_commDir + fileName, path + fileName, true);
+                        }
+
+                        #endregion
+                    }
+                }
+                #endregion
+            }
+            catch (Exception ex)
+            {
+                DiagnosticException.ExceptionHandler(ex);
+            }
+        }
         /// <summary>
         /// Uploads file to the controller
         /// </summary>
         /// <param name="Filename">Filename including path</param>
         public void WriteFile(string Filename)
         {
-            StringBuilder _Filetitle = new StringBuilder(Path.GetFileName(Filename), 255);
-            short ret;
-            lock (_fileAccessDirLock)
-            {
-                if (Filename != _commDir + _Filetitle)
-                    File.Copy(Filename, _commDir + _Filetitle, true);
+            short returnValue = 0;
 
+            int taskWaitTimeCounter = 0;
+            Task<short> task = null;
+            int counterSendCommand = 0;
+            int maxSendCommands = 3;
+
+            StringBuilder _fName = new StringBuilder(Path.GetFileName(Filename), 255);
+
+            try
+            {
                 lock (_robotAccessLock)
                 {
-                    ret = Motocom.BscDownLoad(_robotHandler, _Filetitle);
+                    #region
+
+                    if (Filename != _commDir + _fName)
+                    {
+                        File.Copy(Filename, _commDir + _fName, true);
+                    }
+
+                    task = Task<short>.Factory.StartNew(() =>
+                    {
+                        //Return Value
+                        //0 : Normal completion
+                        //Others: Transmission error
+                        return Motocom.BscDownLoad(_robotHandler, _fName);
+                    });
+
+                    taskWaitTimeCounter = 0;
+
+                    while (!task.IsCompleted)
+                    {
+                        #region
+                        taskWaitTimeCounter++;
+                        task.Wait(_motocom32FunctionsWaitTime);
+                        if (taskWaitTimeCounter > 10) //wait 500 msec maximum
+                        {
+                            break;
+                        }
+                        #endregion
+                    }
+
+                    if (task.IsCompleted)
+                    {
+                        #region
+                        returnValue = Convert.ToInt16(task.Result);
+                        //TODO:check return and send more if needed
+                        if (returnValue != 0)
+                        {
+                            #region
+                            counterSendCommand = 0;
+                            while (counterSendCommand < maxSendCommands)
+                            {
+                                #region
+
+                                counterSendCommand++;
+
+                                task = Task<short>.Factory.StartNew(() =>
+                                {
+                                    //Return Value
+                                    //0 : Normal completion
+                                    //Others: Error codes
+                                    return Motocom.BscDownLoad(_robotHandler, _fName);
+                                });
+
+                                taskWaitTimeCounter = 0;
+
+                                while (!task.IsCompleted)
+                                {
+                                    #region
+                                    taskWaitTimeCounter++;
+                                    task.Wait(_motocom32FunctionsWaitTime);
+                                    if (taskWaitTimeCounter > 10) //wait 500 msec maximum
+                                    {
+                                        break;
+                                    }
+                                    #endregion
+                                }
+                                if (task.IsCompleted)
+                                {
+                                    returnValue = Convert.ToInt16(task.Result);
+                                    if (returnValue == 0)
+                                    {
+                                        break;
+                                    }
+                                }
+                                else
+                                {
+                                    returnValue = -1;
+                                }
+                                #endregion
+                            }
+                            if (counterSendCommand == maxSendCommands)
+                            {
+                                Debug.WriteLine("DX200::WriteFile()::Error::" + returnValue.ToString());
+                            }
+                            #endregion
+                        }
+                        #endregion
+                    }
+                    else
+                    {
+                        returnValue = -1;
+                    }
+
+                    if (returnValue == 0)
+                    {
+                        // _actualTrajectory.Clear();
+                    }
+
+                    #endregion
                 }
-                if (ret != 0)
-                    throw new Exception("Error executing BscDownLoad");
+            }
+            catch (Exception ex)
+            {
+                DiagnosticException.ExceptionHandler(ex);
             }
         }
-        #endregion
-
-        #region Job files methods
         /// <summary>
         /// Retrieves joblist from controller
         /// </summary>
@@ -2308,73 +2586,467 @@ namespace YaskawaNet
         /// Deletes a job on the controller
         /// </summary>
         /// <param name="JobName">Name of job to delete</param>
-        public void DeleteJob(string JobName)
+        public short DeleteJob(string fileName)
         {
-            short ret;
+            short returnValue = -1;
 
-            if (!JobName.ToLower().Contains(".jbi"))
-                throw new Exception("Error *.jbi jobname extension is missing !");
+            int taskWaitTimeCounter = 0;
+            Task<short> task = null;
+            int counterSendCommand = 0;
+            int maxSendCommands = 3;
 
-            lock (_robotAccessLock)
+            try
             {
-
-                ret = Motocom.BscSelectJob(_robotHandler, JobName);
-                if (ret == 0)
+                if (fileName.ToLower().Contains(".jbi"))
                 {
-                    ret = Motocom.BscDeleteJob(_robotHandler);
-                    if (ret != 0)
+                    #region
+
+                    if (_actualRobotStatus.IsCommandHold == true)
                     {
-                        throw new Exception("Error deleting job !");
+                        HoldOff();
                     }
+
+                    lock (_robotAccessLock)
+                    {
+                        task = Task<short>.Factory.StartNew(() =>
+                        {
+                            //Return Value
+                            //0 : Normal completion
+                            //Others: Error codes
+                            return Motocom.BscSelectJob(_robotHandler, fileName);
+                        });
+
+                        taskWaitTimeCounter = 0;
+
+                        while (!task.IsCompleted)
+                        {
+                            #region
+                            taskWaitTimeCounter++;
+                            task.Wait(_motocom32FunctionsWaitTime);
+                            if (taskWaitTimeCounter > 10) //wait 500 msec maximum
+                            {
+                                break;
+                            }
+                            #endregion
+                        }
+
+                        if (task.IsCompleted)
+                        {
+                            #region
+                            returnValue = Convert.ToInt16(task.Result);
+                            //TODO:check return and send more if needed
+                            if (returnValue != 0)
+                            {
+                                #region
+                                counterSendCommand = 0;
+                                while (counterSendCommand < maxSendCommands)
+                                {
+                                    #region
+
+                                    counterSendCommand++;
+
+                                    task = Task<short>.Factory.StartNew(() =>
+                                    {
+                                        //Return Value
+                                        //0 : Normal completion
+                                        //Others: Error codes
+                                        return Motocom.BscSelectJob(_robotHandler, fileName);
+                                    });
+
+                                    taskWaitTimeCounter = 0;
+
+                                    while (!task.IsCompleted)
+                                    {
+                                        #region
+                                        taskWaitTimeCounter++;
+                                        task.Wait(_motocom32FunctionsWaitTime);
+                                        if (taskWaitTimeCounter > 10) //wait 500 msec maximum
+                                        {
+                                            break;
+                                        }
+                                        #endregion
+                                    }
+                                    if (task.IsCompleted)
+                                    {
+                                        returnValue = Convert.ToInt16(task.Result);
+                                        if (returnValue == 0)
+                                        {
+                                            break;
+                                        }
+                                    }
+                                    else
+                                    {
+                                        returnValue = -1;
+                                    }
+                                    #endregion
+                                }
+                                if (counterSendCommand == maxSendCommands)
+                                {
+                                    Debug.WriteLine("DX200::DeleteJob()::SelectJob()::Error::" + returnValue.ToString());
+                                }
+                                #endregion
+                            }
+                            #endregion
+                        }
+                        else
+                        {
+                            returnValue = -1;
+                        }
+
+                        if (returnValue == 0)
+                        {
+                            #region
+                            taskWaitTimeCounter = 0;
+                            counterSendCommand = 0;
+
+                            task = Task<short>.Factory.StartNew(() =>
+                            {
+                                //Return Value
+                                //0 : Normal completion
+                                //1 : Cannot delete
+                                //Otherss: Error codes
+                                return Motocom.BscDeleteJob(_robotHandler);
+                            });
+
+                            taskWaitTimeCounter = 0;
+
+                            while (!task.IsCompleted)
+                            {
+                                #region
+                                taskWaitTimeCounter++;
+                                task.Wait(_motocom32FunctionsWaitTime);
+                                if (taskWaitTimeCounter > 10) //wait 500 msec maximum
+                                {
+                                    break;
+                                }
+                                #endregion
+                            }
+
+                            if (task.IsCompleted)
+                            {
+                                #region
+                                returnValue = Convert.ToInt16(task.Result);
+                                //TODO:check return and send more if needed
+                                if (returnValue != 0)
+                                {
+                                    #region
+                                    counterSendCommand = 0;
+                                    while (counterSendCommand < maxSendCommands)
+                                    {
+                                        #region
+
+                                        counterSendCommand++;
+
+                                        task = Task<short>.Factory.StartNew(() =>
+                                        {
+                                            //Return Value
+                                            //0 : Normal completion
+                                            //1 : Cannot delete
+                                            //Others: Error codes
+                                            return Motocom.BscDeleteJob(_robotHandler);
+                                        });
+
+                                        taskWaitTimeCounter = 0;
+
+                                        while (!task.IsCompleted)
+                                        {
+                                            #region
+                                            taskWaitTimeCounter++;
+                                            task.Wait(_motocom32FunctionsWaitTime);
+                                            if (taskWaitTimeCounter > 10) //wait 500 msec maximum
+                                            {
+                                                break;
+                                            }
+                                            #endregion
+                                        }
+                                        if (task.IsCompleted)
+                                        {
+                                            returnValue = Convert.ToInt16(task.Result);
+                                            if (returnValue == 0)
+                                            {
+                                                break;
+                                            }
+                                        }
+                                        else
+                                        {
+                                            returnValue = -1;
+                                        }
+                                        #endregion
+                                    }
+                                    if (counterSendCommand == maxSendCommands)
+                                    {
+                                        if (returnValue == 1)
+                                        {
+                                            Debug.WriteLine("DX200::DeleteJob()::BscDeleteJob()::Error::Cannot delete.");
+                                        }
+                                        else
+                                        {
+                                            Debug.WriteLine("DX200::DeleteJob()::BscDeleteJob()::Error::" + returnValue.ToString());
+                                        }
+                                    }
+                                    #endregion
+                                }
+                                #endregion
+                            }
+                            else
+                            {
+                                returnValue = -1;
+                            }
+                            #endregion
+                        }
+                    }
+                    #endregion
                 }
                 else
                 {
-                    throw new Exception("Error selecting job !");
+                    Debug.WriteLine("DX200::DeleteJob()::Error::Current job name extension .JBI not specified.");
                 }
             }
+            catch (Exception ex)
+            {
+                returnValue = -1;
+                DiagnosticException.ExceptionHandler(ex);
+            }
+
+            return returnValue;
         }
         /// <summary>
         /// Calls and executes specified job
         /// </summary>
         /// <param name="JobName">Jobname to execute</param>
-        public void StartJob(string JobName)
+        public short StartJob(string fileName)
         {
-            short ret;
+            short returnValue = -1;
 
-            if (!JobName.ToLower().Contains(".jbi"))
-                throw new Exception("Error *.jbi jobname extension is missing !");
+            int taskWaitTimeCounter = 0;
+            Task<short> task = null;
+            int counterSendCommand = 0;
+            int maxSendCommands = 3;
 
-            lock (_robotAccessLock)
+            try
             {
-
-                ret = Motocom.BscSelectJob(_robotHandler, JobName);
-                if (ret == 0)
+                if (fileName.ToLower().Contains(".jbi"))
                 {
-                    ret = Motocom.BscStartJob(_robotHandler);
-                    if (ret != 0)
-                        throw new Exception("Error starting job !");
+                    #region
+
+                    if (_actualRobotStatus.IsCommandHold == true)
+                    {
+                        HoldOff();
+                    }
+
+                    lock (_robotAccessLock)
+                    {
+                        task = Task<short>.Factory.StartNew(() =>
+                        {
+                            //Return Value
+                            //0 : Normal completion
+                            //Others: Error codes
+                            return Motocom.BscSelectJob(_robotHandler, fileName);
+                        });
+
+                        taskWaitTimeCounter = 0;
+
+                        while (!task.IsCompleted)
+                        {
+                            #region
+                            taskWaitTimeCounter++;
+                            task.Wait(_motocom32FunctionsWaitTime);
+                            if (taskWaitTimeCounter > 10) //wait 500 msec maximum
+                            {
+                                break;
+                            }
+                            #endregion
+                        }
+
+                        if (task.IsCompleted)
+                        {
+                            #region
+                            returnValue = Convert.ToInt16(task.Result);
+                            //TODO:check return and send more if needed
+                            if (returnValue != 0)
+                            {
+                                #region
+                                counterSendCommand = 0;
+                                while (counterSendCommand < maxSendCommands)
+                                {
+                                    #region
+
+                                    counterSendCommand++;
+
+                                    task = Task<short>.Factory.StartNew(() =>
+                                    {
+                                        //Return Value
+                                        //0 : Normal completion
+                                        //Others: Error codes
+                                        return Motocom.BscSelectJob(_robotHandler, fileName);
+                                    });
+
+                                    taskWaitTimeCounter = 0;
+
+                                    while (!task.IsCompleted)
+                                    {
+                                        #region
+                                        taskWaitTimeCounter++;
+                                        task.Wait(_motocom32FunctionsWaitTime);
+                                        if (taskWaitTimeCounter > 10) //wait 500 msec maximum
+                                        {
+                                            break;
+                                        }
+                                        #endregion
+                                    }
+                                    if (task.IsCompleted)
+                                    {
+                                        returnValue = Convert.ToInt16(task.Result);
+                                        if (returnValue == 0)
+                                        {
+                                            break;
+                                        }
+                                    }
+                                    else
+                                    {
+                                        returnValue = -1;
+                                    }
+                                    #endregion
+                                }
+                                if (counterSendCommand == maxSendCommands)
+                                {
+                                    Debug.WriteLine("DX200::StartJob()::SelectJob()::Error::" + returnValue.ToString());
+                                }
+                                #endregion
+                            }
+                            #endregion
+                        }
+                        else
+                        {
+                            returnValue = -1;
+                        }
+
+                        if (returnValue == 0)
+                        {
+                            #region
+                            taskWaitTimeCounter = 0;
+                            counterSendCommand = 0;
+
+                            task = Task<short>.Factory.StartNew(() =>
+                            {
+                                //Return Value
+                                //0 : Normal completion
+                                //1 : Current job name not specified
+                                //Others : Error codes
+                                return Motocom.BscStartJob(_robotHandler);
+                            });
+
+                            taskWaitTimeCounter = 0;
+
+                            while (!task.IsCompleted)
+                            {
+                                #region
+                                taskWaitTimeCounter++;
+                                task.Wait(_motocom32FunctionsWaitTime);
+                                if (taskWaitTimeCounter > 10) //wait 500 msec maximum
+                                {
+                                    break;
+                                }
+                                #endregion
+                            }
+
+                            if (task.IsCompleted)
+                            {
+                                #region
+                                returnValue = Convert.ToInt16(task.Result);
+                                //TODO:check return and send more if needed
+                                if (returnValue != 0)
+                                {
+                                    #region
+                                    counterSendCommand = 0;
+                                    while (counterSendCommand < maxSendCommands)
+                                    {
+                                        #region
+
+                                        counterSendCommand++;
+
+                                        task = Task<short>.Factory.StartNew(() =>
+                                        {
+                                            //Return Value
+                                            //0 : Normal completion
+                                            //1 : Current job name not specified
+                                            //Others : Error codes
+                                            return Motocom.BscStartJob(_robotHandler);
+                                        });
+
+                                        taskWaitTimeCounter = 0;
+
+                                        while (!task.IsCompleted)
+                                        {
+                                            #region
+                                            taskWaitTimeCounter++;
+                                            task.Wait(_motocom32FunctionsWaitTime);
+                                            if (taskWaitTimeCounter > 10) //wait 500 msec maximum
+                                            {
+                                                break;
+                                            }
+                                            #endregion
+                                        }
+                                        if (task.IsCompleted)
+                                        {
+                                            returnValue = Convert.ToInt16(task.Result);
+                                            if (returnValue == 0)
+                                            {
+                                                break;
+                                            }
+                                        }
+                                        else
+                                        {
+                                            returnValue = -1;
+                                        }
+                                        #endregion
+                                    }
+                                    if (counterSendCommand == maxSendCommands)
+                                    {
+                                        if (returnValue == 1)
+                                        {
+                                            Debug.WriteLine("DX200::StartJob()::StartJob()::Error::Current job name not specified.");
+                                        }
+                                        else
+                                        {
+                                            Debug.WriteLine("DX200::StartJob()::StartJob()::Error::" + returnValue.ToString());
+                                        }
+                                    }
+                                    #endregion
+                                }
+                                #endregion
+                            }
+                            else
+                            {
+                                returnValue = -1;
+                            }
+                            #endregion
+                        }
+                    }
+                    #endregion
                 }
                 else
-                    throw new Exception("Error selecting job !");
+                {
+                    Debug.WriteLine("DX200::StartJob()::Error::Current job name extension .JBI not specified.");
+                }
             }
-        }
-        /// <summary>
-        /// Returns executing job of task 0
-        /// </summary>
-        /// <returns>Jobname</returns>
-        public string GetCurrentJob()
-        {
-            return GetCurrentJob(0);
+            catch (Exception ex)
+            {
+                returnValue = -1;
+                DiagnosticException.ExceptionHandler(ex);
+            }
+
+            return returnValue;
         }
         /// <summary>
         /// Returns executing job of specified task
         /// </summary>
         /// <param name="TaskID">Task ID</param>
         /// <returns>Jobname</returns>
-        public string GetCurrentJob(short TaskID)
+        public string ChangeTask(short TaskID)
         {
             short ret;
-            StringBuilder jobname = new StringBuilder(255);
+            StringBuilder jobName = new StringBuilder(255);
 
             lock (_robotAccessLock)
             {
@@ -2386,11 +3058,11 @@ namespace YaskawaNet
                         throw new Exception("Error changing task !");
                     }
                 }
-                ret = Motocom.BscIsJobName(_robotHandler, jobname, 255);
+                ret = Motocom.BscIsJobName(_robotHandler, jobName, 255);
                 if (ret != 0)
                     throw new Exception("Error getting current job name !");
             }
-            return jobname.ToString();
+            return jobName.ToString();
         }
         /// <summary>
         /// Sets executing job and cursor
@@ -2398,70 +3070,685 @@ namespace YaskawaNet
         /// <param name="TaskID">Task ID</param>
         /// <param name="JobName">Jobname</param>
         /// <param name="linenumber">Line number</param>
-        public void SetCurrentJob(short TaskID, string JobName, short linenumber)
+        public short SetCurrentJob(short taskID, string fileName, short lineNumber)
         {
-            short ret;
+            short returnValue = -1;
 
-            if (!JobName.ToLower().Contains(".jbi"))
-                throw new Exception("Error *.jbi jobname extension is missing !");
+            int taskWaitTimeCounter = 0;
+            Task<short> task = null;
+            int counterSendCommand = 0;
+            int maxSendCommands = 3;
 
-            lock (_robotAccessLock)
+            try
             {
-                if (TaskID > 0)
+                if (fileName.ToLower().Contains(".jbi"))
                 {
-                    ret = Motocom.BscChangeTask(_robotHandler, TaskID);
-                    if (ret != 0)
+                    #region
+
+                    if (_actualRobotStatus.IsCommandHold == true)
                     {
-                        throw new Exception("Error changing task !");
+                        HoldOff();
                     }
+
+                    lock (_robotAccessLock)
+                    {
+                        #region
+                        task = Task<short>.Factory.StartNew(() =>
+                                       {
+                                           //Return Value
+                                           //0 : Normal completion
+                                           //Others: Error codes
+                                           return Motocom.BscChangeTask(_robotHandler, taskID);
+                                       });
+
+                        taskWaitTimeCounter = 0;
+
+                        while (!task.IsCompleted)
+                        {
+                            #region
+                            taskWaitTimeCounter++;
+                            task.Wait(_motocom32FunctionsWaitTime);
+                            if (taskWaitTimeCounter > 10) //wait 500 msec maximum
+                            {
+                                break;
+                            }
+                            #endregion
+                        }
+
+                        if (task.IsCompleted)
+                        {
+                            #region
+                            returnValue = Convert.ToInt16(task.Result);
+                            //TODO:check return and send more if needed
+                            if (returnValue != 0)
+                            {
+                                #region
+                                counterSendCommand = 0;
+                                while (counterSendCommand < maxSendCommands)
+                                {
+                                    #region
+
+                                    counterSendCommand++;
+
+                                    task = Task<short>.Factory.StartNew(() =>
+                                    {
+                                        //Return Value
+                                        //0 : Normal completion
+                                        //Others: Error codes
+                                        return Motocom.BscChangeTask(_robotHandler, taskID);
+                                    });
+
+                                    taskWaitTimeCounter = 0;
+
+                                    while (!task.IsCompleted)
+                                    {
+                                        #region
+                                        taskWaitTimeCounter++;
+                                        task.Wait(_motocom32FunctionsWaitTime);
+                                        if (taskWaitTimeCounter > 10) //wait 500 msec maximum
+                                        {
+                                            break;
+                                        }
+                                        #endregion
+                                    }
+                                    if (task.IsCompleted)
+                                    {
+                                        returnValue = Convert.ToInt16(task.Result);
+                                        if (returnValue == 0)
+                                        {
+                                            break;
+                                        }
+                                    }
+                                    else
+                                    {
+                                        returnValue = -1;
+                                    }
+                                    #endregion
+                                }
+                                if (counterSendCommand == maxSendCommands)
+                                {
+                                    Debug.WriteLine("DX200::SetCurrentJob()::BscChangeTask()::Error::" + returnValue.ToString());
+                                }
+                                #endregion
+                            }
+                            #endregion
+                        }
+                        else
+                        {
+                            returnValue = -1;
+                        }
+
+                        if (returnValue == 0)
+                        {
+                            #region
+                            taskWaitTimeCounter = 0;
+                            counterSendCommand = 0;
+
+                            task = Task<short>.Factory.StartNew(() =>
+                            {
+                                //Return Value
+                                //0 : Normal completion
+                                //Others: Error codes
+                                return Motocom.BscSelectJob(_robotHandler, fileName);
+                            });
+
+                            taskWaitTimeCounter = 0;
+
+                            while (!task.IsCompleted)
+                            {
+                                #region
+                                taskWaitTimeCounter++;
+                                task.Wait(_motocom32FunctionsWaitTime);
+                                if (taskWaitTimeCounter > 10) //wait 500 msec maximum
+                                {
+                                    break;
+                                }
+                                #endregion
+                            }
+
+                            if (task.IsCompleted)
+                            {
+                                #region
+                                returnValue = Convert.ToInt16(task.Result);
+                                //TODO:check return and send more if needed
+                                if (returnValue != 0)
+                                {
+                                    #region
+                                    counterSendCommand = 0;
+                                    while (counterSendCommand < maxSendCommands)
+                                    {
+                                        #region
+
+                                        counterSendCommand++;
+
+                                        task = Task<short>.Factory.StartNew(() =>
+                                        {
+                                            //Return Value
+                                            //0 : Normal completion
+                                            //Others: Error codes
+                                            return Motocom.BscSelectJob(_robotHandler, fileName);
+                                        });
+
+                                        taskWaitTimeCounter = 0;
+
+                                        while (!task.IsCompleted)
+                                        {
+                                            #region
+                                            taskWaitTimeCounter++;
+                                            task.Wait(_motocom32FunctionsWaitTime);
+                                            if (taskWaitTimeCounter > 10) //wait 500 msec maximum
+                                            {
+                                                break;
+                                            }
+                                            #endregion
+                                        }
+                                        if (task.IsCompleted)
+                                        {
+                                            returnValue = Convert.ToInt16(task.Result);
+                                            if (returnValue == 0)
+                                            {
+                                                break;
+                                            }
+                                        }
+                                        else
+                                        {
+                                            returnValue = -1;
+                                        }
+                                        #endregion
+                                    }
+                                    if (counterSendCommand == maxSendCommands)
+                                    {
+                                        Debug.WriteLine("DX200::SetCurrentJob()::BscSelectJob()::Error::" + returnValue.ToString());
+                                    }
+                                    #endregion
+                                }
+                                #endregion
+                            }
+                            else
+                            {
+                                returnValue = -1;
+                            }
+
+                            if (returnValue == 0)
+                            {
+                                #region
+                                taskWaitTimeCounter = 0;
+                                counterSendCommand = 0;
+
+                                task = Task<short>.Factory.StartNew(() =>
+                                {
+                                    //Return Value
+                                    //0 : Normal completion
+                                    //Others: Error codes
+                                    return Motocom.BscSetLineNumber(_robotHandler, lineNumber);
+                                });
+
+                                taskWaitTimeCounter = 0;
+
+                                while (!task.IsCompleted)
+                                {
+                                    #region
+                                    taskWaitTimeCounter++;
+                                    task.Wait(_motocom32FunctionsWaitTime);
+                                    if (taskWaitTimeCounter > 10) //wait 500 msec maximum
+                                    {
+                                        break;
+                                    }
+                                    #endregion
+                                }
+
+                                if (task.IsCompleted)
+                                {
+                                    #region
+                                    returnValue = Convert.ToInt16(task.Result);
+                                    //TODO:check return and send more if needed
+                                    if (returnValue != 0)
+                                    {
+                                        #region
+                                        counterSendCommand = 0;
+                                        while (counterSendCommand < maxSendCommands)
+                                        {
+                                            #region
+
+                                            counterSendCommand++;
+
+                                            task = Task<short>.Factory.StartNew(() =>
+                                            {
+                                                //Return Value
+                                                //0 : Normal completion
+                                                //Others: Error codes
+                                                return Motocom.BscSetLineNumber(_robotHandler, lineNumber);
+                                            });
+
+                                            taskWaitTimeCounter = 0;
+
+                                            while (!task.IsCompleted)
+                                            {
+                                                #region
+                                                taskWaitTimeCounter++;
+                                                task.Wait(_motocom32FunctionsWaitTime);
+                                                if (taskWaitTimeCounter > 10) //wait 500 msec maximum
+                                                {
+                                                    break;
+                                                }
+                                                #endregion
+                                            }
+                                            if (task.IsCompleted)
+                                            {
+                                                returnValue = Convert.ToInt16(task.Result);
+                                                if (returnValue == 0)
+                                                {
+                                                    break;
+                                                }
+                                            }
+                                            else
+                                            {
+                                                returnValue = -1;
+                                            }
+                                            #endregion
+                                        }
+                                        if (counterSendCommand == maxSendCommands)
+                                        {
+                                            Debug.WriteLine("DX200::SetCurrentJob()::BscSetLineNumber()::Error::" + returnValue.ToString());
+                                        }
+                                        #endregion
+                                    }
+                                    #endregion
+                                }
+                                else
+                                {
+                                    returnValue = -1;
+                                }
+                                #endregion
+                            }
+                            #endregion
+                        }
+                        #endregion
+                    }
+                    #endregion
                 }
-                ret = Motocom.BscSelectJob(_robotHandler, JobName);
-                if (ret == 0)
+                else
                 {
-                    ret = Motocom.BscSetLineNumber(_robotHandler, linenumber);
-                    if (ret != 0)
-                        throw new Exception("Error setting current job line !");
+                    Debug.WriteLine("DX200::SetCurrentJob()::Error::Current job name extension .JBI not specified.");
                 }
             }
+            catch (Exception ex)
+            {
+                returnValue = -1;
+                DiagnosticException.ExceptionHandler(ex);
+            }
+
+            return returnValue;
         }
         /// <summary>
         /// Returns current job line of specified task
         /// </summary>
         /// <param name="TaskID">Task ID</param>
         /// <returns>Job line number</returns>
-        public short GetCurrentLine(short TaskID)
+        public short GetCurrentLine(short taskID)
         {
-            short ret;
+            short returnValue = -1;
 
-            lock (_robotAccessLock)
+            int taskWaitTimeCounter = 0;
+            Task<short> task = null;
+            int counterSendCommand = 0;
+            int maxSendCommands = 3;
+
+            try
             {
-                if (TaskID > 0)
+                if (taskID > 0)
                 {
-                    ret = Motocom.BscChangeTask(_robotHandler, TaskID);
-                    if (ret != 0)
+                    #region
+
+                    if (_actualRobotStatus.IsCommandHold == true)
                     {
-                        throw new Exception("Error changing task !");
+                        HoldOff();
                     }
+
+                    lock (_robotAccessLock)
+                    {
+                        #region
+                        task = Task<short>.Factory.StartNew(() =>
+                                        {
+                                            //Return Value
+                                            //0 : Normal completion
+                                            //Others: Error codes
+                                            return Motocom.BscChangeTask(_robotHandler, taskID);
+                                        });
+
+                        taskWaitTimeCounter = 0;
+
+                        while (!task.IsCompleted)
+                        {
+                            #region
+                            taskWaitTimeCounter++;
+                            task.Wait(_motocom32FunctionsWaitTime);
+                            if (taskWaitTimeCounter > 10) //wait 500 msec maximum
+                            {
+                                break;
+                            }
+                            #endregion
+                        }
+
+                        if (task.IsCompleted)
+                        {
+                            #region
+                            returnValue = Convert.ToInt16(task.Result);
+                            //TODO:check return and send more if needed
+                            if (returnValue != 0)
+                            {
+                                #region
+                                counterSendCommand = 0;
+                                while (counterSendCommand < maxSendCommands)
+                                {
+                                    #region
+
+                                    counterSendCommand++;
+
+                                    task = Task<short>.Factory.StartNew(() =>
+                                    {
+                                        //Return Value
+                                        //0 : Normal completion
+                                        //Others: Error codes
+                                        return Motocom.BscChangeTask(_robotHandler, taskID);
+                                    });
+
+                                    taskWaitTimeCounter = 0;
+
+                                    while (!task.IsCompleted)
+                                    {
+                                        #region
+                                        taskWaitTimeCounter++;
+                                        task.Wait(_motocom32FunctionsWaitTime);
+                                        if (taskWaitTimeCounter > 10) //wait 500 msec maximum
+                                        {
+                                            break;
+                                        }
+                                        #endregion
+                                    }
+                                    if (task.IsCompleted)
+                                    {
+                                        returnValue = Convert.ToInt16(task.Result);
+                                        if (returnValue == 0)
+                                        {
+                                            break;
+                                        }
+                                    }
+                                    else
+                                    {
+                                        returnValue = -1;
+                                    }
+                                    #endregion
+                                }
+                                if (counterSendCommand == maxSendCommands)
+                                {
+                                    Debug.WriteLine("DX200::GetCurrentLine()::BscChangeTask()::Error::" + returnValue.ToString());
+                                }
+                                #endregion
+                            }
+                            #endregion
+                        }
+                        else
+                        {
+                            returnValue = -1;
+                        }
+
+                        if (returnValue == 0)
+                        {
+                            #region
+                            taskWaitTimeCounter = 0;
+                            counterSendCommand = 0;
+
+                            task = Task<short>.Factory.StartNew(() =>
+                            {
+                                //Return Value
+                                //-1 : Acquisition Failure
+                                //Others: Line numbers
+                                return Motocom.BscIsJobLine(_robotHandler);
+                            });
+
+                            taskWaitTimeCounter = 0;
+
+                            while (!task.IsCompleted)
+                            {
+                                #region
+                                taskWaitTimeCounter++;
+                                task.Wait(_motocom32FunctionsWaitTime);
+                                if (taskWaitTimeCounter > 10) //wait 500 msec maximum
+                                {
+                                    break;
+                                }
+                                #endregion
+                            }
+
+                            if (task.IsCompleted)
+                            {
+                                #region
+                                returnValue = Convert.ToInt16(task.Result);
+                                //TODO:check return and send more if needed
+                                if (returnValue < 0)
+                                {
+                                    #region
+                                    counterSendCommand = 0;
+                                    while (counterSendCommand < maxSendCommands)
+                                    {
+                                        #region
+
+                                        counterSendCommand++;
+
+                                        task = Task<short>.Factory.StartNew(() =>
+                                        {
+                                            //Return Value
+                                            //-1 : Acquisition Failure
+                                            //Others: Line numbers
+                                            return Motocom.BscIsJobLine(_robotHandler);
+                                        });
+
+                                        taskWaitTimeCounter = 0;
+
+                                        while (!task.IsCompleted)
+                                        {
+                                            #region
+                                            taskWaitTimeCounter++;
+                                            task.Wait(_motocom32FunctionsWaitTime);
+                                            if (taskWaitTimeCounter > 10) //wait 500 msec maximum
+                                            {
+                                                break;
+                                            }
+                                            #endregion
+                                        }
+                                        if (task.IsCompleted)
+                                        {
+                                            returnValue = Convert.ToInt16(task.Result);
+                                            if (returnValue > -1)
+                                            {
+                                                break;
+                                            }
+                                        }
+                                        else
+                                        {
+                                            returnValue = -1;
+                                        }
+                                        #endregion
+                                    }
+                                    if (counterSendCommand == maxSendCommands)
+                                    {
+                                        Debug.WriteLine("DX200::StartJob()::StartJob()::Error::" + returnValue.ToString());
+                                    }
+                                    #endregion
+                                }
+                                #endregion
+                            }
+                            else
+                            {
+                                returnValue = -1;
+                            }
+                            #endregion
+                        }
+                        #endregion
+                    }
+
+                    #endregion
                 }
-                ret = Motocom.BscIsJobLine(_robotHandler);
-                if (ret == -1)
-                    throw new Exception("Error getting current job line !");
+                else
+                {
+                    Debug.WriteLine("DX200::GetCurrentLine()::Error::Task ID not in range.");
+                }
             }
-            return ret;
+            catch (Exception ex)
+            {
+                returnValue = -1;
+                DiagnosticException.ExceptionHandler(ex);
+            }
+
+            return returnValue;
         }
         /// <summary>
         /// Starts operation from the current line of current job
         /// </summary>
-        public short Start()
+        public short ContinueJob()
         {
-            short returnValue = -1;
+            short returnValue = 0;
+            int taskWaitTimeCounter = 0;
+            Task<short> task = null;
+            int counterSendCommand = 0;
+            int maxSendCommands = 3;
 
             try
             {
                 lock (_robotAccessLock)
                 {
-                    returnValue = Motocom.BscContinueJob(_robotHandler);
+                    #region
+                    _actualRobotStatus.IsCommandHold = false;
+
+                    task = Task<short>.Factory.StartNew(() =>
+                    {
+                        //Return Value
+                        //0 : Normal completion
+                        //Others: Error codes
+                        return Motocom.BscContinueJob(_robotHandler);
+                    });
+
+                    taskWaitTimeCounter = 0;
+
+                    while (!task.IsCompleted)
+                    {
+                        #region
+                        taskWaitTimeCounter++;
+                        task.Wait(_motocom32FunctionsWaitTime);
+                        if (taskWaitTimeCounter > 10) //wait 1 second maximum
+                        {
+                            break;
+                        }
+                        #endregion
+                    }
+                    if (task.IsCompleted)
+                    {
+                        #region
+                        returnValue = Convert.ToInt16(task.Result);
+                        //TODO:check return and send more if needed
+                        if (returnValue != 0)
+                        {
+                            #region
+                            counterSendCommand = 0;
+                            while (counterSendCommand < maxSendCommands)
+                            {
+                                #region
+
+                                counterSendCommand++;
+
+                                task = Task<short>.Factory.StartNew(() =>
+                                {
+                                    //Return Value
+                                    //0 : Normal completion
+                                    //Others: Error codes
+                                    return Motocom.BscContinueJob(_robotHandler);
+                                });
+
+                                taskWaitTimeCounter = 0;
+
+                                while (!task.IsCompleted)
+                                {
+                                    #region
+                                    taskWaitTimeCounter++;
+                                    task.Wait(_motocom32FunctionsWaitTime);
+                                    if (taskWaitTimeCounter > 10) //wait 1 second maximum
+                                    {
+                                        break;
+                                    }
+                                    #endregion
+                                }
+                                if (task.IsCompleted)
+                                {
+                                    returnValue = Convert.ToInt16(task.Result);
+                                    if (returnValue == 0)
+                                    {
+                                        break;
+                                    }
+                                }
+                                else
+                                {
+                                    returnValue = -1;
+                                }
+                                #endregion
+                            }
+                            if (counterSendCommand == maxSendCommands)
+                            {
+                                Debug.WriteLine("DX200::ContinueJob()::Error::" + returnValue.ToString());
+                            }
+                            #endregion
+                        }
+                        #endregion
+                    }
+                    else
+                    {
+                        returnValue = -1;
+                    }
+                    #endregion
                 }
+            }
+            catch (Exception ex)
+            {
+                returnValue = -1;
+                DiagnosticException.ExceptionHandler(ex);
+            }
+
+            return returnValue;
+        }
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="fileName"></param>
+        /// <returns></returns>
+        public short CreateJobFile(string fileName)
+        {
+            short returnValue = 0;
+
+            try
+            {
+                _actualJobFile.FileName = @"D:\Program Files\ScanMaster\IRTUSScanner\JobFiles\" + fileName;
+                _actualJobFile.SerializeJointsPulseTrajectory(_actualTrajectory);
+            }
+            catch (Exception ex)
+            {
+                returnValue = -1;
+                DiagnosticException.ExceptionHandler(ex);
+            }
+
+            return returnValue;
+        }
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="fileName"></param>
+        /// <returns></returns>
+        public short DownloadJobFile(string fileName)
+        {
+            short returnValue = 0;
+
+            try
+            {
+                WriteFile(@"D:\Program Files\ScanMaster\IRTUSScanner\JobFiles\" + fileName);
             }
             catch (Exception ex)
             {
@@ -5876,6 +7163,27 @@ namespace YaskawaNet
 
             return returnValue;
         }
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <returns></returns>
+        public short CaptureTrajectoryPoint()
+        {
+            short returnValue = 0;
+
+            try
+            {
+                _actualTrajectory.Add(ReportedRobotJointPosition);
+            }
+            catch (Exception ex)
+            {
+                returnValue = -1;
+                DiagnosticException.ExceptionHandler(ex);
+            }
+
+            return returnValue;
+        }
+
         #endregion
 
         #region Threads
@@ -6049,7 +7357,7 @@ namespace YaskawaNet
                         #endregion
                     }
 
-                    Thread.Sleep(200);
+                    Thread.Sleep(300);
                 }
             }
             catch (Exception ex)
