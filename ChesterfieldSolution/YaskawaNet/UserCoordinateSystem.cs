@@ -16,6 +16,27 @@ namespace YaskawaNet
     public interface IUserCoordinateSystem
     {
         #region Properties
+
+        string UserCoordinateName
+        {
+            get;
+            set;
+        }
+        Configuration OrgForm
+        {
+            get;
+            set;
+        }
+        Configuration XxForm
+        {
+            get;
+            set;
+        }
+        Configuration XyForm
+        {
+            get;
+            set;
+        }
         double Org_X
         {
             get;
@@ -172,7 +193,11 @@ namespace YaskawaNet
     [ComVisible(true)]
     public class UserCoordinateSystem : IUserCoordinateSystem
     {
+        string _userCoordinateName = string.Empty;
         double[] _userCoordinateData = new double[28];
+        Configuration _orgForm = new Configuration(0);
+        Configuration _xxForm = new Configuration(0);
+        Configuration _xyForm = new Configuration(0);
 
         public UserCoordinateSystem
             (
@@ -257,6 +282,55 @@ namespace YaskawaNet
             userCoordinateData.CopyTo(_userCoordinateData, 0);
         }
 
+        public string UserCoordinateName
+        {
+            get
+            {
+                return _userCoordinateName;
+            }
+            set
+            {
+                _userCoordinateName = value;
+            }
+        }
+
+        public Configuration OrgForm
+        {
+            get
+            {
+                return _orgForm;
+            }
+            set
+            {
+                _orgForm = value;
+                _userCoordinateData[6] = _orgForm.Formcode;
+            }
+        }
+        public Configuration XxForm
+        {
+            get
+            {
+                return _xxForm;
+            }
+            set
+            {
+                _xxForm = value;
+                _userCoordinateData[13] = _xxForm.Formcode;
+            }
+        }
+        public Configuration XyForm
+        {
+            get
+            {
+                return _xyForm;
+            }
+            set
+            {
+                _xyForm = value;
+                _userCoordinateData[20] = _xyForm.Formcode;
+            }
+        }
+
         public double Org_X
         {
             get
@@ -332,6 +406,7 @@ namespace YaskawaNet
             set
             {
                 _userCoordinateData[6] = value;
+                _orgForm.Formcode = (byte)_userCoordinateData[6];
             }
         }
         public double XX_X
@@ -409,6 +484,7 @@ namespace YaskawaNet
             set
             {
                 _userCoordinateData[13] = value;
+                _xxForm.Formcode = (byte)_userCoordinateData[13];
             }
         }
         public double XY_X
@@ -486,6 +562,7 @@ namespace YaskawaNet
             set
             {
                 _userCoordinateData[20] = value;
+                _xyForm.Formcode = (byte)_userCoordinateData[20];
             }
         }
         public double ToolNumber

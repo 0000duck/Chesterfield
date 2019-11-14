@@ -152,6 +152,10 @@
     <None Include="YaskawaNet.pfx" />
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\..\..\NetDXF\netDxf\netDxf.csproj">
+      <Project>{785380e0-ceb9-4c34-82e5-60d0e33e848e}</Project>
+      <Name>netDxf</Name>
+    </ProjectReference>
     <ProjectReference Include="..\RoboDKAPI\RoboDkApi.csproj">
       <Project>{04a95c1b-05aa-4688-ac2e-035f08ccf33b}</Project>
       <Name>RoboDkApi</Name>

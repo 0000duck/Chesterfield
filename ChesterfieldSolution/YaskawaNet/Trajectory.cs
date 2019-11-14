@@ -20,7 +20,8 @@ namespace YaskawaNet
         public Vector<double> R { get; set; }
         public Vector<double> B { get; set; }
         public Vector<double> T { get; set; }
-        public Vector<double> EX7 { get; set; }
+        public Vector<double> EX7Pulse { get; set; }
+        public Vector<double> EX7Mm { get; set; }
         #endregion
 
         #region Linear trajectories
@@ -125,6 +126,7 @@ namespace YaskawaNet
         #endregion
 
         #region Methods
+
         public Trajectory()
         {
         }
@@ -162,7 +164,7 @@ namespace YaskawaNet
             List<double> r = R.ToList();
             List<double> b = B.ToList();
             List<double> t = T.ToList();
-            List<double> ex7 = EX7.ToList();
+            List<double> ex7Pulse = EX7Pulse.ToList();
 
             List<double> x = X.ToList();
             List<double> y = Y.ToList();
@@ -170,6 +172,7 @@ namespace YaskawaNet
             List<double> rx = Rx.ToList();
             List<double> ry = Ry.ToList();
             List<double> rz = Rz.ToList();
+            List<double> ex7Mm = EX7Mm.ToList();
 
             try
             {
@@ -180,6 +183,7 @@ namespace YaskawaNet
                 rx.Insert(index, item.Rx);
                 ry.Insert(index, item.Ry);
                 rz.Insert(index, item.Rz);
+                ex7Mm.Insert(index, item.E7Axis);
 
                 s.Insert(index, item.RobotPulsePositions[0]);
                 l.Insert(index, item.RobotPulsePositions[1]);
@@ -187,7 +191,7 @@ namespace YaskawaNet
                 r.Insert(index, item.RobotPulsePositions[3]);
                 b.Insert(index, item.RobotPulsePositions[4]);
                 t.Insert(index, item.RobotPulsePositions[5]);
-                ex7.Insert(index, item.RobotPulsePositions[6]);
+                ex7Pulse.Insert(index, item.RobotPulsePositions[6]);
 
                 X = Vector<double>.Build.Dense(x.ToArray());
                 Y = Vector<double>.Build.Dense(y.ToArray());
@@ -195,6 +199,7 @@ namespace YaskawaNet
                 Rx = Vector<double>.Build.Dense(rx.ToArray());
                 Ry = Vector<double>.Build.Dense(ry.ToArray());
                 Rz = Vector<double>.Build.Dense(rz.ToArray());
+                EX7Mm = Vector<double>.Build.Dense(ex7Mm.ToArray());
 
                 S = Vector<double>.Build.Dense(s.ToArray());
                 L = Vector<double>.Build.Dense(l.ToArray());
@@ -202,7 +207,7 @@ namespace YaskawaNet
                 R = Vector<double>.Build.Dense(r.ToArray());
                 B = Vector<double>.Build.Dense(b.ToArray());
                 T = Vector<double>.Build.Dense(t.ToArray());
-                EX7 = Vector<double>.Build.Dense(ex7.ToArray());
+                EX7Pulse = Vector<double>.Build.Dense(ex7Pulse.ToArray());
                 #endregion
             }
             catch (Exception ex)
@@ -218,7 +223,7 @@ namespace YaskawaNet
             List<double> r = R.ToList();
             List<double> b = B.ToList();
             List<double> t = T.ToList();
-            List<double> ex7 = EX7.ToList();
+            List<double> ex7Pulse = EX7Pulse.ToList();
 
             List<double> x = X.ToList();
             List<double> y = Y.ToList();
@@ -226,6 +231,7 @@ namespace YaskawaNet
             List<double> rx = Rx.ToList();
             List<double> ry = Ry.ToList();
             List<double> rz = Rz.ToList();
+            List<double> ex7Mm = EX7Mm.ToList();
 
             try
             {
@@ -236,7 +242,7 @@ namespace YaskawaNet
                 r.RemoveAt(index);
                 b.RemoveAt(index);
                 t.RemoveAt(index);
-                ex7.RemoveAt(index);
+                ex7Pulse.RemoveAt(index);
 
                 x.RemoveAt(index);
                 y.RemoveAt(index);
@@ -244,6 +250,7 @@ namespace YaskawaNet
                 rx.RemoveAt(index);
                 ry.RemoveAt(index);
                 rz.RemoveAt(index);
+                ex7Mm.RemoveAt(index);
 
                 S = Vector<double>.Build.Dense(s.ToArray());
                 L = Vector<double>.Build.Dense(l.ToArray());
@@ -251,7 +258,7 @@ namespace YaskawaNet
                 R = Vector<double>.Build.Dense(r.ToArray());
                 B = Vector<double>.Build.Dense(b.ToArray());
                 T = Vector<double>.Build.Dense(t.ToArray());
-                EX7 = Vector<double>.Build.Dense(ex7.ToArray());
+                EX7Pulse = Vector<double>.Build.Dense(ex7Pulse.ToArray());
 
                 X = Vector<double>.Build.Dense(x.ToArray());
                 Y = Vector<double>.Build.Dense(y.ToArray());
@@ -259,6 +266,7 @@ namespace YaskawaNet
                 Rx = Vector<double>.Build.Dense(rx.ToArray());
                 Ry = Vector<double>.Build.Dense(ry.ToArray());
                 Rz = Vector<double>.Build.Dense(rz.ToArray());
+                EX7Mm = Vector<double>.Build.Dense(ex7Mm.ToArray());
                 #endregion
             }
             catch (Exception ex)
@@ -287,7 +295,9 @@ namespace YaskawaNet
                     R = Vector<double>.Build.Dense(1);
                     B = Vector<double>.Build.Dense(1);
                     T = Vector<double>.Build.Dense(1);
-                    EX7 = Vector<double>.Build.Dense(1);
+
+                    EX7Pulse = Vector<double>.Build.Dense(1);
+                    EX7Mm = Vector<double>.Build.Dense(1);
 
                     X[0] = item.X;
                     Y[0] = item.Y;
@@ -295,6 +305,7 @@ namespace YaskawaNet
                     Rx[0] = item.Rx;
                     Ry[0] = item.Ry;
                     Rz[0] = item.Rz;
+                    EX7Mm[0] = item.E7Axis;
 
                     S[0] = item.RobotPulsePositions[0];
                     L[0] = item.RobotPulsePositions[1];
@@ -302,7 +313,8 @@ namespace YaskawaNet
                     R[0] = item.RobotPulsePositions[3];
                     B[0] = item.RobotPulsePositions[4];
                     T[0] = item.RobotPulsePositions[5];
-                    EX7[0] = item.RobotPulsePositions[6];
+
+                    EX7Pulse[0] = item.RobotPulsePositions[6];
                     #endregion
                 }
                 else
@@ -327,7 +339,7 @@ namespace YaskawaNet
                 R.Clear();
                 B.Clear();
                 T.Clear();
-                EX7.Clear();
+                EX7Pulse.Clear();
 
                 X.Clear();
                 Y.Clear();
@@ -335,6 +347,7 @@ namespace YaskawaNet
                 Rx.Clear();
                 Ry.Clear();
                 Rz.Clear();
+                EX7Mm.Clear();
                 #endregion
             }
             catch (Exception ex)
@@ -382,7 +395,7 @@ namespace YaskawaNet
                 inverseTrajectory.R = Vector<double>.Build.Dense(length);
                 inverseTrajectory.B = Vector<double>.Build.Dense(length);
                 inverseTrajectory.T = Vector<double>.Build.Dense(length);
-                inverseTrajectory.EX7 = Vector<double>.Build.Dense(length);
+                inverseTrajectory.EX7Pulse = Vector<double>.Build.Dense(length);
 
                 inverseTrajectory.X = Vector<double>.Build.Dense(length);
                 inverseTrajectory.Y = Vector<double>.Build.Dense(length);
@@ -390,6 +403,7 @@ namespace YaskawaNet
                 inverseTrajectory.Rx = Vector<double>.Build.Dense(length);
                 inverseTrajectory.Ry = Vector<double>.Build.Dense(length);
                 inverseTrajectory.Rz = Vector<double>.Build.Dense(length);
+                inverseTrajectory.EX7Mm = Vector<double>.Build.Dense(length);
 
                 //inverse the original trajectory into the new trajectory.
                 for (int i = 0; i < length; i++)
@@ -403,7 +417,7 @@ namespace YaskawaNet
                     inverseTrajectory.R[i] = this.R[index];
                     inverseTrajectory.B[i] = this.B[index];
                     inverseTrajectory.T[i] = this.T[index];
-                    inverseTrajectory.EX7[i] = this.EX7[index];
+                    inverseTrajectory.EX7Pulse[i] = this.EX7Pulse[index];
 
                     inverseTrajectory.X[i] = this.X[index];
                     inverseTrajectory.Y[i] = this.Y[index];
@@ -411,6 +425,7 @@ namespace YaskawaNet
                     inverseTrajectory.Rx[i] = this.Rx[index];
                     inverseTrajectory.Ry[i] = this.Ry[index];
                     inverseTrajectory.Rz[i] = this.Rz[index];
+                    inverseTrajectory.EX7Mm[i] = this.EX7Mm[index];
                     #endregion
                 }
                 #endregion
@@ -440,7 +455,7 @@ namespace YaskawaNet
                     clonedTrajectory.R[i] = this.R[i];
                     clonedTrajectory.B[i] = this.B[i];
                     clonedTrajectory.T[i] = this.T[i];
-                    clonedTrajectory.EX7[i] = this.EX7[i];
+                    clonedTrajectory.EX7Pulse[i] = this.EX7Pulse[i];
 
                     clonedTrajectory.X[i] = this.X[i];
                     clonedTrajectory.Y[i] = this.Y[i];
@@ -448,6 +463,7 @@ namespace YaskawaNet
                     clonedTrajectory.Rx[i] = this.Rx[i];
                     clonedTrajectory.Ry[i] = this.Ry[i];
                     clonedTrajectory.Rz[i] = this.Rz[i];
+                    clonedTrajectory.EX7Mm[i] = this.EX7Mm[i];
                     #endregion
                 }
             }
@@ -461,7 +477,8 @@ namespace YaskawaNet
         object ICloneable.Clone()
         {
             return Clone();
-        } 
+        }
+
         #endregion
     }
 }

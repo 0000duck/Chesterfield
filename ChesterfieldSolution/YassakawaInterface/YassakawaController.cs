@@ -30,14 +30,14 @@ namespace YassakawaInterface
         /// </summary>
         public void ServoOn()
         {
-            m_cDX200.SetServoOn();
+            m_cDX200.ServoOn();
         }
         /// <summary>
         /// Setting the robot servo off.
         /// </summary>
         public void ServoOff()
         {
-            m_cDX200.SetServoOff();
+            m_cDX200.ServoOff();
         }
         /// <summary>
         /// Gets te servo status.

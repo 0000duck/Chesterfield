@@ -20,10 +20,16 @@ namespace RoboDk.API
         }
         public static void LogToFile(string message)
         {
-            lock (_lockFile)
+            try
             {
-                File.AppendAllText(new FileInfo(AppDomain.CurrentDomain.BaseDirectory).Directory.Parent.FullName + "\\YaskawaNetLogs\\" +
-                     "Log.txt", message + Environment.NewLine);
+                lock (_lockFile)
+                {
+                    File.AppendAllText(AppDomain.CurrentDomain.BaseDirectory + "YaskawaNet\\YaskawaNetLogs\\" + "Log.txt", message + Environment.NewLine);
+                }
+            }
+            catch (Exception ex)
+            {
+
             }
         }
     }
