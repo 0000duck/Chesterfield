@@ -109,4 +109,11 @@ namespace YaskawaNet
         [MarshalAs(UnmanagedType.I4)]
         public ConnectionStatus connectionStatus;
     }
+    [ComVisible(true)]
+    public enum RoboDKMode
+    {
+       StandAlone,
+       FollowRealRobot,
+       CCIControlled
+    }
 }

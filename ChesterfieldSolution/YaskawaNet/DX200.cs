@@ -20,6 +20,8 @@ using RoboDk.API.Exceptions;
 
 using netDxf;
 
+using System.Configuration;
+
 namespace YaskawaNet
 {
     /// <summary>
@@ -176,6 +178,20 @@ namespace YaskawaNet
             set;
         }
 
+        string CurrentJobFileName
+        {
+            [return: MarshalAs(UnmanagedType.BStr)]
+            get;
+            [param: MarshalAs(UnmanagedType.BStr)]
+            set;
+        }
+
+        short CurrentLineNumber
+        {
+            get;
+            set;
+        }
+
         #endregion
 
         #region Methods
@@ -216,7 +232,10 @@ namespace YaskawaNet
         short DeleteJob([MarshalAs(UnmanagedType.BStr)]string fileName);
         short ContinueJob();
         short GetCurrentLine(short taskID);
+        short SetCurrentLine(short line);
         short SetCurrentJob(short taskID, [MarshalAs(UnmanagedType.BStr)]string fileName, short lineNumber);
+        [return: MarshalAs(UnmanagedType.BStr)]
+        string GetCurrentJobName();
 
         short SetUserFrame();
 
@@ -354,11 +373,13 @@ namespace YaskawaNet
         Thread _getPositionsThread = null;
         Thread _getStatusThread = null;
         Thread _getAlarmsThread = null;
+        Thread _getJobFileStatusThread = null;
         Thread _simulatorSyncThread = null;
 
         volatile bool _getPositionsThreadRun = false;
         volatile bool _getStatusThreadRun = false;
         volatile bool _getAlarmsThreadRun = false;
+        volatile bool _getJobFileStatusRun = false;
         volatile bool _simulatorSyncThreadRun = false;
 
         #endregion
@@ -432,6 +453,8 @@ namespace YaskawaNet
         Trajectory _actualJointsTrajectory = new Trajectory();
         Trajectory _actualTCPTrajectory = new Trajectory();
         JobFile _actualJobFile = new JobFile();
+        string _currentJobFileName = string.Empty;
+        short _currentLineNumber = 0;
 
         #endregion
 
@@ -1022,6 +1045,31 @@ namespace YaskawaNet
             }
         }
 
+        public string CurrentJobFileName
+        {
+            get
+            {
+                return _currentJobFileName;
+            }
+            set
+            {
+                _currentJobFileName = value;
+                OnNotifyPropertyChanged();
+            }
+        }
+        public short CurrentLineNumber
+        {
+            get
+            {
+                return _currentLineNumber;
+            }
+            set
+            {
+                _currentLineNumber = value;
+                OnNotifyPropertyChanged();
+            }
+        }
+
         #endregion
 
         #region Constructor
@@ -1084,6 +1132,10 @@ namespace YaskawaNet
                 _getAlarmsThread = new Thread(new ThreadStart(GetAlarmsThread));
                 _getAlarmsThread.IsBackground = true;
                 _getAlarmsThread.Priority = ThreadPriority.Normal;
+
+                _getJobFileStatusThread = new Thread(new ThreadStart(GetJobFileStatusThread));
+                _getJobFileStatusThread.IsBackground = true;
+                _getJobFileStatusThread.Priority = ThreadPriority.Normal;
 
                 _simulatorSyncThread = new Thread(new ThreadStart(SimulatorSyncThread));
                 _simulatorSyncThread.IsBackground = true;
@@ -1305,12 +1357,6 @@ namespace YaskawaNet
                         returnValue = -1;
                     }
 
-                    // _actualJobFile.TargetFileName = @"D:\Program Files\ScanMaster\IRTUSScanner\JobFiles\ACTUAL.JBI";
-                    //_actualJobFile.SerializeTrajectory(_actualTrajectory);
-                    //WriteFile(@"D:\Program Files\ScanMaster\IRTUSScanner\JobFiles\ACTUAL.JBI");
-                    //returnValue = Motocom.BscSelectJob(_robotHandler, "ACTUAL.JBI");
-                    //returnValue = Motocom.BscStartJob(_robotHandler);
-
                     _communicationStatus.connected = (returnValue > 0) ? true : false;
 
                     if (_communicationStatus.connected == true)
@@ -1320,10 +1366,12 @@ namespace YaskawaNet
                         _getStatusThreadRun = true;
                         _getPositionsThreadRun = true;
                         _getAlarmsThreadRun = true;
+                        _getJobFileStatusRun = true;
 
                         _getStatusThread.Start();
                         _getPositionsThread.Start();
                         _getAlarmsThread.Start();
+                        _getJobFileStatusThread.Start();
                     }
                     #endregion
                 }
@@ -1440,6 +1488,7 @@ namespace YaskawaNet
                         _getStatusThreadRun = false;
                         _getPositionsThreadRun = false;
                         _getAlarmsThreadRun = false;
+                        _getJobFileStatusRun = false;
                     }
                     #endregion
                 }
@@ -1468,7 +1517,7 @@ namespace YaskawaNet
             {
                 #region
 
-                DxfDocument dxf = DxfDocument.Load("F:\\Yaskawa\\1304M1C.dxf");
+                //DxfDocument dxf = DxfDocument.Load("F:\\Yaskawa\\1304M1C.dxf");
 
                 task = Task<short>.Factory.StartNew(() =>
                        {
@@ -1744,7 +1793,9 @@ namespace YaskawaNet
 
                 ActualRobotJointPosition.Limits = DesiredRobotJointPosition.Limits = new double[12][]
                 {
-                    new double [2]{ -180.0,180.0 } , //S degree
+                   #region
+
+		            new double [2]{ -180.0,180.0 } , //S degree
                     new double [2]{-105.0,155.0 } , //L degree
                     new double [2]{-80.0,160.0 } , //U degree
                     new double [2]{-200.0,200.0 } , //R degree
@@ -1755,11 +1806,15 @@ namespace YaskawaNet
                     new double [2]{0,0},
                     new double [2]{0,0},
                     new double [2]{0,0},
-                    new double [2]{0,0}
+                    new double [2]{0,0} 
+
+	                #endregion
                 };
                 ActualRobotTCPPosition.Limits = DesiredRobotTCPPosition.Limits = new double[12][]
                 {
-                    new double [2]{ -500,500  } , //X mm
+                    #region 
+
+		            new double [2]{ -500,500  } , //X mm
                     new double [2]{ -500, 500 } , //Y mm
                     new double [2]{ -505, 900 } , //Z mm
                     new double [2]{ -180, 180 } , //Rx degree
@@ -1770,13 +1825,84 @@ namespace YaskawaNet
                     new double [2]{0,0},
                     new double [2]{0,0},
                     new double [2]{0,0},
-                    new double [2]{0,0}
+                    new double [2]{0,0} 
+
+	                #endregion
                 };
+
+                //Open the configuration file using the dll location
+                System.Configuration.Configuration yaskawaNetDllConfiguration = ConfigurationManager.OpenExeConfiguration(this.GetType().Assembly.Location);
+                // Get the appSettings section
+                AppSettingsSection yaskawaNetDllConfigAppSettings = (AppSettingsSection)yaskawaNetDllConfiguration.GetSection("appSettings");
+                if (yaskawaNetDllConfigAppSettings != null)
+                {
+                    #region
+                    ActualRobotJointPosition.Limits[0] = DesiredRobotJointPosition.Limits[0] =
+                                   new double[2]
+                                   {
+                            Convert.ToDouble(yaskawaNetDllConfigAppSettings.Settings["SJointLimitMin"].Value),
+                            Convert.ToDouble(yaskawaNetDllConfigAppSettings.Settings["SJointLimitMax"].Value )
+                                   };
+
+                    ActualRobotJointPosition.Limits[1] = DesiredRobotJointPosition.Limits[1] =
+                        new double[2]
+                        {
+                            Convert.ToDouble(yaskawaNetDllConfigAppSettings.Settings["LJointLimitMin"].Value),
+                            Convert.ToDouble(yaskawaNetDllConfigAppSettings.Settings["LJointLimitMax"].Value )
+                        };
+
+                    ActualRobotJointPosition.Limits[2] = DesiredRobotJointPosition.Limits[2] =
+                        new double[2]
+                        {
+                            Convert.ToDouble(yaskawaNetDllConfigAppSettings.Settings["UJointLimitMin"].Value),
+                            Convert.ToDouble(yaskawaNetDllConfigAppSettings.Settings["UJointLimitMax"].Value )
+                        };
+
+                    ActualRobotJointPosition.Limits[3] = DesiredRobotJointPosition.Limits[3] =
+                        new double[2]
+                        {
+                            Convert.ToDouble(yaskawaNetDllConfigAppSettings.Settings["RJointLimitMin"].Value),
+                            Convert.ToDouble(yaskawaNetDllConfigAppSettings.Settings["RJointLimitMax"].Value )
+                        };
+
+                    ActualRobotJointPosition.Limits[4] = DesiredRobotJointPosition.Limits[4] =
+                        new double[2]
+                        {
+                            Convert.ToDouble(yaskawaNetDllConfigAppSettings.Settings["BJointLimitMin"].Value),
+                            Convert.ToDouble(yaskawaNetDllConfigAppSettings.Settings["BJointLimitMax"].Value )
+                        };
+
+                    ActualRobotJointPosition.Limits[5] = DesiredRobotJointPosition.Limits[5] =
+                        new double[2]
+                        {
+                            Convert.ToDouble(yaskawaNetDllConfigAppSettings.Settings["TJointLimitMin"].Value),
+                            Convert.ToDouble(yaskawaNetDllConfigAppSettings.Settings["TJointLimitMax"].Value )
+                        };
+
+                    ActualRobotJointPosition.Limits[6] = DesiredRobotJointPosition.Limits[6] =
+                        new double[2]
+                        {
+                            Convert.ToDouble(yaskawaNetDllConfigAppSettings.Settings["TrackLimitMin"].Value),
+                            Convert.ToDouble(yaskawaNetDllConfigAppSettings.Settings["TrackLimitMax"].Value )
+                        };
+
+                    ActualRobotJointPosition.Limits[7] = DesiredRobotJointPosition.Limits[7] =
+                        new double[2]
+                        {
+                            Convert.ToDouble(yaskawaNetDllConfigAppSettings.Settings["TurntableLimitMin"].Value),
+                            Convert.ToDouble(yaskawaNetDllConfigAppSettings.Settings["TurntableLimitMax"].Value )
+                        }; 
+                    #endregion
+                }
 
                 _actualUserCoordinateSystem.UserCoordinateName = "UF1";
                 _actualUserCoordinateSystem.XX_X = 1000;
                 _actualUserCoordinateSystem.XY_Y = 500;
                 SetUserFrame();
+
+                //ReadFile(AppDomain.CurrentDomain.BaseDirectory + "YaskawaNet\\ConfigurationFiles\\SC.PRM");
+
+                //string jobName = GetCurrentJobName();
 
                 #endregion
             }
@@ -2240,7 +2366,7 @@ namespace YaskawaNet
         /// 
         /// </summary>
         /// <param name="file"></param>
-        public void ReadFile(string file)
+        public short ReadFile(string file)
         {
             short returnValue = 0;
 
@@ -2354,14 +2480,17 @@ namespace YaskawaNet
             }
             catch (Exception ex)
             {
+                returnValue = -1;
                 DiagnosticException.ExceptionHandler(ex);
             }
+
+            return returnValue;
         }
         /// <summary>
         /// 
         /// </summary>
         /// <param name="file"></param>
-        public void WriteFile(string file)
+        public short WriteFile(string file)
         {
             short returnValue = 0;
 
@@ -2474,8 +2603,11 @@ namespace YaskawaNet
             }
             catch (Exception ex)
             {
+                returnValue = -1;
                 DiagnosticException.ExceptionHandler(ex);
             }
+
+            return returnValue;
         }
         /// <summary>
         /// 
@@ -3537,6 +3669,125 @@ namespace YaskawaNet
         /// <summary>
         /// 
         /// </summary>
+        /// <param name="line"></param>
+        /// <returns></returns>
+        public short SetCurrentLine(short line)
+        {
+            short returnValue = -1;
+
+            int taskWaitTimeCounter = 0;
+            Task<short> task = null;
+            int counterSendCommand = 0;
+            int maxSendCommands = 3;
+
+            try
+            {
+                #region
+
+                lock (_robotAccessLock)
+                {
+                    #region
+                    task = Task<short>.Factory.StartNew(() =>
+                    {
+                        //Return Value
+                        //0 : Normal completion
+                        //Others: Error codes
+                        return Motocom.BscSetLineNumber(_robotHandler, line);
+                    });
+
+                    taskWaitTimeCounter = 0;
+
+                    while (!task.IsCompleted)
+                    {
+                        #region
+                        taskWaitTimeCounter++;
+                        task.Wait(_motocom32FunctionsWaitTime);
+                        if (taskWaitTimeCounter > 10) //wait 500 msec maximum
+                        {
+                            break;
+                        }
+                        #endregion
+                    }
+
+                    if (task.IsCompleted)
+                    {
+                        #region
+                        returnValue = Convert.ToInt16(task.Result);
+                        //TODO:check return and send more if needed
+                        if (returnValue != 0)
+                        {
+                            #region
+                            counterSendCommand = 0;
+                            while (counterSendCommand < maxSendCommands)
+                            {
+                                #region
+
+                                counterSendCommand++;
+
+                                task = Task<short>.Factory.StartNew(() =>
+                                {
+                                    //Return Value
+                                    //0 : Normal completion
+                                    //Others: Error codes
+                                    return Motocom.BscSetLineNumber(_robotHandler, line);
+                                });
+
+                                taskWaitTimeCounter = 0;
+
+                                while (!task.IsCompleted)
+                                {
+                                    #region
+                                    taskWaitTimeCounter++;
+                                    task.Wait(_motocom32FunctionsWaitTime);
+                                    if (taskWaitTimeCounter > 10) //wait 500 msec maximum
+                                    {
+                                        break;
+                                    }
+                                    #endregion
+                                }
+                                if (task.IsCompleted)
+                                {
+                                    returnValue = Convert.ToInt16(task.Result);
+                                    if (returnValue == 0)
+                                    {
+                                        break;
+                                    }
+                                }
+                                else
+                                {
+                                    returnValue = -1;
+                                }
+                                #endregion
+                            }
+                            if (counterSendCommand == maxSendCommands)
+                            {
+                                Debug.WriteLine("DX200::SetCurrentLine()::Error::" + returnValue.ToString());
+                            }
+                            #endregion
+                        }
+                        #endregion
+                    }
+                    else
+                    {
+                        returnValue = -1;
+                    }
+
+                    #endregion
+                }
+
+                #endregion
+            }
+            catch (Exception ex)
+            {
+                returnValue = -1;
+                DiagnosticException.ExceptionHandler(ex);
+            }
+
+            return returnValue;
+        }
+        /// <summary>
+        /// 
+        /// </summary>
         /// <returns></returns>
         public short ContinueJob()
         {
@@ -3551,7 +3802,6 @@ namespace YaskawaNet
                 lock (_robotAccessLock)
                 {
                     #region
-                    _actualRobotStatus.IsCommandHold = false;
 
                     task = Task<short>.Factory.StartNew(() =>
                     {
@@ -3682,6 +3932,361 @@ namespace YaskawaNet
             try
             {
                 WriteFile(AppDomain.CurrentDomain.BaseDirectory + "YaskawaNet\\JobFiles\\" + fileName);
+            }
+            catch (Exception ex)
+            {
+                returnValue = -1;
+                DiagnosticException.ExceptionHandler(ex);
+            }
+
+            return returnValue;
+        }
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <returns></returns>
+        public string GetCurrentJobName()
+        {
+            short returnValue = -1;
+            StringBuilder _currentJobName = new StringBuilder(Motocom.MaxJobNameLength + 1);
+
+            int taskWaitTimeCounter = 0;
+            Task<short> task = null;
+            int counterSendCommand = 0;
+            int maxSendCommands = 3;
+
+            try
+            {
+                lock (_robotAccessLock)
+                {
+                    #region
+
+                    task = Task<short>.Factory.StartNew(() =>
+                    {
+                        //Return Value
+                        //-1 : Acquisition Failure
+                        //0 : Normal completion
+                        return Motocom.BscIsJobName(_robotHandler, _currentJobName, (short)_currentJobName.Length);
+                    });
+
+                    taskWaitTimeCounter = 0;
+
+                    while (!task.IsCompleted)
+                    {
+                        #region
+                        taskWaitTimeCounter++;
+                        task.Wait(_motocom32FunctionsWaitTime);
+                        if (taskWaitTimeCounter > 10) //wait 500 msec maximum
+                        {
+                            break;
+                        }
+                        #endregion
+                    }
+
+                    if (task.IsCompleted)
+                    {
+                        #region
+                        returnValue = Convert.ToInt16(task.Result);
+                        //TODO:check return and send more if needed
+                        if (returnValue != 0)
+                        {
+                            #region
+                            counterSendCommand = 0;
+                            while (counterSendCommand < maxSendCommands)
+                            {
+                                #region
+
+                                counterSendCommand++;
+
+                                task = Task<short>.Factory.StartNew(() =>
+                                {
+                                    //Return Value
+                                    //-1 : Acquisition Failure
+                                    //0 : Normal completion
+                                    return Motocom.BscIsJobName(_robotHandler, _currentJobName, (short)_currentJobName.Length);
+                                });
+
+                                taskWaitTimeCounter = 0;
+
+                                while (!task.IsCompleted)
+                                {
+                                    #region
+                                    taskWaitTimeCounter++;
+                                    task.Wait(_motocom32FunctionsWaitTime);
+                                    if (taskWaitTimeCounter > 10) //wait 500 msec maximum
+                                    {
+                                        break;
+                                    }
+                                    #endregion
+                                }
+                                if (task.IsCompleted)
+                                {
+                                    returnValue = Convert.ToInt16(task.Result);
+                                    if (returnValue == 0)
+                                    {
+                                        break;
+                                    }
+                                }
+                                else
+                                {
+                                    returnValue = -1;
+                                }
+                                #endregion
+                            }
+                            if (counterSendCommand == maxSendCommands)
+                            {
+                                Debug.WriteLine("DX200::GetCurrentJobName()::Error::" + returnValue.ToString());
+                            }
+                            #endregion
+                        }
+                        #endregion
+                    }
+                    else
+                    {
+                        returnValue = -1;
+                    }
+
+                    #endregion
+                }
+            }
+            catch (Exception ex)
+            {
+                returnValue = -1;
+                DiagnosticException.ExceptionHandler(ex);
+            }
+
+            return (returnValue == 0) ? _currentJobName.ToString() : string.Empty;
+        }
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="flleName"></param>
+        /// <param name="frameName"></param>
+        /// <returns></returns>
+        public short ConvertPulseJobToRelative(string flleName, string frameName)
+        {
+            short returnValue = -1;
+            StringBuilder _fileName = new StringBuilder(flleName);
+            StringBuilder _frameName = new StringBuilder(frameName);
+
+            int taskWaitTimeCounter = 0;
+            Task<short> task = null;
+            int counterSendCommand = 0;
+            int maxSendCommands = 3;
+
+            try
+            {
+                lock (_robotAccessLock)
+                {
+                    #region
+
+                    task = Task<short>.Factory.StartNew(() =>
+                    {
+                        //Return Value
+                        //0 : Normal completion
+                        //Others: Error codes
+                        return Motocom.BscConvertJobP2R(_robotHandler, _fileName, _frameName);
+                    });
+
+                    taskWaitTimeCounter = 0;
+
+                    while (!task.IsCompleted)
+                    {
+                        #region
+                        taskWaitTimeCounter++;
+                        task.Wait(_motocom32FunctionsWaitTime);
+                        if (taskWaitTimeCounter > 10) //wait 500 msec maximum
+                        {
+                            break;
+                        }
+                        #endregion
+                    }
+
+                    if (task.IsCompleted)
+                    {
+                        #region
+                        returnValue = Convert.ToInt16(task.Result);
+                        //TODO:check return and send more if needed
+                        if (returnValue != 0)
+                        {
+                            #region
+                            counterSendCommand = 0;
+                            while (counterSendCommand < maxSendCommands)
+                            {
+                                #region
+
+                                counterSendCommand++;
+
+                                task = Task<short>.Factory.StartNew(() =>
+                                {
+                                    //Return Value
+                                    //0 : Normal completion
+                                    //Others: Error codes
+                                    return Motocom.BscConvertJobP2R(_robotHandler, _fileName, _frameName);
+                                });
+
+                                taskWaitTimeCounter = 0;
+
+                                while (!task.IsCompleted)
+                                {
+                                    #region
+                                    taskWaitTimeCounter++;
+                                    task.Wait(_motocom32FunctionsWaitTime);
+                                    if (taskWaitTimeCounter > 10) //wait 500 msec maximum
+                                    {
+                                        break;
+                                    }
+                                    #endregion
+                                }
+                                if (task.IsCompleted)
+                                {
+                                    returnValue = Convert.ToInt16(task.Result);
+                                    if (returnValue == 0)
+                                    {
+                                        break;
+                                    }
+                                }
+                                else
+                                {
+                                    returnValue = -1;
+                                }
+                                #endregion
+                            }
+                            if (counterSendCommand == maxSendCommands)
+                            {
+                                Debug.WriteLine("DX200::ConvertPulseJobToRelative()::Error::" + returnValue.ToString());
+                            }
+                            #endregion
+                        }
+                        #endregion
+                    }
+                    else
+                    {
+                        returnValue = -1;
+                    }
+
+                    #endregion
+                }
+            }
+            catch (Exception ex)
+            {
+                returnValue = -1;
+                DiagnosticException.ExceptionHandler(ex);
+            }
+
+            return returnValue;
+        }
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="flleName"></param>
+        /// <param name="conversionMethod"></param>
+        /// <param name="referencePosition"></param>
+        /// <returns></returns>
+        public short ConvertRelativeJobToPulse(string flleName, short conversionMethod, string referencePosition)
+        {
+            short returnValue = -1;
+            StringBuilder _fileName = new StringBuilder(flleName);
+            StringBuilder _referencePosition = new StringBuilder(referencePosition);
+
+            int taskWaitTimeCounter = 0;
+            Task<short> task = null;
+            int counterSendCommand = 0;
+            int maxSendCommands = 3;
+
+            try
+            {
+                lock (_robotAccessLock)
+                {
+                    #region
+
+                    task = Task<short>.Factory.StartNew(() =>
+                    {
+                        //Return Value
+                        //0 : Normal completion
+                        //Others: Error codes
+                        return Motocom.BscConvertJobR2P(_robotHandler, _fileName, conversionMethod, _referencePosition);
+                    });
+
+                    taskWaitTimeCounter = 0;
+
+                    while (!task.IsCompleted)
+                    {
+                        #region
+                        taskWaitTimeCounter++;
+                        task.Wait(_motocom32FunctionsWaitTime);
+                        if (taskWaitTimeCounter > 10) //wait 500 msec maximum
+                        {
+                            break;
+                        }
+                        #endregion
+                    }
+
+                    if (task.IsCompleted)
+                    {
+                        #region
+                        returnValue = Convert.ToInt16(task.Result);
+                        //TODO:check return and send more if needed
+                        if (returnValue != 0)
+                        {
+                            #region
+                            counterSendCommand = 0;
+                            while (counterSendCommand < maxSendCommands)
+                            {
+                                #region
+
+                                counterSendCommand++;
+
+                                task = Task<short>.Factory.StartNew(() =>
+                                {
+                                    //Return Value
+                                    //0 : Normal completion
+                                    //Others: Error codes
+                                    return Motocom.BscConvertJobR2P(_robotHandler, _fileName, conversionMethod, _referencePosition);
+                                });
+
+                                taskWaitTimeCounter = 0;
+
+                                while (!task.IsCompleted)
+                                {
+                                    #region
+                                    taskWaitTimeCounter++;
+                                    task.Wait(_motocom32FunctionsWaitTime);
+                                    if (taskWaitTimeCounter > 10) //wait 500 msec maximum
+                                    {
+                                        break;
+                                    }
+                                    #endregion
+                                }
+                                if (task.IsCompleted)
+                                {
+                                    returnValue = Convert.ToInt16(task.Result);
+                                    if (returnValue == 0)
+                                    {
+                                        break;
+                                    }
+                                }
+                                else
+                                {
+                                    returnValue = -1;
+                                }
+                                #endregion
+                            }
+                            if (counterSendCommand == maxSendCommands)
+                            {
+                                Debug.WriteLine("DX200::ConvertRelativeJobToPulse()::Error::" + returnValue.ToString());
+                            }
+                            #endregion
+                        }
+                        #endregion
+                    }
+                    else
+                    {
+                        returnValue = -1;
+                    }
+
+                    #endregion
+                }
             }
             catch (Exception ex)
             {
@@ -7065,7 +7670,10 @@ namespace YaskawaNet
 
                     jointsPositionsSimulator[6] = (jointsPositionsSimulator[6] > 3500) ? 3500 : jointsPositionsSimulator[6];
 
-                    _roboDKRobot.MoveJ(jointsPositionsSimulator, MOVE_BLOCKING);
+                    if (_roboDKRobot != null)
+                    {
+                        _roboDKRobot.MoveJ(jointsPositionsSimulator, MOVE_BLOCKING);
+                    }
 
                     #endregion
                 }
@@ -7211,6 +7819,342 @@ namespace YaskawaNet
 
             return returnValue;
         }
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <returns></returns>
+        public short SetAutoMode()
+        {
+            short returnValue = 0;
+            int taskWaitTimeCounter = 0;
+            Task<short> task = null;
+            int counterSendCommand = 0;
+            int maxSendCommands = 3;
+
+            try
+            {
+                lock (_robotAccessLock)
+                {
+                    #region
+
+                    task = Task<short>.Factory.StartNew(() =>
+                    {
+                        //Return Value
+                        //0 : Normal completion
+                        //Others: Error codes
+                        return Motocom.BscSelLoopCycle(_robotHandler);
+                    });
+
+                    taskWaitTimeCounter = 0;
+
+                    while (!task.IsCompleted)
+                    {
+                        #region
+                        taskWaitTimeCounter++;
+                        task.Wait(_motocom32FunctionsWaitTime);
+                        if (taskWaitTimeCounter > 10) //wait 1 second maximum
+                        {
+                            break;
+                        }
+                        #endregion
+                    }
+                    if (task.IsCompleted)
+                    {
+                        #region
+                        returnValue = Convert.ToInt16(task.Result);
+                        //TODO:check return and send more if needed
+                        if (returnValue != 0)
+                        {
+                            #region
+                            counterSendCommand = 0;
+                            while (counterSendCommand < maxSendCommands)
+                            {
+                                #region
+
+                                counterSendCommand++;
+
+                                task = Task<short>.Factory.StartNew(() =>
+                                {
+                                    //Return Value
+                                    //0 : Normal completion
+                                    //Others: Error codes
+                                    return Motocom.BscSelLoopCycle(_robotHandler);
+                                });
+
+                                taskWaitTimeCounter = 0;
+
+                                while (!task.IsCompleted)
+                                {
+                                    #region
+                                    taskWaitTimeCounter++;
+                                    task.Wait(_motocom32FunctionsWaitTime);
+                                    if (taskWaitTimeCounter > 10) //wait 1 second maximum
+                                    {
+                                        break;
+                                    }
+                                    #endregion
+                                }
+                                if (task.IsCompleted)
+                                {
+                                    returnValue = Convert.ToInt16(task.Result);
+                                    if (returnValue == 0)
+                                    {
+                                        break;
+                                    }
+                                }
+                                else
+                                {
+                                    returnValue = -1;
+                                }
+                                #endregion
+                            }
+                            if (counterSendCommand == maxSendCommands)
+                            {
+                                Debug.WriteLine("DX200::SetAutoMode()::Error::" + returnValue.ToString());
+                            }
+                            #endregion
+                        }
+                        #endregion
+                    }
+                    else
+                    {
+                        returnValue = -1;
+                    }
+                    #endregion
+                }
+            }
+            catch (Exception ex)
+            {
+                returnValue = -1;
+                DiagnosticException.ExceptionHandler(ex);
+            }
+
+            return returnValue;
+        }
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <returns></returns>
+        public short SetOneCycleMode()
+        {
+            short returnValue = 0;
+            int taskWaitTimeCounter = 0;
+            Task<short> task = null;
+            int counterSendCommand = 0;
+            int maxSendCommands = 3;
+
+            try
+            {
+                lock (_robotAccessLock)
+                {
+                    #region
+
+                    task = Task<short>.Factory.StartNew(() =>
+                    {
+                        //Return Value
+                        //0 : Normal completion
+                        //Others: Error codes
+                        return Motocom.BscSelOneCycle(_robotHandler);
+                    });
+
+                    taskWaitTimeCounter = 0;
+
+                    while (!task.IsCompleted)
+                    {
+                        #region
+                        taskWaitTimeCounter++;
+                        task.Wait(_motocom32FunctionsWaitTime);
+                        if (taskWaitTimeCounter > 10) //wait 1 second maximum
+                        {
+                            break;
+                        }
+                        #endregion
+                    }
+                    if (task.IsCompleted)
+                    {
+                        #region
+                        returnValue = Convert.ToInt16(task.Result);
+                        //TODO:check return and send more if needed
+                        if (returnValue != 0)
+                        {
+                            #region
+                            counterSendCommand = 0;
+                            while (counterSendCommand < maxSendCommands)
+                            {
+                                #region
+
+                                counterSendCommand++;
+
+                                task = Task<short>.Factory.StartNew(() =>
+                                {
+                                    //Return Value
+                                    //0 : Normal completion
+                                    //Others: Error codes
+                                    return Motocom.BscSelOneCycle(_robotHandler);
+                                });
+
+                                taskWaitTimeCounter = 0;
+
+                                while (!task.IsCompleted)
+                                {
+                                    #region
+                                    taskWaitTimeCounter++;
+                                    task.Wait(_motocom32FunctionsWaitTime);
+                                    if (taskWaitTimeCounter > 10) //wait 1 second maximum
+                                    {
+                                        break;
+                                    }
+                                    #endregion
+                                }
+                                if (task.IsCompleted)
+                                {
+                                    returnValue = Convert.ToInt16(task.Result);
+                                    if (returnValue == 0)
+                                    {
+                                        break;
+                                    }
+                                }
+                                else
+                                {
+                                    returnValue = -1;
+                                }
+                                #endregion
+                            }
+                            if (counterSendCommand == maxSendCommands)
+                            {
+                                Debug.WriteLine("DX200::SetOneCycleMode()::Error::" + returnValue.ToString());
+                            }
+                            #endregion
+                        }
+                        #endregion
+                    }
+                    else
+                    {
+                        returnValue = -1;
+                    }
+                    #endregion
+                }
+            }
+            catch (Exception ex)
+            {
+                returnValue = -1;
+                DiagnosticException.ExceptionHandler(ex);
+            }
+
+            return returnValue;
+        }
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <returns></returns>
+        public short SetStepMode()
+        {
+            short returnValue = 0;
+            int taskWaitTimeCounter = 0;
+            Task<short> task = null;
+            int counterSendCommand = 0;
+            int maxSendCommands = 3;
+
+            try
+            {
+                lock (_robotAccessLock)
+                {
+                    #region
+
+                    task = Task<short>.Factory.StartNew(() =>
+                    {
+                        //Return Value
+                        //0 : Normal completion
+                        //Others: Error codes
+                        return Motocom.BscSelStepCycle(_robotHandler);
+                    });
+
+                    taskWaitTimeCounter = 0;
+
+                    while (!task.IsCompleted)
+                    {
+                        #region
+                        taskWaitTimeCounter++;
+                        task.Wait(_motocom32FunctionsWaitTime);
+                        if (taskWaitTimeCounter > 10) //wait 1 second maximum
+                        {
+                            break;
+                        }
+                        #endregion
+                    }
+                    if (task.IsCompleted)
+                    {
+                        #region
+                        returnValue = Convert.ToInt16(task.Result);
+                        //TODO:check return and send more if needed
+                        if (returnValue != 0)
+                        {
+                            #region
+                            counterSendCommand = 0;
+                            while (counterSendCommand < maxSendCommands)
+                            {
+                                #region
+
+                                counterSendCommand++;
+
+                                task = Task<short>.Factory.StartNew(() =>
+                                {
+                                    //Return Value
+                                    //0 : Normal completion
+                                    //Others: Error codes
+                                    return Motocom.BscSelStepCycle(_robotHandler);
+                                });
+
+                                taskWaitTimeCounter = 0;
+
+                                while (!task.IsCompleted)
+                                {
+                                    #region
+                                    taskWaitTimeCounter++;
+                                    task.Wait(_motocom32FunctionsWaitTime);
+                                    if (taskWaitTimeCounter > 10) //wait 1 second maximum
+                                    {
+                                        break;
+                                    }
+                                    #endregion
+                                }
+                                if (task.IsCompleted)
+                                {
+                                    returnValue = Convert.ToInt16(task.Result);
+                                    if (returnValue == 0)
+                                    {
+                                        break;
+                                    }
+                                }
+                                else
+                                {
+                                    returnValue = -1;
+                                }
+                                #endregion
+                            }
+                            if (counterSendCommand == maxSendCommands)
+                            {
+                                Debug.WriteLine("DX200::SetStepMode()::Error::" + returnValue.ToString());
+                            }
+                            #endregion
+                        }
+                        #endregion
+                    }
+                    else
+                    {
+                        returnValue = -1;
+                    }
+                    #endregion
+                }
+            }
+            catch (Exception ex)
+            {
+                returnValue = -1;
+                DiagnosticException.ExceptionHandler(ex);
+            }
+
+            return returnValue;
+        }
 
         #endregion
 
@@ -7251,7 +8195,7 @@ namespace YaskawaNet
                         #endregion
                     }
 
-                    Thread.Sleep(100);
+                    Thread.Sleep(200);
                 }
             }
             catch (Exception ex)
@@ -7337,7 +8281,59 @@ namespace YaskawaNet
                         #endregion
                     }
 
-                    Thread.Sleep(100);
+                    Thread.Sleep(300);
+                }
+            }
+            catch (Exception ex)
+            {
+                DiagnosticException.ExceptionHandler(ex);
+            }
+        }
+        /// <summary>
+        /// 
+        /// </summary>
+        private void GetJobFileStatusThread()
+        {
+            short returnValue = -1;
+            short currentLineNumber = -1;
+            StringBuilder _currentJobName = new StringBuilder(Motocom.MaxJobNameLength + 1);
+
+            try
+            {
+                while (_getJobFileStatusRun)
+                {
+                    lock (_robotAccessLock)
+                    {
+                        #region
+                        try
+                        {
+                            _currentJobName = new StringBuilder(Motocom.MaxJobNameLength + 1);
+                            returnValue = Motocom.BscIsJobName(_robotHandler, _currentJobName, Motocom.MaxJobNameLength);
+
+                            if (CurrentJobFileName != _currentJobName.ToString())
+                            {
+                                Debug.WriteLine("Warning::Current job file:" + _currentJobName.ToString());
+                            }
+
+                            CurrentJobFileName = (returnValue == 0) ? _currentJobName.ToString() : string.Empty;
+
+                            currentLineNumber = Motocom.BscIsJobLine(_robotHandler);
+
+                            if (CurrentLineNumber != currentLineNumber)
+                            {
+                                Debug.WriteLine("Warning::Current line:" + currentLineNumber);
+                            }
+
+                            CurrentLineNumber = currentLineNumber;
+                        }
+                        catch (Exception ex)
+                        {
+                            DiagnosticException.ExceptionHandler(ex);
+                        }
+                        #endregion
+                    }
+
+                    Thread.Sleep(500);
                 }
             }
             catch (Exception ex)
@@ -7356,7 +8352,7 @@ namespace YaskawaNet
 
             try
             {
-                simulatorSpeed = 100;
+                simulatorSpeed = 300;
                 _roboDKRobot.SetSpeed(-1, Math.Abs(simulatorSpeed));
                 Thread.Sleep(100);
 
