@@ -12,6 +12,13 @@ namespace YaskawaNet
     {
         #region Fields
 
+        #region Speed
+
+        public Vector<double> ActualSpeed { get; set; }
+        public Vector<double> DesiredSpeed { get; set; }
+
+        #endregion
+
         #region Joints trajectories
 
         public Vector<double> S { get; set; }
@@ -109,6 +116,8 @@ namespace YaskawaNet
                     Rx = Rx[index],
                     Ry = Ry[index],
                     Rz = Rz[index],
+                    ActualSpeed = ActualSpeed[index],
+                    DesiredSpeed = DesiredSpeed[index]
                 };
             }
             set
@@ -119,6 +128,8 @@ namespace YaskawaNet
                 Rx[index] = value.Rx;
                 Ry[index] = value.Ry;
                 Rz[index] = value.Rz;
+                ActualSpeed[index] = value.ActualSpeed;
+                DesiredSpeed[index] = value.DesiredSpeed;
             }
         }
         #endregion
@@ -174,6 +185,9 @@ namespace YaskawaNet
             List<double> rz = Rz.ToList();
             List<double> ex7Mm = EX7Mm.ToList();
 
+            List<double> actualSpeed = ActualSpeed.ToList();
+            List<double> desiredSpeed = DesiredSpeed.ToList();
+
             try
             {
                 #region
@@ -193,6 +207,9 @@ namespace YaskawaNet
                 t.Insert(index, item.RobotPulsePositions[5]);
                 ex7Pulse.Insert(index, item.RobotPulsePositions[6]);
 
+                actualSpeed.Insert(index, item.ActualSpeed);
+                desiredSpeed.Insert(index, item.DesiredSpeed);
+
                 X = Vector<double>.Build.Dense(x.ToArray());
                 Y = Vector<double>.Build.Dense(y.ToArray());
                 Z = Vector<double>.Build.Dense(z.ToArray());
@@ -208,6 +225,10 @@ namespace YaskawaNet
                 B = Vector<double>.Build.Dense(b.ToArray());
                 T = Vector<double>.Build.Dense(t.ToArray());
                 EX7Pulse = Vector<double>.Build.Dense(ex7Pulse.ToArray());
+
+                ActualSpeed = Vector<double>.Build.Dense(actualSpeed.ToArray());
+                DesiredSpeed = Vector<double>.Build.Dense(desiredSpeed.ToArray());
+
                 #endregion
             }
             catch (Exception ex)
@@ -233,6 +254,9 @@ namespace YaskawaNet
             List<double> rz = Rz.ToList();
             List<double> ex7Mm = EX7Mm.ToList();
 
+            List<double> actualSpeed = ActualSpeed.ToList();
+            List<double> desiredSpeed = ActualSpeed.ToList();
+
             try
             {
                 #region
@@ -252,6 +276,9 @@ namespace YaskawaNet
                 rz.RemoveAt(index);
                 ex7Mm.RemoveAt(index);
 
+                actualSpeed.RemoveAt(index);
+                desiredSpeed.RemoveAt(index);
+
                 S = Vector<double>.Build.Dense(s.ToArray());
                 L = Vector<double>.Build.Dense(l.ToArray());
                 U = Vector<double>.Build.Dense(u.ToArray());
@@ -267,6 +294,10 @@ namespace YaskawaNet
                 Ry = Vector<double>.Build.Dense(ry.ToArray());
                 Rz = Vector<double>.Build.Dense(rz.ToArray());
                 EX7Mm = Vector<double>.Build.Dense(ex7Mm.ToArray());
+
+                ActualSpeed = Vector<double>.Build.Dense(actualSpeed.ToArray());
+                DesiredSpeed = Vector<double>.Build.Dense(desiredSpeed.ToArray());
+
                 #endregion
             }
             catch (Exception ex)
@@ -299,6 +330,9 @@ namespace YaskawaNet
                     EX7Pulse = Vector<double>.Build.Dense(1);
                     EX7Mm = Vector<double>.Build.Dense(1);
 
+                    ActualSpeed = Vector<double>.Build.Dense(1);
+                    DesiredSpeed = Vector<double>.Build.Dense(1);
+
                     X[0] = item.X;
                     Y[0] = item.Y;
                     Z[0] = item.Z;
@@ -315,6 +349,10 @@ namespace YaskawaNet
                     T[0] = item.RobotPulsePositions[5];
 
                     EX7Pulse[0] = item.RobotPulsePositions[6];
+
+                    ActualSpeed[0] = item.ActualSpeed;
+                    DesiredSpeed[0] = item.DesiredSpeed;
+
                     #endregion
                 }
                 else
@@ -348,6 +386,10 @@ namespace YaskawaNet
                 Ry.Clear();
                 Rz.Clear();
                 EX7Mm.Clear();
+
+                ActualSpeed.Clear();
+                DesiredSpeed.Clear();
+
                 #endregion
             }
             catch (Exception ex)
@@ -405,6 +447,9 @@ namespace YaskawaNet
                 inverseTrajectory.Rz = Vector<double>.Build.Dense(length);
                 inverseTrajectory.EX7Mm = Vector<double>.Build.Dense(length);
 
+                inverseTrajectory.ActualSpeed = Vector<double>.Build.Dense(length);
+                inverseTrajectory.DesiredSpeed = Vector<double>.Build.Dense(length);
+
                 //inverse the original trajectory into the new trajectory.
                 for (int i = 0; i < length; i++)
                 {
@@ -426,6 +471,10 @@ namespace YaskawaNet
                     inverseTrajectory.Ry[i] = this.Ry[index];
                     inverseTrajectory.Rz[i] = this.Rz[index];
                     inverseTrajectory.EX7Mm[i] = this.EX7Mm[index];
+
+                    inverseTrajectory.ActualSpeed[i] = this.ActualSpeed[index];
+                    inverseTrajectory.DesiredSpeed[i] = this.DesiredSpeed[index];
+
                     #endregion
                 }
                 #endregion
@@ -464,6 +513,10 @@ namespace YaskawaNet
                     clonedTrajectory.Ry[i] = this.Ry[i];
                     clonedTrajectory.Rz[i] = this.Rz[i];
                     clonedTrajectory.EX7Mm[i] = this.EX7Mm[i];
+
+                    clonedTrajectory.ActualSpeed[i] = this.ActualSpeed[i];
+                    clonedTrajectory.DesiredSpeed[i] = this.DesiredSpeed[i];
+
                     #endregion
                 }
             }

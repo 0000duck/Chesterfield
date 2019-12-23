@@ -19,7 +19,9 @@ namespace YaskawaNet
 
         string UserCoordinateName
         {
+            [return: MarshalAs(UnmanagedType.BStr)]
             get;
+            [param: MarshalAs(UnmanagedType.BStr)]
             set;
         }
         Configuration OrgForm

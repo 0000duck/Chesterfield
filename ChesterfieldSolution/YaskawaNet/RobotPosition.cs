@@ -20,6 +20,11 @@ namespace YaskawaNet
             get;
             set;
         }
+        double DesiredSpeed
+        {
+            get;
+            set;
+        }
         double[] SpeedLimits
         {
             get;
@@ -220,26 +225,136 @@ namespace YaskawaNet
             get;
             set;
         }
+        bool YAxisInMotion
+        {
+            get;
+        }
+        bool YAxisInHome
+        {
+            get;
+        }
+        double MinYAxisPosition
+        {
+            get;
+        }
+        double MaxYAxisPosition
+        {
+            get;
+        }
+        double YAxisHomePosition
+        {
+            get;
+            set;
+        }
+
         double Z
         {
             get;
             set;
         }
+        bool ZAxisInMotion
+        {
+            get;
+        }
+        bool ZAxisInHome
+        {
+            get;
+        }
+        double MinZAxisPosition
+        {
+            get;
+        }
+        double MaxZAxisPosition
+        {
+            get;
+        }
+        double ZAxisHomePosition
+        {
+            get;
+            set;
+        }
+
         double Rx
         {
             get;
             set;
         }
+        bool RxAxisInMotion
+        {
+            get;
+        }
+        bool RxAxisInHome
+        {
+            get;
+        }
+        double MinRxAxisPosition
+        {
+            get;
+        }
+        double MaxRxAxisPosition
+        {
+            get;
+        }
+        double RxAxisHomePosition
+        {
+            get;
+            set;
+        }
+
         double Ry
         {
             get;
             set;
         }
+        bool RyAxisInMotion
+        {
+            get;
+        }
+        bool RyAxisInHome
+        {
+            get;
+        }
+        double MinRyAxisPosition
+        {
+            get;
+        }
+        double MaxRyAxisPosition
+        {
+            get;
+        }
+        double RyAxisHomePosition
+        {
+            get;
+            set;
+        }
+
         double Rz
         {
             get;
             set;
         }
+        bool RzAxisInMotion
+        {
+            get;
+        }
+        bool RzAxisInHome
+        {
+            get;
+        }
+        double MinRzAxisPosition
+        {
+            get;
+        }
+        double MaxRzAxisPosition
+        {
+            get;
+        }
+        double RzAxisHomePosition
+        {
+            get;
+            set;
+        }
+
         double E7Axis
         {
             get;
@@ -338,7 +453,8 @@ namespace YaskawaNet
         const double RJointPulsesDegreeRatio = 1022.862;//-
         const double BJointPulsesDegreeRatio = 986.074;
         const double TJointPulsesDegreeRatio = 631.299;//-
-        const double TrackerPulsesMmRatio = 159.278;
+        const double TrackerPulsesMmRatio = 159.2781191;
+        const double TurnTablePulsesDegreeRatio = 159.2781191;
 
         #endregion
 
@@ -359,6 +475,11 @@ namespace YaskawaNet
         readonly object _tAxisLocker = new object();
 
         readonly object _xAxisLocker = new object();
+        readonly object _yAxisLocker = new object();
+        readonly object _zAxisLocker = new object();
+        readonly object _rxAxisLocker = new object();
+        readonly object _ryAxisLocker = new object();
+        readonly object _rzAxisLocker = new object();
 
         readonly object _positionsLocker = new object();
         readonly object _homePositionsLocker = new object();
@@ -368,55 +489,80 @@ namespace YaskawaNet
         readonly object _pulseParkPositionsLocker = new object();
 
         private double _actualSpeed = 0.0;
+        private double _desiredSpeed = 0.0;
         private double[] _speedLimits = new double[12] { 50.0, 197.0, 190.0, 210.0, 410.0, 410.0, 620.0, 0, 0, 0, 0, 0 }; //MH24 datasheet
 
         private bool _sJointInHome = false;
         private double _actualSJointPosition = 0.0;
         private double _minSJointPosition = -180.0;
         private double _maxSJointPosition = 180.0;
-        private double _sJointHomePosition = 0;
+        private double _sJointHomePosition = 0.0;
 
         private bool _lJointInHome = false;
         private double _actualLJointPosition = 0.0;
         private double _minLJointPosition = -105.0;
         private double _maxLJointPosition = 155.0;
-        private double _lJointHomePosition = 0;
+        private double _lJointHomePosition = 0.0;
 
         private bool _uJointInHome = false;
         private double _actualUJointPosition = 0.0;
         private double _minUJointPosition = -170.0;
         private double _maxUJointPosition = 240.0;
-        private double _uJointHomePosition = 0;
+        private double _uJointHomePosition = 0.0;
 
         private bool _rJointInHome = false;
         private double _actualRJointPosition = 0.0;
         private double _minRJointPosition = -200.0;
         private double _maxRJointPosition = 200.0;
-        private double _rJointHomePosition = 0;
+        private double _rJointHomePosition = 0.0;
 
         private bool _bJointInHome = false;
         private double _actualBJointPosition = 0.0;
         private double _minBJointPosition = -150.0;
         private double _maxBJointPosition = 150.0;
-        private double _bJointHomePosition = 0;
+        private double _bJointHomePosition = 0.0;
 
         private bool _tJointInHome = false;
         private double _actualTJointPosition = 0.0;
         private double _minTJointPosition = -150.0;
         private double _maxTJointPosition = 150.0;
-        private double _tJointHomePosition = 0;
+        private double _tJointHomePosition = 0.0;
 
         private bool _xAxisInHome = false;
         private double _actualXAxisPosition = 0.0;
         private double _minXAxisPosition = -1500.0;
         private double _maxXAxisPosition = 1500.0;
-        private double _xAxisHomePosition = 0;
+        private double _xAxisHomePosition = 0.0;
 
+        private bool _yAxisInHome = false;
         private double _actualYAxisPosition = 0.0;
+        private double _minYAxisPosition = -1500.0;
+        private double _maxYAxisPosition = 1500.0;
+        private double _yAxisHomePosition = 0.0;
+
+        private bool _zAxisInHome = false;
         private double _actualZAxisPosition = 0.0;
+        private double _minZAxisPosition = -1500.0;
+        private double _maxZAxisPosition = 1500.0;
+        private double _zAxisHomePosition = 0.0;
+
+        private bool _rxAxisInHome = false;
         private double _actualRxAxisPosition = 0.0;
+        private double _minRxAxisPosition = -180.0;
+        private double _maxRxAxisPosition = 180.0;
+        private double _rxAxisHomePosition = 0.0;
+
+        private bool _ryAxisInHome = false;
         private double _actualRyAxisPosition = 0.0;
+        private double _minRyAxisPosition = -180.0;
+        private double _maxRyAxisPosition = 180.0;
+        private double _ryAxisHomePosition = 0.0;
+
+        private bool _rzAxisInHome = false;
         private double _actualRzAxisPosition = 0.0;
+        private double _minRzAxisPosition = -180.0;
+        private double _maxRzAxisPosition = 180.0;
+        private double _rzAxisHomePosition = 0.0;
 
         private double[][] _limits = new double[12][]
             {
@@ -542,6 +688,17 @@ namespace YaskawaNet
             set
             {
                 _actualSpeed = value;
+            }
+        }
+        public double DesiredSpeed
+        {
+            get
+            {
+                return _desiredSpeed;
+            }
+            set
+            {
+                _desiredSpeed = value;
             }
         }
         public double[] SpeedLimits
@@ -1200,7 +1357,7 @@ namespace YaskawaNet
             {
                 lock (_xAxisLocker)
                 {
-                    if (value >= -10000.0 && value <= 10000.0)
+                    if (value >= -100000.0 && value <= 100000.0)
                     {
                         _limits[0][0] = _minXAxisPosition = value;
                     }
@@ -1221,7 +1378,7 @@ namespace YaskawaNet
             {
                 lock (_xAxisLocker)
                 {
-                    if (value >= -10000.0 && value <= 10000.0)
+                    if (value >= -100000.0 && value <= 100000.0)
                     {
                         _limits[0][1] = _maxXAxisPosition = value;
                     }
@@ -1255,10 +1412,95 @@ namespace YaskawaNet
             }
             set
             {
-                _inMotionArray[1] = (_actualPositions[1] != value);
-                _actualPositions[1] = value;
+                lock (_yAxisLocker)
+                {
+                    _inMotionArray[1] = (_actualPositions[1] != value);
+                    _actualPositions[1] = value;
+
+                    _yAxisInHome = (_actualYAxisPosition == _homePositions[1]);
+                }
             }
         }
+        public bool YAxisInMotion
+        {
+            get
+            {
+                lock (_yAxisLocker)
+                {
+                    return _inMotionArray[1];
+                }
+            }
+        }
+        public bool YAxisInHome
+        {
+            get
+            {
+                lock (_yAxisLocker)
+                {
+                    return _yAxisInHome;
+                }
+            }
+        }
+        public double MinYAxisPosition
+        {
+            get
+            {
+                lock (_yAxisLocker)
+                {
+                    return _minYAxisPosition;
+                }
+            }
+            set
+            {
+                lock (_yAxisLocker)
+                {
+                    if (value >= -100000.0 && value <= 100000.0)
+                    {
+                        _limits[1][0] = _minYAxisPosition = value;
+                    }
+                }
+            }
+        }
+        public double MaxYAxisPosition
+        {
+            get
+            {
+                lock (_yAxisLocker)
+                {
+                    return _maxYAxisPosition;
+
+                }
+            }
+            set
+            {
+                lock (_yAxisLocker)
+                {
+                    if (value >= -100000.0 && value <= 100000.0)
+                    {
+                        _limits[1][1] = _maxYAxisPosition = value;
+                    }
+                }
+            }
+        }
+        public double YAxisHomePosition
+        {
+            get
+            {
+                lock (_yAxisLocker)
+                {
+                    return _yAxisHomePosition;
+
+                }
+            }
+            set
+            {
+                lock (_yAxisLocker)
+                {
+                    _homePositions[1] = _yAxisHomePosition = value;
+                }
+            }
+        }
+
         public double Z
         {
             get
@@ -1267,10 +1509,94 @@ namespace YaskawaNet
             }
             set
             {
-                _inMotionArray[2] = (_actualPositions[2] != value);
-                _actualPositions[2] = value;
+                lock (_zAxisLocker)
+                {
+                    _inMotionArray[2] = (_actualPositions[2] != value);
+                    _actualPositions[2] = value;
+
+                    _zAxisInHome = (_actualZAxisPosition == _homePositions[2]);
+                }
             }
         }
+        public bool ZAxisInMotion
+        {
+            get
+            {
+                lock (_zAxisLocker)
+                {
+                    return _inMotionArray[2];
+                }
+            }
+        }
+        public bool ZAxisInHome
+        {
+            get
+            {
+                lock (_zAxisLocker)
+                {
+                    return _zAxisInHome;
+                }
+            }
+        }
+        public double MinZAxisPosition
+        {
+            get
+            {
+                lock (_zAxisLocker)
+                {
+                    return _minZAxisPosition;
+                }
+            }
+            set
+            {
+                lock (_zAxisLocker)
+                {
+                    if (value >= -100000.0 && value <= 100000.0)
+                    {
+                        _limits[2][0] = _minZAxisPosition = value;
+                    }
+                }
+            }
+        }
+        public double MaxZAxisPosition
+        {
+            get
+            {
+                lock (_zAxisLocker)
+                {
+                    return _maxZAxisPosition;
+
+                }
+            }
+            set
+            {
+                lock (_zAxisLocker)
+                {
+                    if (value >= -100000.0 && value <= 100000.0)
+                    {
+                        _limits[2][1] = _maxZAxisPosition = value;
+                    }
+                }
+            }
+        }
+        public double ZAxisHomePosition
+        {
+            get
+            {
+                lock (_zAxisLocker)
+                {
+                    return _zAxisHomePosition;
+                }
+            }
+            set
+            {
+                lock (_zAxisLocker)
+                {
+                    _homePositions[2] = _zAxisHomePosition = value;
+                }
+            }
+        }
+
         public double Rx
         {
             get
@@ -1279,10 +1605,94 @@ namespace YaskawaNet
             }
             set
             {
-                _inMotionArray[3] = (_actualPositions[3] != value);
-                _actualPositions[3] = value;
+                lock (_rxAxisLocker)
+                {
+                    _inMotionArray[3] = (_actualPositions[3] != value);
+                    _actualPositions[3] = value;
+
+                    _rxAxisInHome = (_actualRxAxisPosition == _homePositions[3]);
+                }
             }
         }
+        public bool RxAxisInMotion
+        {
+            get
+            {
+                lock (_rxAxisLocker)
+                {
+                    return _inMotionArray[3];
+                }
+            }
+        }
+        public bool RxAxisInHome
+        {
+            get
+            {
+                lock (_rxAxisLocker)
+                {
+                    return _rxAxisInHome;
+                }
+            }
+        }
+        public double MinRxAxisPosition
+        {
+            get
+            {
+                lock (_rxAxisLocker)
+                {
+                    return _minRxAxisPosition;
+                }
+            }
+            set
+            {
+                lock (_rxAxisLocker)
+                {
+                    if (value >= -720.0 && value <= 720.0)
+                    {
+                        _limits[3][0] = _minRxAxisPosition = value;
+                    }
+                }
+            }
+        }
+        public double MaxRxAxisPosition
+        {
+            get
+            {
+                lock (_rxAxisLocker)
+                {
+                    return _maxRxAxisPosition;
+
+                }
+            }
+            set
+            {
+                lock (_rxAxisLocker)
+                {
+                    if (value >= -720.0 && value <= 720.0)
+                    {
+                        _limits[3][1] = _maxRxAxisPosition = value;
+                    }
+                }
+            }
+        }
+        public double RxAxisHomePosition
+        {
+            get
+            {
+                lock (_rxAxisLocker)
+                {
+                    return _rxAxisHomePosition;
+                }
+            }
+            set
+            {
+                lock (_rxAxisLocker)
+                {
+                    _homePositions[3] = _rxAxisHomePosition = value;
+                }
+            }
+        }
+
         public double Ry
         {
             get
@@ -1291,10 +1701,94 @@ namespace YaskawaNet
             }
             set
             {
-                _inMotionArray[4] = (_actualPositions[4] != value);
-                _actualPositions[4] = value;
+                lock (_ryAxisLocker)
+                {
+                    _inMotionArray[4] = (_actualPositions[4] != value);
+                    _actualPositions[4] = value;
+
+                    _ryAxisInHome = (_actualRyAxisPosition == _homePositions[4]);
+                }
             }
         }
+        public bool RyAxisInMotion
+        {
+            get
+            {
+                lock (_ryAxisLocker)
+                {
+                    return _inMotionArray[4];
+                }
+            }
+        }
+        public bool RyAxisInHome
+        {
+            get
+            {
+                lock (_ryAxisLocker)
+                {
+                    return _ryAxisInHome;
+                }
+            }
+        }
+        public double MinRyAxisPosition
+        {
+            get
+            {
+                lock (_ryAxisLocker)
+                {
+                    return _minRyAxisPosition;
+                }
+            }
+            set
+            {
+                lock (_ryAxisLocker)
+                {
+                    if (value >= -720.0 && value <= 720.0)
+                    {
+                        _limits[4][0] = _minRyAxisPosition = value;
+                    }
+                }
+            }
+        }
+        public double MaxRyAxisPosition
+        {
+            get
+            {
+                lock (_ryAxisLocker)
+                {
+                    return _maxRyAxisPosition;
+
+                }
+            }
+            set
+            {
+                lock (_ryAxisLocker)
+                {
+                    if (value >= -720.0 && value <= 720.0)
+                    {
+                        _limits[4][1] = _maxRyAxisPosition = value;
+                    }
+                }
+            }
+        }
+        public double RyAxisHomePosition
+        {
+            get
+            {
+                lock (_ryAxisLocker)
+                {
+                    return _ryAxisHomePosition;
+                }
+            }
+            set
+            {
+                lock (_ryAxisLocker)
+                {
+                    _homePositions[4] = _ryAxisHomePosition = value;
+                }
+            }
+        }
+
         public double Rz
         {
             get
@@ -1303,10 +1797,94 @@ namespace YaskawaNet
             }
             set
             {
-                _inMotionArray[5] = (_actualPositions[5] != value);
-                _actualPositions[5] = value;
+                lock (_rzAxisLocker)
+                {
+                    _inMotionArray[5] = (_actualPositions[5] != value);
+                    _actualPositions[5] = value;
+
+                    _rzAxisInHome = (_actualRzAxisPosition == _homePositions[5]);
+                }
             }
         }
+        public bool RzAxisInMotion
+        {
+            get
+            {
+                lock (_rzAxisLocker)
+                {
+                    return _inMotionArray[5];
+                }
+            }
+        }
+        public bool RzAxisInHome
+        {
+            get
+            {
+                lock (_rzAxisLocker)
+                {
+                    return _rzAxisInHome;
+                }
+            }
+        }
+        public double MinRzAxisPosition
+        {
+            get
+            {
+                lock (_rzAxisLocker)
+                {
+                    return _minRzAxisPosition;
+                }
+            }
+            set
+            {
+                lock (_rzAxisLocker)
+                {
+                    if (value >= -720.0 && value <= 720.0)
+                    {
+                        _limits[5][0] = _minRzAxisPosition = value;
+                    }
+                }
+            }
+        }
+        public double MaxRzAxisPosition
+        {
+            get
+            {
+                lock (_rzAxisLocker)
+                {
+                    return _maxRzAxisPosition;
+
+                }
+            }
+            set
+            {
+                lock (_rzAxisLocker)
+                {
+                    if (value >= -720.0 && value <= 720.0)
+                    {
+                        _limits[5][1] = _maxRzAxisPosition = value;
+                    }
+                }
+            }
+        }
+        public double RzAxisHomePosition
+        {
+            get
+            {
+                lock (_rzAxisLocker)
+                {
+                    return _rzAxisHomePosition;
+                }
+            }
+            set
+            {
+                lock (_rzAxisLocker)
+                {
+                    _homePositions[5] = _rzAxisHomePosition = value;
+                }
+            }
+        }
+
         public double E7Axis
         {
             get
@@ -1328,7 +1906,9 @@ namespace YaskawaNet
             }
             set
             {
+                _inMotionArray[7] = (_actualPositions[7] != value);
                 _actualPositions[7] = value;
+                _pulsePositions[7] = _actualPositions[7] * TurnTablePulsesDegreeRatio;
             }
         }
         public double E9Axis
@@ -1406,6 +1986,9 @@ namespace YaskawaNet
 
                 _limitsPulse[6][0] = _limits[6][0] * TrackerPulsesMmRatio;
                 _limitsPulse[6][1] = _limits[6][1] * TrackerPulsesMmRatio;
+
+                _limitsPulse[7][0] = _limits[7][0] * TurnTablePulsesDegreeRatio;
+                _limitsPulse[7][1] = _limits[7][1] * TurnTablePulsesDegreeRatio;
             }
         }
         public double[][] LimitsPulse
@@ -1436,8 +2019,11 @@ namespace YaskawaNet
                 _limits[5][0] = _limitsPulse[5][0] / TJointPulsesDegreeRatio;
                 _limits[5][1] = _limitsPulse[5][1] / TJointPulsesDegreeRatio;
 
-                _limits[6][0] = _limitsPulse[5][0] / TrackerPulsesMmRatio;
-                _limits[6][1] = _limitsPulse[5][1] / TrackerPulsesMmRatio;
+                _limits[6][0] = _limitsPulse[6][0] / TrackerPulsesMmRatio;
+                _limits[6][1] = _limitsPulse[6][1] / TrackerPulsesMmRatio;
+
+                _limits[7][0] = _limitsPulse[7][0] / TurnTablePulsesDegreeRatio;
+                _limits[7][1] = _limitsPulse[7][1] / TurnTablePulsesDegreeRatio;
             }
         }
 
@@ -1477,11 +2063,11 @@ namespace YaskawaNet
                     _actualTJointPosition = _actualRzAxisPosition = _actualPositions[5];
 
                     _sJointInHome = _xAxisInHome = (_actualPositions[0] == _homePositions[0]);
-                    _lJointInHome = (_actualPositions[1] == _homePositions[1]);
-                    _uJointInHome = (_actualPositions[2] == _homePositions[2]);
-                    _rJointInHome = (_actualPositions[3] == _homePositions[3]);
-                    _bJointInHome = (_actualPositions[4] == _homePositions[4]);
-                    _tJointInHome = (_actualPositions[5] == _homePositions[5]);
+                    _lJointInHome = _yAxisInHome = (_actualPositions[1] == _homePositions[1]);
+                    _uJointInHome = _zAxisInHome = (_actualPositions[2] == _homePositions[2]);
+                    _rJointInHome = _rxAxisInHome = (_actualPositions[3] == _homePositions[3]);
+                    _bJointInHome = _ryAxisInHome = (_actualPositions[4] == _homePositions[4]);
+                    _tJointInHome = _rzAxisInHome = (_actualPositions[5] == _homePositions[5]);
                 }
             }
         }
@@ -1506,6 +2092,8 @@ namespace YaskawaNet
                     _pulseHomePositions[3] = _homePositions[3] * RJointPulsesDegreeRatio;
                     _pulseHomePositions[4] = _homePositions[4] * BJointPulsesDegreeRatio;
                     _pulseHomePositions[5] = _homePositions[5] * TJointPulsesDegreeRatio;
+                    _pulseHomePositions[6] = _homePositions[6] * TrackerPulsesMmRatio;
+                    _pulseHomePositions[7] = _homePositions[7] * TurnTablePulsesDegreeRatio;
                 }
             }
         }
@@ -1530,6 +2118,8 @@ namespace YaskawaNet
                     _pulseParkPositions[3] = _parkPositions[3] * RJointPulsesDegreeRatio;
                     _pulseParkPositions[4] = _parkPositions[4] * BJointPulsesDegreeRatio;
                     _pulseParkPositions[5] = _parkPositions[5] * TJointPulsesDegreeRatio;
+                    _pulseParkPositions[6] = _parkPositions[6] * TrackerPulsesMmRatio;
+                    _pulseParkPositions[7] = _parkPositions[7] * TurnTablePulsesDegreeRatio;
                 }
             }
         }
@@ -1592,6 +2182,8 @@ namespace YaskawaNet
                     _homePositions[3] = _pulseHomePositions[3] / RJointPulsesDegreeRatio;
                     _homePositions[4] = _pulseHomePositions[4] / BJointPulsesDegreeRatio;
                     _homePositions[5] = _pulseHomePositions[5] / TJointPulsesDegreeRatio;
+                    _homePositions[6] = _pulseHomePositions[6] / TrackerPulsesMmRatio;
+                    _homePositions[7] = _pulseHomePositions[7] / TurnTablePulsesDegreeRatio;
                 }
             }
         }
@@ -1608,7 +2200,14 @@ namespace YaskawaNet
             {
                 lock (_pulseParkPositionsLocker)
                 {
-                    _pulseParkPositions = value;
+                    _parkPositions[0] = _pulseParkPositions[0] / SJointPulsesDegreeRatio;
+                    _parkPositions[1] = _pulseParkPositions[1] / LJointPulsesDegreeRatio;
+                    _parkPositions[2] = _pulseParkPositions[2] / UJointPulsesDegreeRatio;
+                    _parkPositions[3] = _pulseParkPositions[3] / RJointPulsesDegreeRatio;
+                    _parkPositions[4] = _pulseParkPositions[4] / BJointPulsesDegreeRatio;
+                    _parkPositions[5] = _pulseParkPositions[5] / TJointPulsesDegreeRatio;
+                    _parkPositions[6] = _pulseParkPositions[6] / TrackerPulsesMmRatio;
+                    _parkPositions[7] = _pulseParkPositions[7] / TurnTablePulsesDegreeRatio;
                 }
             }
         }

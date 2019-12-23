@@ -52,9 +52,9 @@ namespace RoboDk.API.Model
         Dragallowed = 4,            // allow dragging the item
         Dropallowed = 8,            // Allow dropping nested items
         Enabled = 32,               // Enable this item in the tree
-        Autotristate = 64,          // TODO: DOCUMENTATION
-        Nochildren = 128,           // TODO: DOCUMENTATION
-        Usertristate = 256,         // TODO: DOCUMENTATION
+        Autotristate = 64,
+        Nochildren = 128,
+        Usertristate = 256,
         None = 0,
         All = Autotristate + Enabled + Dropallowed + Dragallowed + Editable + Selectable
     }
