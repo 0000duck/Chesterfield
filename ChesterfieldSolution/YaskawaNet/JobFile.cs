@@ -132,7 +132,7 @@ namespace YaskawaNet
         /// 
         /// </summary>
         /// <param name="traj"></param>
-        public short SerializeJointsPulseTrajectory(Trajectory traj)
+        public short CreateJobFileRobotBaseFromPulseTrajectory(Trajectory traj)
         {
             short returnValue = 0;
             StreamWriter _fileStreamWriter = new StreamWriter(_fileName);
@@ -223,7 +223,7 @@ namespace YaskawaNet
         /// 
         /// </summary>
         /// <param name="traj"></param>
-        public short SerializeTCPTrajectory(Trajectory traj, short referenceFrame)
+        public short CreateJobFileRobotBaseFromTCPTrajectory(Trajectory traj, short referenceFrame)
         {
             short returnValue = 0;
             StreamWriter _fileStreamWriter = new StreamWriter(_fileName);

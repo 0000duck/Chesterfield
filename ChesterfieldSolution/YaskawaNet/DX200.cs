@@ -56,13 +56,6 @@ namespace YaskawaNet
             get;
             set;
         }
-        bool UseRoboDKSimulator
-        {
-            [return: MarshalAs(UnmanagedType.Bool)]
-            get;
-            [param: MarshalAs(UnmanagedType.Bool)]
-            set;
-        }
         RobotFrameType ActualReferenceFrame
         {
             get;
@@ -231,6 +224,8 @@ namespace YaskawaNet
         #endregion
 
         #region Methods
+
+        short RoboDKSimulatorRun([MarshalAs(UnmanagedType.Bool)]bool run);
         short Initialize();
         short Connect();
         short Disconnect();
@@ -337,7 +332,6 @@ namespace YaskawaNet
         private string _path;
         private string _ipAddress = "";
         private CommunicationStatus _communicationStatus = new CommunicationStatus();
-        private volatile int _connectionCheckCounter = 0;
         private RobotFrameType _actualReferenceFrame = RobotFrameType.Robot;
         private RobotFrameType _reportedDataReferenceFrame = RobotFrameType.Robot;
         private Dictionary<RobotFrameType, string> _frameDictionary = new Dictionary<RobotFrameType, string>()
@@ -436,6 +430,8 @@ namespace YaskawaNet
         Thread _getJobFileStatusThread = null;
         Thread _simulatorSyncThread = null;
         Thread _captureTrajectoryThread = null;
+
+        System.Timers.Timer _checkConnectionTimer = null;
 
         volatile bool _getPositionsThreadRun = false;
         volatile bool _getStatusThreadRun = false;
@@ -572,19 +568,6 @@ namespace YaskawaNet
             set
             {
                 _communicationStatus = value;
-            }
-        }
-
-        public bool UseRoboDKSimulator
-        {
-            get
-            {
-                return _useRoboDKSimulator;
-            }
-            set
-            {
-                _useRoboDKSimulator = value;
-                RoboDKSimulatorRun(_useRoboDKSimulator);
             }
         }
 
@@ -1281,6 +1264,12 @@ namespace YaskawaNet
                 _captureTrajectoryThread = new Thread(new ThreadStart(CaptureTrajectoryThread));
                 _captureTrajectoryThread.IsBackground = true;
                 _captureTrajectoryThread.Priority = ThreadPriority.Normal;
+
+                _checkConnectionTimer = new System.Timers.Timer(5000);
+                // Hook up the Elapsed event for the timer. 
+                _checkConnectionTimer.Elapsed += CheckConnection;
+                _checkConnectionTimer.AutoReset = true;
+                _checkConnectionTimer.Enabled = true;
             }
             catch (Exception ex)
             {
@@ -1414,106 +1403,126 @@ namespace YaskawaNet
 
             try
             {
-                if (_robotHandler != -1 && _robotHandler != -8)
+                if (_communicationStatus.connected == false)
                 {
-                    #region
-
-                    task = Task<short>.Factory.StartNew(() =>
-                               {
-                                   //Return Value
-                                   //0 : Error
-                                   //1 : Normal completion
-                                   //TODO:check why return 1 without connection to DX200 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-                                   return Motocom.BscConnect(_robotHandler);
-                               });
-
-                    while (!task.IsCompleted)
+                    _communicationStatus.connectionStatus = DX200Communication.CheckPing(_ipAddress);
+                    _communicationStatus.ipAddress = _ipAddress;
+                    if (_communicationStatus.connectionStatus == ConnectionStatus.Reachable)
                     {
-                        #region
-                        taskWaitTimeCounter++;
-                        task.Wait(_motocom32FunctionsWaitTime);
-                        if (taskWaitTimeCounter > 5) //wait 250 msec maximum
-                        {
-                            break;
-                        }
-                        #endregion
-                    }
-                    if (task.IsCompleted)
-                    {
-                        #region
-                        returnValue = Convert.ToInt16(task.Result);
-                        if (returnValue == 0)
+                        if (_robotHandler != -1 && _robotHandler != -8)
                         {
                             #region
-                            counterSendCommand = 0;
-                            while (counterSendCommand < maxSendCommands)
+
+                            task = Task<short>.Factory.StartNew(() =>
+                                       {
+                                           //Return Value
+                                           //0 : Error
+                                           //1 : Normal completion
+                                           //TODO:check why return 1 without connection to DX200 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+                                           return Motocom.BscConnect(_robotHandler);
+                                       });
+
+                            while (!task.IsCompleted)
                             {
                                 #region
-
-                                counterSendCommand++;
-
-                                task = Task<short>.Factory.StartNew(() =>
+                                taskWaitTimeCounter++;
+                                task.Wait(_motocom32FunctionsWaitTime);
+                                if (taskWaitTimeCounter > 5) //wait 250 msec maximum
                                 {
-                                    return Motocom.BscConnect(_robotHandler);
-                                });
-
-                                taskWaitTimeCounter = 0;
-
-                                while (!task.IsCompleted)
-                                {
-                                    #region
-                                    taskWaitTimeCounter++;
-                                    task.Wait(_motocom32FunctionsWaitTime);
-                                    if (taskWaitTimeCounter > 10) //wait 500 msec maximum
-                                    {
-                                        break;
-                                    }
-                                    #endregion
-                                }
-                                if (task.IsCompleted)
-                                {
-                                    returnValue = Convert.ToInt16(task.Result);
-                                    if (returnValue == 1)
-                                    {
-                                        break;
-                                    }
-                                }
-                                else
-                                {
-                                    returnValue = -1;
+                                    break;
                                 }
                                 #endregion
                             }
-                            if (counterSendCommand == maxSendCommands)
+                            if (task.IsCompleted)
                             {
-                                Debug.WriteLine("DX200::Connect()::Error::" + returnValue.ToString());
+                                #region
+                                returnValue = Convert.ToInt16(task.Result);
+                                if (returnValue == 0)
+                                {
+                                    #region
+                                    counterSendCommand = 0;
+                                    while (counterSendCommand < maxSendCommands)
+                                    {
+                                        #region
+
+                                        counterSendCommand++;
+
+                                        task = Task<short>.Factory.StartNew(() =>
+                                        {
+                                            return Motocom.BscConnect(_robotHandler);
+                                        });
+
+                                        taskWaitTimeCounter = 0;
+
+                                        while (!task.IsCompleted)
+                                        {
+                                            #region
+                                            taskWaitTimeCounter++;
+                                            task.Wait(_motocom32FunctionsWaitTime);
+                                            if (taskWaitTimeCounter > 10) //wait 500 msec maximum
+                                            {
+                                                break;
+                                            }
+                                            #endregion
+                                        }
+                                        if (task.IsCompleted)
+                                        {
+                                            returnValue = Convert.ToInt16(task.Result);
+                                            if (returnValue == 1)
+                                            {
+                                                break;
+                                            }
+                                        }
+                                        else
+                                        {
+                                            returnValue = -1;
+                                        }
+                                        #endregion
+                                    }
+                                    if (counterSendCommand == maxSendCommands)
+                                    {
+                                        Debug.WriteLine("DX200::Connect()::Error::" + returnValue.ToString());
+                                    }
+                                    #endregion
+                                }
+                                #endregion
+                            }
+                            else
+                            {
+                                returnValue = -1;
+                            }
+
+                            _communicationStatus.connected = (returnValue > 0) ? true : false;
+
+                            if (_communicationStatus.connected == true)
+                            {
+                                ActualMode = RobotModeType.PLAY;
+
+                                _getStatusThreadRun = true;
+                                _getPositionsThreadRun = true;
+                                _getAlarmsThreadRun = true;
+                                _getJobFileStatusRun = true;
+
+                                if (!(_getStatusThread.ThreadState == System.Threading.ThreadState.Running))
+                                {
+                                    _getStatusThread.Start();
+                                }
+                                if (!(_getPositionsThread.ThreadState == System.Threading.ThreadState.Running))
+                                {
+                                    _getPositionsThread.Start();
+                                }
+                                if (!(_getAlarmsThread.ThreadState == System.Threading.ThreadState.Running))
+                                {
+                                    _getAlarmsThread.Start();
+                                }
+                                if (!(_getJobFileStatusThread.ThreadState == System.Threading.ThreadState.Running))
+                                {
+                                    _getJobFileStatusThread.Start();
+                                }
                             }
                             #endregion
                         }
-                        #endregion
                     }
-                    else
-                    {
-                        returnValue = -1;
-                    }
-
-                    _communicationStatus.connected = (returnValue > 0) ? true : false;
-
-                    if (_communicationStatus.connected == true)
-                    {
-                        ActualMode = RobotModeType.PLAY;
-
-                        _getStatusThreadRun = true;
-                        _getPositionsThreadRun = true;
-                        _getAlarmsThreadRun = true;
-                        _getJobFileStatusRun = true;
-
-                        _getStatusThread.Start();
-                        _getPositionsThread.Start();
-                        _getAlarmsThread.Start();
-                        _getJobFileStatusThread.Start();
-                    }
-                    #endregion
                 }
             }
             catch (Exception ex)
@@ -1538,6 +1547,8 @@ namespace YaskawaNet
 
             try
             {
+                _communicationStatus.connected = false;
+
                 if (_robotHandler != -1 && _robotHandler != -8)
                 {
                     #region
@@ -1620,15 +1631,6 @@ namespace YaskawaNet
                         returnValue = -1;
                     }
 
-                    _communicationStatus.connected = (returnValue > 0) ? false : true;
-
-                    if (_communicationStatus.connected == false)
-                    {
-                        _getStatusThreadRun = false;
-                        _getPositionsThreadRun = false;
-                        _getAlarmsThreadRun = false;
-                        _getJobFileStatusRun = false;
-                    }
                     #endregion
                 }
             }
@@ -1966,6 +1968,38 @@ namespace YaskawaNet
 
 	                #endregion
                 };
+
+                ActualRobotJointPosition.RobotHomePositions = DesiredRobotJointPosition.RobotHomePositions = new double[12]
+                {
+                    0.0 , //S degree
+                    50.0 , //L degree
+                    0.0, //U degree
+                    0.0 , //R degree
+                    0.0, //B degree
+                    0.0, //T degree
+                    1000.0, //Track mm
+                    0.0, //Turntable
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.0
+                };
+
+                ActualRobotJointPosition.RobotParkPositions = DesiredRobotJointPosition.RobotParkPositions = new double[12]
+               {
+                    0.0 , //S degree
+                    50.0 , //L degree
+                    0.0, //U degree
+                    0.0 , //R degree
+                    0.0, //B degree
+                    0.0, //T degree
+                    1000.0, //Track mm
+                    0.0, //Turntable
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.0
+               };
 
                 //Open the configuration file using the dll location
                 System.Configuration.Configuration yaskawaNetDllConfiguration = ConfigurationManager.OpenExeConfiguration(this.GetType().Assembly.Location);
@@ -4253,11 +4287,11 @@ namespace YaskawaNet
 
                 if (_actualReferenceFrame == RobotFrameType.Base)
                 {
-                    returnValue = _actualJobFile.SerializeTCPTrajectory(_actualTCPTrajectory, 0);
+                    returnValue = _actualJobFile.CreateJobFileRobotBaseFromTCPTrajectory(_actualTCPTrajectory, 0);
                 }
                 if (_actualReferenceFrame == RobotFrameType.User1)
                 {
-                    returnValue = _actualJobFile.SerializeTCPTrajectory(_actualTCPTrajectory, 1);
+                    returnValue = _actualJobFile.CreateJobFileRobotBaseFromTCPTrajectory(_actualTCPTrajectory, 1);
                 }
             }
             catch (Exception ex)
@@ -4698,11 +4732,11 @@ namespace YaskawaNet
 
                     if (_actualReferenceFrame == RobotFrameType.Base)
                     {
-                        _actualJobFile.SerializeTCPTrajectory(_surfaceTrajectory[surfaceId], 0);
+                        _actualJobFile.CreateJobFileRobotBaseFromTCPTrajectory(_surfaceTrajectory[surfaceId], 0);
                     }
                     if (_actualReferenceFrame == RobotFrameType.User1)
                     {
-                        _actualJobFile.SerializeTCPTrajectory(_surfaceTrajectory[surfaceId], 1);
+                        _actualJobFile.CreateJobFileRobotBaseFromTCPTrajectory(_surfaceTrajectory[surfaceId], 1);
                     }
 
                     DownloadJobFile(fileName);
@@ -5191,7 +5225,7 @@ namespace YaskawaNet
             {
                 lock (_robotAccessLock)
                 {
-                    if (speed != 0 && !_actualRobotStatus.IsOperating)
+                    if (!_actualRobotStatus.IsOperating)
                     {
                         #region
                         Debug.WriteLine("DX200::JointsJogMove:" + jointMask.ToString());
@@ -5218,7 +5252,17 @@ namespace YaskawaNet
                             #endregion
                         }
 
-                        _actualRobotJointSpeed = realRobotSpeed = 10;//TODO:for safety !!!!!!!!!!!!!!!!!!!! Math.Abs(realRobotSpeed);
+                        if ((jointMask & (1 << 12)) > 0)
+                        {
+                            jointsPositionsReal[6] = (realRobotSpeed > 0) ? DesiredRobotJointPosition.LimitsPulse[6][1] : DesiredRobotJointPosition.LimitsPulse[6][0];
+                        }
+                        if ((jointMask & (1 << 13)) > 0)
+                        {
+                            jointsPositionsReal[7] = (realRobotSpeed > 0) ? DesiredRobotJointPosition.LimitsPulse[7][1] : DesiredRobotJointPosition.LimitsPulse[7][0];
+                        }
+
+                        //TODO:Vlad:Set to configuration file
+                        _actualRobotJointSpeed = realRobotSpeed = 10;
 
                         task = Task<short>.Factory.StartNew(() =>
                         {
@@ -5505,7 +5549,7 @@ namespace YaskawaNet
 
                 lock (_robotAccessLock)
                 {
-                    if (speed != 0 && !_actualRobotStatus.IsOperating)
+                    if (!_actualRobotStatus.IsOperating)
                     {
                         #region
 
@@ -5530,7 +5574,17 @@ namespace YaskawaNet
                             #endregion
                         }
 
-                        _actualRobotJointSpeed = realRobotSpeed = 10;//TODO:for safety !!!!!!!!!!!!!!!!!!!! Math.Abs(realRobotSpeed);
+                        if ((jointMask & (1 << 12)) > 0)
+                        {
+                            jointsPositionsReal[6] = DesiredRobotJointPosition.RobotPulsePositions[6];
+                        }
+                        if ((jointMask & (1 << 13)) > 0)
+                        {
+                            jointsPositionsReal[7] = DesiredRobotJointPosition.RobotPulsePositions[7];
+                        }
+
+                        //TODO:Vlad:Set to configuration file
+                        _actualRobotJointSpeed = realRobotSpeed = 10;
 
                         task = Task<short>.Factory.StartNew(() =>
                         {
@@ -5684,9 +5738,9 @@ namespace YaskawaNet
                         realRobotSpeed = (realRobotSpeed < -100) ? -100 : realRobotSpeed;
 
                         ReportedRobotJointPosition.RobotPulsePositions.CopyTo(jointsPositionsReal, 0);
-                        jointsPositionsReal[jointIndex] = DesiredRobotJointPosition.RobotHomePositions[jointIndex];
+                        jointsPositionsReal[jointIndex] = DesiredRobotJointPosition.RobotPulseHomePositions[jointIndex];
 
-                        _actualRobotJointSpeed = realRobotSpeed = 10;//TODO:for safety !!!!!!!!!!!!!!!!!!!! Math.Abs(realRobotSpeed);
+                        _actualRobotJointSpeed = realRobotSpeed = 10;
 
                         task = Task<short>.Factory.StartNew(() =>
                         {
@@ -5822,7 +5876,7 @@ namespace YaskawaNet
 
                 lock (_robotAccessLock)
                 {
-                    if (speed != 0 && !_actualRobotStatus.IsOperating)
+                    if (!_actualRobotStatus.IsOperating)
                     {
                         #region
 
@@ -5842,12 +5896,22 @@ namespace YaskawaNet
                             #region
                             if ((jointMask & (1 << i)) > 0)
                             {
-                                jointsPositionsReal[i] = DesiredRobotJointPosition.RobotHomePositions[i];
+                                jointsPositionsReal[i] = DesiredRobotJointPosition.RobotPulseHomePositions[i];
                             }
                             #endregion
                         }
 
-                        _actualRobotJointSpeed = realRobotSpeed = 10;//TODO:for safety !!!!!!!!!!!!!!!!!!!! Math.Abs(realRobotSpeed);
+                        if ((jointMask & (1 << 12)) > 0)
+                        {
+                            jointsPositionsReal[6] = DesiredRobotJointPosition.RobotPulseHomePositions[6];
+                        }
+                        if ((jointMask & (1 << 13)) > 0)
+                        {
+                            jointsPositionsReal[7] = DesiredRobotJointPosition.RobotPulseHomePositions[7];
+                        }
+
+                        //TODO:Vlad:Set to configuration file
+                        _actualRobotJointSpeed = realRobotSpeed = 10;//10% from max speed
 
                         task = Task<short>.Factory.StartNew(() =>
                         {
@@ -6139,7 +6203,7 @@ namespace YaskawaNet
 
                 lock (_robotAccessLock)
                 {
-                    if (speed != 0 && !_actualRobotStatus.IsOperating)
+                    if (!_actualRobotStatus.IsOperating)
                     {
                         #region
 
@@ -6159,12 +6223,22 @@ namespace YaskawaNet
                             #region
                             if ((jointMask & (1 << i)) > 0)
                             {
-                                jointsPositionsReal[i] = DesiredRobotJointPosition.RobotParkPositions[i];
+                                jointsPositionsReal[i] = DesiredRobotJointPosition.RobotPulseParkPositions[i];
                             }
                             #endregion
                         }
 
-                        _actualRobotJointSpeed = realRobotSpeed = 10;//TODO:for safety !!!!!!!!!!!!!!!!!!!! Math.Abs(realRobotSpeed);
+                        if ((jointMask & (1 << 12)) > 0)
+                        {
+                            jointsPositionsReal[6] = DesiredRobotJointPosition.RobotPulseParkPositions[6];
+                        }
+                        if ((jointMask & (1 << 13)) > 0)
+                        {
+                            jointsPositionsReal[7] = DesiredRobotJointPosition.RobotPulseParkPositions[7];
+                        }
+
+                        //TODO:Vlad:Set to configuration file
+                        _actualRobotJointSpeed = realRobotSpeed = 10;//10% from max speed
 
                         task = Task<short>.Factory.StartNew(() =>
                         {
@@ -6454,7 +6528,7 @@ namespace YaskawaNet
             {
                 lock (_robotAccessLock)
                 {
-                    if (speed != 0 && !_actualRobotStatus.IsOperating)
+                    if (!_actualRobotStatus.IsOperating)
                     {
                         #region
 
@@ -6477,6 +6551,15 @@ namespace YaskawaNet
                                 jointsPositionsReal[i] += DesiredRobotJointPosition.RobotPulsePositions[i];
                             }
                             #endregion
+                        }
+
+                        if ((jointMask & (1 << 12)) > 0)
+                        {
+                            jointsPositionsReal[6] += DesiredRobotJointPosition.RobotPulsePositions[6];
+                        }
+                        if ((jointMask & (1 << 13)) > 0)
+                        {
+                            jointsPositionsReal[7] += DesiredRobotJointPosition.RobotPulsePositions[7];
                         }
 
                         _actualRobotJointSpeed = realRobotSpeed = 10;//TODO:for safety !!!!!!!!!!!!!!!!!!!! Math.Abs(realRobotSpeed);
@@ -10956,6 +11039,27 @@ namespace YaskawaNet
             return returnValue;
         }
 
+        private void CheckConnection(object source, System.Timers.ElapsedEventArgs argEvent)
+        {
+            try
+            {
+                _communicationStatus.connectionStatus = DX200Communication.CheckPing(_ipAddress);
+
+                if (_communicationStatus.connectionStatus == ConnectionStatus.Reachable)
+                {
+                    Connect();
+                }
+                else
+                {
+                    Disconnect();
+                }
+            }
+            catch (Exception ex)
+            {
+                DiagnosticException.ExceptionHandler(ex);
+            }
+        }
+
         #endregion
 
         #region Threads
@@ -10971,54 +11075,23 @@ namespace YaskawaNet
                     lock (_robotAccessLock)
                     {
                         #region
+
                         try
                         {
-                            //TODO:Check connection ping and any relevant parameter
-                            //CheckConnection();
-#if DEBUG
-                            //TODO:check if it possible fix problem with ping in thread
-                            _communicationStatus.connectionStatus = ConnectionStatus.Reachable;
-#else
-                     _communicationStatus.connectionStatus = DX200Communication.CheckPing(_ipAddress);
-#endif
-
-                            _communicationStatus.ipAddress = _ipAddress;
-
-                            GetStatus();
-
-                            //TODO:if not connected try connect  
+                            if (_communicationStatus.connected == true)
+                            {
+                                GetStatus();
+                            }
                         }
                         catch (Exception ex)
                         {
                             DiagnosticException.ExceptionHandler(ex);
                         }
+
                         #endregion
                     }
 
                     Thread.Sleep(200);
-                }
-            }
-            catch (Exception ex)
-            {
-                DiagnosticException.ExceptionHandler(ex);
-            }
-        }
-        /// <summary>
-        /// 
-        /// </summary>
-        private void CheckConnection()
-        {
-            try
-            {
-                _connectionCheckCounter++;
-                if (_communicationStatus.connected == false && _connectionCheckCounter > 19)
-                {
-                    Debug.WriteLine("DX200::Robot not connected");
-                    _connectionCheckCounter = 0;
-                    if (DX200Communication.CheckPing(_ipAddress) == ConnectionStatus.Reachable)
-                    {
-                        Connect();
-                    }
                 }
             }
             catch (Exception ex)
@@ -11040,8 +11113,11 @@ namespace YaskawaNet
                         #region
                         try
                         {
-                            GetCurrentRobotTCPPosition();
-                            GetCurrentRobotJointsPosition();
+                            if (_communicationStatus.connected == true)
+                            {
+                                GetCurrentRobotTCPPosition();
+                                GetCurrentRobotJointsPosition();
+                            }
                         }
                         catch (Exception ex)
                         {
@@ -11072,7 +11148,10 @@ namespace YaskawaNet
                         #region
                         try
                         {
-                            _alarmsCounter = GetAlarms(out _robotError, out _alarmList);
+                            if (_communicationStatus.connected == true)
+                            {
+                                _alarmsCounter = GetAlarms(out _robotError, out _alarmList);
+                            }
                         }
                         catch (Exception ex)
                         {
@@ -11108,35 +11187,38 @@ namespace YaskawaNet
                         #region
                         try
                         {
-                            _currentJobName = new StringBuilder(Motocom.MaxJobNameLength + 1);
-
-                            //BUG:Vlad exception if  current job not defined !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-                            returnValue = Motocom.BscIsJobName(_robotHandler, _currentJobName, Motocom.MaxJobNameLength);
-
-                            if (returnValue == 0)
+                            if (_communicationStatus.connected == true)
                             {
-                                #region
-                                if (CurrentJobFileName != _currentJobName.ToString())
-                                {
-                                    Debug.WriteLine("Warning::Current job file:" + _currentJobName.ToString());
-                                }
+                                _currentJobName = new StringBuilder(Motocom.MaxJobNameLength + 1);
 
-                                CurrentJobFileName = (returnValue == 0) ? _currentJobName.ToString() : string.Empty;
+                                //BUG:Vlad exception if  current job not defined !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+                                returnValue = Motocom.BscIsJobName(_robotHandler, _currentJobName, Motocom.MaxJobNameLength);
 
-                                if (CurrentJobFileName != string.Empty)
+                                if (returnValue == 0)
                                 {
                                     #region
-                                    currentLineNumber = Motocom.BscIsJobLine(_robotHandler);
-
-                                    if (CurrentLineNumber != currentLineNumber)
+                                    if (CurrentJobFileName != _currentJobName.ToString())
                                     {
-                                        Debug.WriteLine("Warning::Current line:" + currentLineNumber);
+                                        Debug.WriteLine("Warning::Current job file:" + _currentJobName.ToString());
                                     }
 
-                                    CurrentLineNumber = currentLineNumber;
+                                    CurrentJobFileName = (returnValue == 0) ? _currentJobName.ToString() : string.Empty;
+
+                                    if (CurrentJobFileName != string.Empty)
+                                    {
+                                        #region
+                                        currentLineNumber = Motocom.BscIsJobLine(_robotHandler);
+
+                                        if (CurrentLineNumber != currentLineNumber)
+                                        {
+                                            Debug.WriteLine("Warning::Current line:" + currentLineNumber);
+                                        }
+
+                                        CurrentLineNumber = currentLineNumber;
+                                        #endregion
+                                    }
                                     #endregion
                                 }
-                                #endregion
                             }
                         }
                         catch (AccessViolationException ex)
@@ -11520,8 +11602,9 @@ namespace YaskawaNet
         /// 
         /// </summary>
         /// <param name="run"></param>
-        public void RoboDKSimulatorRun(bool run)
+        public short RoboDKSimulatorRun(bool run)
         {
+            short returnValue = -1;
             int _waitTimeCounter = 0;
             string stationName = string.Empty;
 
@@ -11530,76 +11613,97 @@ namespace YaskawaNet
                 if (run == true)
                 {
                     #region
-                    RDK = new RoboDK();
 
-                    // Check if RoboDK started properly
-                    while (!Check_RDK())
+                    _useRoboDKSimulator = true;
+
+                    if (!Check_RDK())
                     {
-                        #region
-                        _waitTimeCounter++;
-                        if (_waitTimeCounter > 100)
+                        RDK = new RoboDK();
+
+                        // Check if RoboDK started properly
+                        while (!Check_RDK())
                         {
-                            break;
-                        }
-                        Thread.Sleep(100);
-                        #endregion
-                    }
-
-                    RDK.SetRunMode(RunMode.Simulate);
-
-                    IItem activeStation = RDK.GetActiveStation();
-                    _waitTimeCounter = 0;
-                    while (activeStation == null)
-                    {
-                        #region
-                        _waitTimeCounter++;
-                        if (_waitTimeCounter > 100)
-                        {
-                            break;
-                        }
-                        Thread.Sleep(100);
-                        #endregion
-                    }
-
-                    stationName = activeStation.Name();
-
-                    if (stationName.IndexOf("ChesterfieldProject") < 0)
-                    {
-                        #region
-                        RDK.AddFile(@"F:\Yaskawa\ChesterfieldProject.rdk");
-                        activeStation = RDK.GetActiveStation();
-                        _waitTimeCounter = 0;
-                        while (activeStation == null)
-                        {
+                            #region
                             _waitTimeCounter++;
                             if (_waitTimeCounter > 100)
                             {
                                 break;
                             }
                             Thread.Sleep(100);
+                            #endregion
                         }
+
+                        RDK.SetRunMode(RunMode.Simulate);
+
+                        IItem activeStation = RDK.GetActiveStation();
+                        _waitTimeCounter = 0;
+                        while (activeStation == null)
+                        {
+                            #region
+                            _waitTimeCounter++;
+                            if (_waitTimeCounter > 100)
+                            {
+                                break;
+                            }
+                            Thread.Sleep(100);
+                            #endregion
+                        }
+
+                        stationName = activeStation.Name();
+
+                        if (stationName.IndexOf("ChesterfieldProject") < 0)
+                        {
+                            #region
+                            RDK.AddFile(@"F:\Yaskawa\ChesterfieldProject.rdk");
+                            activeStation = RDK.GetActiveStation();
+                            _waitTimeCounter = 0;
+                            while (activeStation == null)
+                            {
+                                _waitTimeCounter++;
+                                if (_waitTimeCounter > 100)
+                                {
+                                    break;
+                                }
+                                Thread.Sleep(100);
+                            }
+                            #endregion
+                        }
+                        // attempt to auto select the robot:
+                        SelectRoboDKRobot();
+
+                        ShowRoboDKForm();
+
                         #endregion
+
+                        _simulatorSyncThreadRun = true;
+                        _simulatorSyncThread = new Thread(new ThreadStart(SimulatorSyncThread));
+                        _simulatorSyncThread.IsBackground = true;
+                        _simulatorSyncThread.Priority = ThreadPriority.Normal;
+                        _simulatorSyncThread.Start();
                     }
-                    // attempt to auto select the robot:
-                    SelectRoboDKRobot();
-
-                    ShowRoboDKForm();
-
-                    #endregion
-
-                    _simulatorSyncThreadRun = true;
-                    _simulatorSyncThread.Start();
                 }
                 else
                 {
+                    _useRoboDKSimulator = false;
                     _simulatorSyncThreadRun = false;
+                    Thread.Sleep(500);
+                    _simulatorSyncThread.Abort();
+
                     RDK.CloseRoboDK();
+                    Thread.Sleep(500);
+
+                    RDK = null;
                 }
+
+                returnValue = 0;
             }
             catch (Exception ex)
             {
+                returnValue = -1;
                 DiagnosticException.ExceptionHandler(ex);
             }
+
+            return returnValue;
         }
         #endregion
 
