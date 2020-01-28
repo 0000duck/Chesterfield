@@ -339,6 +339,160 @@ namespace YaskawaNet
 
             return returnValue;
         }
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="traj"></param>
+        /// <param name="referenceFrame"></param>
+        /// <returns></returns>
+        public short CreateJobFileRobotBaseStationFromTCPTrajectory(Trajectory traj, short referenceFrame)
+        {
+            short returnValue = 0;
+            StreamWriter _fileStreamWriter = new StreamWriter(_fileName);
+            Trajectory clonedR1Traj = null;
+            StringBuilder sb = new StringBuilder();
+            int fileExtPos = 0;
+            string _fileNameWithoutExtension = string.Empty;
+            List<string> stringLinesList = new List<string>();
+            StringBuilder currectStringValue = new StringBuilder();
+
+            try
+            {
+                #region
+                if (traj.Count > 0)
+                {
+                    #region
+                    _fileNameWithoutExtension = Path.GetFileName(_fileName);
+                    fileExtPos = _fileNameWithoutExtension.LastIndexOf(".");
+                    if (fileExtPos >= 0)
+                    {
+                        _fileNameWithoutExtension = _fileNameWithoutExtension.Substring(0, fileExtPos);
+                    }
+
+                    _fileStreamWriter.WriteLine("/JOB");
+                    _fileStreamWriter.Write("//NAME ");
+                    _fileStreamWriter.WriteLine(_fileNameWithoutExtension);
+                    _fileStreamWriter.WriteLine("//POS");
+
+                    _fileStreamWriter.Write("///NPOS ");
+                    _fileStreamWriter.Write(traj.Count); _fileStreamWriter.Write(",");
+                    _fileStreamWriter.Write(traj.Count); _fileStreamWriter.Write(",");
+                    _fileStreamWriter.Write(traj.Count); _fileStreamWriter.Write(",");
+                    _fileStreamWriter.WriteLine("0,0,0");
+
+                    if (referenceFrame == 1)
+                    {
+                        _fileStreamWriter.WriteLine("///USER 1");
+                    }
+
+                    _fileStreamWriter.WriteLine("///TOOL 0");
+                    if (referenceFrame == 0)
+                    {
+                        _fileStreamWriter.WriteLine("///POSTYPE BASE");
+                    }
+                    if (referenceFrame == 1)
+                    {
+                        _fileStreamWriter.WriteLine("///POSTYPE USER");
+                    }
+                    _fileStreamWriter.WriteLine("///RECTAN");
+                    _fileStreamWriter.WriteLine("///RCONF 1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0");
+
+                    clonedR1Traj = traj.Clone();
+                    //adding the zero point place for the trajectory (for the velocity calculaion behind) at the end if it is backward or at the beginning if it is forward movement.
+                    //also, for the backward movement it skip the last point (because the robot is already there from the forward movement) and added the 0 placed to the end of the trajectory.
+                    foreach (string lineString in TCPTrajectoryToLine(clonedR1Traj))
+                    {
+                        _fileStreamWriter.WriteLine(lineString);
+                    }
+
+                    _fileStreamWriter.WriteLine("///POSTYPE PULSE");
+                    _fileStreamWriter.WriteLine("///PULSE");
+
+                    int index = 0;
+                    //setting all the points for the robot.
+                    foreach (double point in traj.EX8Dg)
+                    {
+                        #region
+                        currectStringValue.Append("EC");
+                        currectStringValue.Append(index.ToString("D" + 5));
+                        currectStringValue.Append("=");
+                        currectStringValue.Append(((double)(point * 11.378)).ToString("0"));
+                        index++;
+                        stringLinesList.Add(currectStringValue.ToString());
+                        currectStringValue.Clear();
+                        #endregion
+                    }
+
+                    foreach (string lineString in stringLinesList)
+                    {
+                        _fileStreamWriter.WriteLine(lineString);
+                    }
+
+                    _fileStreamWriter.WriteLine("//INST");
+                    _fileStreamWriter.WriteLine("///DATE 2019/01/31 09:00");
+
+                    _fileStreamWriter.WriteLine("///ATTR SC,RW,RJ");
+
+                    if (referenceFrame == 0)
+                    {
+                        _fileStreamWriter.WriteLine("////FRAME BASE");
+                    }
+                    if (referenceFrame == 1)
+                    {
+                        _fileStreamWriter.WriteLine("////FRAME USER 1");
+                    }
+
+                    _fileStreamWriter.WriteLine("///GROUP1 RB1,BS1");
+
+                    _fileStreamWriter.WriteLine("///GROUP2 ST1");
+
+                    _fileStreamWriter.WriteLine("NOP");
+
+                    //make the f * duration velocity points vector from the f * duration + 1 places points in the trajectory.
+                    for (int i = 0; i < clonedR1Traj.Count; i++)
+                    {
+                        #region
+                        //decode the velocity for the selected robot (if only one of then) or the first robot (r1) if both of them.
+                        sb.Append("MOVJ ");
+                        sb.Append("C");
+                        sb.Append((i).ToString("D" + 5));
+                        sb.Append(" BC");
+                        sb.Append((i).ToString("D" + 5));
+                        double velocity = 10.0;// Velocity3D(clonedR1Traj[i + 1], clonedR1Traj[i]) * 10000.0 / (1000.0 / (double)(_frequency));
+                        velocity = (clonedR1Traj.ActualSpeed[i] > 0) ? clonedR1Traj.ActualSpeed[i] : velocity;
+                        sb.Append(" VJ=");
+                        sb.Append(velocity.ToString("00.00"));
+
+                        sb.Append(" +MOVJ ");
+                        sb.Append("EC");
+                        sb.Append((i).ToString("D" + 5));
+                        sb.Append(" VJ=");
+                        sb.Append(velocity.ToString("00.00"));
+
+                        _fileStreamWriter.WriteLine(sb.ToString());
+                        sb.Clear();
+                        #endregion
+                    }
+
+                    _fileStreamWriter.WriteLine("END");
+
+                    _fileStreamWriter.Close();
+                    #endregion
+                }
+                else
+                {
+                    returnValue = -1;
+                }
+                #endregion
+            }
+            catch (Exception ex)
+            {
+                returnValue = -1;
+                DiagnosticException.ExceptionHandler(ex);
+            }
+
+            return returnValue;
+        }
         #endregion
 
         #region Private

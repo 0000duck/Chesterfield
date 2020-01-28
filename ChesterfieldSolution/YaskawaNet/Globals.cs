@@ -114,6 +114,6 @@ namespace YaskawaNet
     {
        StandAlone,
        FollowRealRobot,
-       CCIControlled
+       CSIControlled
     }
 }

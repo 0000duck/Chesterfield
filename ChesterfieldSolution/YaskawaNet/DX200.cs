@@ -25,6 +25,14 @@ using System.Configuration;
 
 namespace YaskawaNet
 {
+    [ComVisible(true)]
+    [Guid("E95AC9FD-D1E1-4CB5-B5E4-C73E31FE6DD4")]
+    [InterfaceType(ComInterfaceType.InterfaceIsIDispatch)]
+    public interface IDX200Events
+    {
+        [DispId(1)]
+        void OnServoOn();
+    }
     /// <summary>
     /// 
     /// </summary>
@@ -98,33 +106,17 @@ namespace YaskawaNet
             set;
         }
 
-        RobotPosition ActualRobotTCPPosition
+        RobotPosition ActualRobotPosition
         {
             get;
             set;
         }
-        RobotPosition DesiredRobotTCPPosition
+        RobotPosition DesiredRobotPosition
         {
             get;
             set;
         }
-        RobotPosition ReportedRobotTCPPosition
-        {
-            get;
-            set;
-        }
-
-        RobotPosition ActualRobotJointPosition
-        {
-            get;
-            set;
-        }
-        RobotPosition DesiredRobotJointPosition
-        {
-            get;
-            set;
-        }
-        RobotPosition ReportedRobotJointPosition
+        RobotPosition ReportedRobotPosition
         {
             get;
             set;
@@ -221,6 +213,12 @@ namespace YaskawaNet
             set;
         }
 
+        RoboDKMode SimulatorRoboDKMode
+        {
+            get;
+            set;
+        }
+
         #endregion
 
         #region Methods
@@ -295,13 +293,23 @@ namespace YaskawaNet
         #endregion
     }
     /// <summary>
-    /// DX200 robot controller implementation                                                                                                                                    A connection attempt
+    /// DX200 robot controller implementation
     /// </summary>
     [ComVisible(true)]
+    [Guid("CDF83C24-0FC4-4B6E-B091-E9BAF8156B86")]
+    [ClassInterface(ClassInterfaceType.None)]
+    [ComSourceInterfaces(typeof(IDX200Events))]
     public class DX200 : IDX200, INotifyPropertyChanged
     {
         #region Events
+
+        public IDX200Events callbackObject;
+
         public event PropertyChangedEventHandler PropertyChanged;
+
+        public delegate void OnServoOnDelegate();
+        public event OnServoOnDelegate OnServoOn;
+
         #endregion
 
         #region Constants
@@ -421,6 +429,7 @@ namespace YaskawaNet
 
         private Configuration _actualRConf = new Configuration(0);
         private RobotStatusInformation _actualRobotStatus = new RobotStatusInformation();
+        private RobotStatusInformation _previousRobotStatus = new RobotStatusInformation();
 
         #region Threads fields
 
@@ -430,6 +439,7 @@ namespace YaskawaNet
         Thread _getJobFileStatusThread = null;
         Thread _simulatorSyncThread = null;
         Thread _captureTrajectoryThread = null;
+        Thread _scanLineThread = null;
 
         System.Timers.Timer _checkConnectionTimer = null;
 
@@ -439,8 +449,10 @@ namespace YaskawaNet
         volatile bool _getJobFileStatusRun = false;
         volatile bool _simulatorSyncThreadRun = false;
         volatile bool _captureTrajectoryThreadRun = false;
+        volatile bool _scanLineThreadRun = false;
 
         volatile int _captureTrajectoryTime = 100;
+        volatile int _scanLineTime = 50;
 
         #endregion
 
@@ -457,6 +469,11 @@ namespace YaskawaNet
         private string _alarmMessage = string.Empty;
 
         #region Positions variables
+
+        readonly object _actualRobotPositionLocker = new object();
+        readonly object _desiredRobotPositionLocker = new object();
+        readonly object _reportedRobotPositionLocker = new object();
+
         readonly object _desiredRobotJointPositionLocker = new object();
         readonly object _reportedRobotJointPositionLocker = new object();
         readonly object _reportedRobotCartesianPositionLocker = new object();
@@ -466,13 +483,19 @@ namespace YaskawaNet
         private RobotPositionVariable _desiredRobotPositionVariable = new RobotPositionVariable();
         private RobotPositionVariable _reportedRobotPositionVariable = new RobotPositionVariable();
 
-        private volatile RobotPosition _actualRobotTCPPosition = new RobotPosition();
-        private volatile RobotPosition _desiredRobotTCPPosition = new RobotPosition();
-        private volatile RobotPosition _reportedRobotTCPPosition = new RobotPosition();
+        //TODO:Vlad:merge joints and TCP
 
-        private volatile RobotPosition _actualRobotJointPosition = new RobotPosition();
-        private volatile RobotPosition _desiredRobotJointPosition = new RobotPosition();
-        private volatile RobotPosition _reportedRobotJointPosition = new RobotPosition();
+        private volatile RobotPosition _actualRobotPosition = new RobotPosition();
+        private volatile RobotPosition _desiredRobotPosition = new RobotPosition();
+        private volatile RobotPosition _reportedRobotPosition = new RobotPosition();
+
+        //private volatile RobotPosition _actualRobotTCPPosition = new RobotPosition();
+        //private volatile RobotPosition _desiredRobotTCPPosition = new RobotPosition();
+        //private volatile RobotPosition _reportedRobotTCPPosition = new RobotPosition();
+
+        //private volatile RobotPosition _actualRobotJointPosition = new RobotPosition();
+        //private volatile RobotPosition _desiredRobotJointPosition = new RobotPosition();
+        //private volatile RobotPosition _reportedRobotJointPosition = new RobotPosition();
 
         private volatile RobotPosition _actualRobotTCPPositionSimulator = new RobotPosition();
         private volatile RobotPosition _desiredRobotTCPPositionSimulator = new RobotPosition();
@@ -509,14 +532,21 @@ namespace YaskawaNet
         ArrayList _alarmList = null;
         int _alarmsCounter = 0;
 
-        Trajectory _actualJointsTrajectory = new Trajectory();
-        Trajectory _actualTCPTrajectory = new Trajectory();
+        Trajectory _actualTrajectory = new Trajectory();
         List<Trajectory> _surfaceTrajectory = new List<Trajectory>(100);
+
+        List<Trajectory> _linesTrajectoryList = new List<Trajectory>();
+        bool _startLineScan = false;
+        bool _stopLineScan = false;
+        bool _stopOnDefect = false;
+
         JobFile _actualJobFile = new JobFile();
         string _currentJobFileName = string.Empty;
         short _currentLineNumber = 0;
 
         private bool _trackerFollowXAxes = true;
+
+        RoboDKMode _simulatorRoboDKMode = RoboDKMode.FollowRealRobot;
 
         #endregion
 
@@ -780,89 +810,52 @@ namespace YaskawaNet
             }
         }
 
-        public RobotPosition ActualRobotTCPPosition
+        public RobotPosition ActualRobotPosition
         {
             get
             {
-                return _actualRobotTCPPosition;
+                return _actualRobotPosition;
             }
             set
             {
-                _actualRobotTCPPosition = value;
+                _actualRobotPosition = value;
                 OnNotifyPropertyChanged();
             }
         }
-        public RobotPosition DesiredRobotTCPPosition
+        public RobotPosition DesiredRobotPosition
         {
             get
             {
-                return _desiredRobotTCPPosition;
-            }
-            set
-            {
-                _desiredRobotTCPPosition = value;
-                OnNotifyPropertyChanged();
-            }
-        }
-        public RobotPosition ReportedRobotTCPPosition
-        {
-            get
-            {
-                return _reportedRobotTCPPosition;
-            }
-            set
-            {
-                _reportedRobotTCPPosition = value;
-                OnNotifyPropertyChanged();
-            }
-        }
-
-        public RobotPosition ActualRobotJointPosition
-        {
-            get
-            {
-                return _actualRobotJointPosition;
-            }
-            set
-            {
-                _actualRobotJointPosition = value;
-                OnNotifyPropertyChanged();
-            }
-        }
-        public RobotPosition DesiredRobotJointPosition
-        {
-            get
-            {
-                lock (_desiredRobotJointPositionLocker)
+                lock (_desiredRobotPositionLocker)
                 {
-                    Debug.WriteLine("DX200:: desired get:position= " + _desiredRobotJointPosition.RobotPositions[0].ToString());
-                    return _desiredRobotJointPosition;
+                    Debug.WriteLine("DX200:: desired get:position= " + _desiredRobotPosition.ActualJointsUnitsPositions[0].ToString());
+                    return _desiredRobotPosition;
                 }
             }
             set
             {
-                lock (_desiredRobotJointPositionLocker)
+                lock (_desiredRobotPositionLocker)
                 {
-                    _desiredRobotJointPosition = value;
-                    Debug.WriteLine("DX200:: desired set:position= " + _desiredRobotJointPosition.RobotPositions[0].ToString());
+                    _desiredRobotPosition = value;
+                    Debug.WriteLine("DX200:: desired set:position= " + _desiredRobotPosition.ActualJointsUnitsPositions[0].ToString());
                     OnNotifyPropertyChanged();
                 }
             }
         }
-        public RobotPosition ReportedRobotJointPosition
+        public RobotPosition ReportedRobotPosition
         {
             get
             {
-                lock (_reportedRobotJointPositionLocker)
+                lock (_reportedRobotPositionLocker)
                 {
-                    return _reportedRobotJointPosition;
+                    return _reportedRobotPosition;
                 }
             }
             set
             {
-                lock (_reportedRobotJointPositionLocker)
+                lock (_reportedRobotPositionLocker)
                 {
-                    _reportedRobotJointPosition = value;
+                    _reportedRobotPosition = value;
                     OnNotifyPropertyChanged();
                 }
             }
@@ -1190,6 +1183,19 @@ namespace YaskawaNet
             }
         }
 
+        public RoboDKMode SimulatorRoboDKMode
+        {
+            get
+            {
+                return _simulatorRoboDKMode;
+            }
+            set
+            {
+                _simulatorRoboDKMode = value;
+                OnNotifyPropertyChanged();
+            }
+        }
+
         #endregion
 
         #region Constructor
@@ -1264,6 +1270,10 @@ namespace YaskawaNet
                 _captureTrajectoryThread = new Thread(new ThreadStart(CaptureTrajectoryThread));
                 _captureTrajectoryThread.IsBackground = true;
                 _captureTrajectoryThread.Priority = ThreadPriority.Normal;
+
+                _scanLineThread = new Thread(new ThreadStart(ScanLineThread));
+                _scanLineThread.IsBackground = true;
+                _scanLineThread.Priority = ThreadPriority.Normal;
 
                 _checkConnectionTimer = new System.Timers.Timer(5000);
                 // Hook up the Elapsed event for the timer. 
@@ -1656,6 +1666,8 @@ namespace YaskawaNet
 
             try
             {
+                //ParseXYZToJobFile("C:\\Users\\Administrator\\Desktop\\CSIScanModules\\test3ball.xyz");
+
                 #region
 
                 //DxfDocument dxf = DxfDocument.Load("F:\\Yaskawa\\1304M1C.dxf");
@@ -1736,9 +1748,17 @@ namespace YaskawaNet
                     returnValue = -1;
                 }
 
-                if (returnValue != 0)
+                if (returnValue < 0)
                 {
-                    Debug.WriteLine("DX200::Initialize()::Motocom.BscOpen()::Error::" + returnValue.ToString());
+                    returnValue = 0;
+                    if (_robotHandler == -1)
+                    {
+                        Debug.WriteLine("DX200::Initialize()::Motocom.BscOpen()::Error::Acquisition Failure");
+                    }
+                    if (_robotHandler == -8)
+                    {
+                        Debug.WriteLine("DX200::Initialize()::Motocom.BscOpen()::Error::License Error");
+                    }
                 }
 
                 _robotHandler = returnValue;
@@ -1910,19 +1930,10 @@ namespace YaskawaNet
                     }
                     #endregion
                 }
-                else
+
+                if (_robotHandler >= 0)
                 {
-                    #region
-                    returnValue = 0;
-                    if (_robotHandler == -1)
-                    {
-                        Debug.WriteLine("DX200::Initialize()::Error::Acquisition Failure");
-                    }
-                    if (_robotHandler == -8)
-                    {
-                        Debug.WriteLine("DX200::Initialize()::Error::License Error");
-                    }
-                    #endregion
+                    returnValue = SetControlGroup();
                 }
 
                 _actualMoveSpeedSelection = RobotMoveSpeedSelectionType.ControlPoint;
@@ -1930,7 +1941,7 @@ namespace YaskawaNet
                 _actualReferenceFrame = RobotFrameType.Base;
                 _reportedDataReferenceFrame = RobotFrameType.Base;
 
-                ActualRobotJointPosition.Limits = DesiredRobotJointPosition.Limits = new double[12][]
+                ActualRobotPosition.LimitsJointsUnits = DesiredRobotPosition.LimitsJointsUnits = new double[12][]
                 {
                    #region
 
@@ -1940,8 +1951,8 @@ namespace YaskawaNet
                     new double [2]{-200.0,200.0 } , //R degree
                     new double [2]{-150.0,150.0 } , //B degree
                     new double [2]{-455.0,455.0 }, //T degree
-                    new double [2]{0.5,4000.0}, //Track mm
-                    new double [2]{-720.0,720.0}, //Turntable
+                    new double [2]{0.5,4200.0}, //Track mm
+                    new double [2]{-99999.0,99999.0}, //Turntable
                     new double [2]{0,0},
                     new double [2]{0,0},
                     new double [2]{0,0},
@@ -1949,18 +1960,18 @@ namespace YaskawaNet
 
 	                #endregion
                 };
-                ActualRobotTCPPosition.Limits = DesiredRobotTCPPosition.Limits = new double[12][]
+                ActualRobotPosition.LimitsTCP = DesiredRobotPosition.LimitsTCP = new double[12][]
                 {
                     #region 
 
-		            new double [2]{ -500,500  } , //X mm
-                    new double [2]{ -1000, 1000 } , //Y mm
-                    new double [2]{ -500, 1000 } , //Z mm
-                    new double [2]{ -180, 180 } , //Rx degree
-                    new double [2]{ -180, 180 } , //Ry degree
+		            new double [2]{ -1000,1000  } , //X mm
+                    new double [2]{ -500, 500 } , //Y mm
+                    new double [2]{ -500, 500 } , //Z mm
+                    new double [2]{ -170, 170 } , //Rx degree
+                    new double [2]{ -90, 90 } , //Ry degree
                     new double [2]{ -180,180  }, //Rz degree
-                    new double [2]{0,0},
-                    new double [2]{0,0},
+                    new double [2]{0.5,4200.0},//Track mm
+                    new double [2]{-99999.0,99999.0}, //Turntable
                     new double [2]{0,0},
                     new double [2]{0,0},
                     new double [2]{0,0},
@@ -1969,7 +1980,7 @@ namespace YaskawaNet
 	                #endregion
                 };
 
-                ActualRobotJointPosition.RobotHomePositions = DesiredRobotJointPosition.RobotHomePositions = new double[12]
+                ActualRobotPosition.JointsUnitsHomePositions = DesiredRobotPosition.JointsUnitsHomePositions = new double[12]
                 {
                     0.0 , //S degree
                     50.0 , //L degree
@@ -1985,7 +1996,7 @@ namespace YaskawaNet
                     0.0
                 };
 
-                ActualRobotJointPosition.RobotParkPositions = DesiredRobotJointPosition.RobotParkPositions = new double[12]
+                ActualRobotPosition.JointsUnitsParkPositions = DesiredRobotPosition.JointsUnitsParkPositions = new double[12]
                {
                     0.0 , //S degree
                     50.0 , //L degree
@@ -2001,6 +2012,26 @@ namespace YaskawaNet
                     0.0
                };
 
+                //IMPORTANT:Vlad:Load in array and load to limits
+                double[][] jointsLimits = new double[12][]
+                {
+                   #region
+
+		            new double [2]{0,0} ,
+                    new double [2]{0,0} ,
+                    new double [2]{0,0} ,
+                    new double [2]{0,0} ,
+                    new double [2]{0,0} ,
+                    new double [2]{0,0},
+                    new double [2]{0,0},
+                    new double [2]{0,0},
+                    new double [2]{0,0},
+                    new double [2]{0,0},
+                    new double [2]{0,0},
+                    new double [2]{0,0} 
+
+	                #endregion
+                };
                 //Open the configuration file using the dll location
                 System.Configuration.Configuration yaskawaNetDllConfiguration = ConfigurationManager.OpenExeConfiguration(this.GetType().Assembly.Location);
                 // Get the appSettings section
@@ -2008,56 +2039,56 @@ namespace YaskawaNet
                 if (yaskawaNetDllConfigAppSettings != null)
                 {
                     #region
-                    ActualRobotJointPosition.Limits[0] = DesiredRobotJointPosition.Limits[0] =
-                                   new double[2]
-                                   {
-                            Convert.ToDouble(yaskawaNetDllConfigAppSettings.Settings["SJointLimitMin"].Value),
-                            Convert.ToDouble(yaskawaNetDllConfigAppSettings.Settings["SJointLimitMax"].Value )
-                                   };
+                    jointsLimits[0] =
+                        new double[2]
+                         {
+                             Convert.ToDouble(yaskawaNetDllConfigAppSettings.Settings["SJointLimitMin"].Value),
+                             Convert.ToDouble(yaskawaNetDllConfigAppSettings.Settings["SJointLimitMax"].Value )
+                         };
 
-                    ActualRobotJointPosition.Limits[1] = DesiredRobotJointPosition.Limits[1] =
+                    jointsLimits[1] =
                         new double[2]
                         {
                             Convert.ToDouble(yaskawaNetDllConfigAppSettings.Settings["LJointLimitMin"].Value),
                             Convert.ToDouble(yaskawaNetDllConfigAppSettings.Settings["LJointLimitMax"].Value )
                         };
 
-                    ActualRobotJointPosition.Limits[2] = DesiredRobotJointPosition.Limits[2] =
+                    jointsLimits[2] =
                         new double[2]
                         {
                             Convert.ToDouble(yaskawaNetDllConfigAppSettings.Settings["UJointLimitMin"].Value),
                             Convert.ToDouble(yaskawaNetDllConfigAppSettings.Settings["UJointLimitMax"].Value )
                         };
 
-                    ActualRobotJointPosition.Limits[3] = DesiredRobotJointPosition.Limits[3] =
+                    jointsLimits[3] =
                         new double[2]
                         {
                             Convert.ToDouble(yaskawaNetDllConfigAppSettings.Settings["RJointLimitMin"].Value),
                             Convert.ToDouble(yaskawaNetDllConfigAppSettings.Settings["RJointLimitMax"].Value )
                         };
 
-                    ActualRobotJointPosition.Limits[4] = DesiredRobotJointPosition.Limits[4] =
+                    jointsLimits[4] =
                         new double[2]
                         {
                             Convert.ToDouble(yaskawaNetDllConfigAppSettings.Settings["BJointLimitMin"].Value),
                             Convert.ToDouble(yaskawaNetDllConfigAppSettings.Settings["BJointLimitMax"].Value )
                         };
 
-                    ActualRobotJointPosition.Limits[5] = DesiredRobotJointPosition.Limits[5] =
+                    jointsLimits[5] =
                         new double[2]
                         {
                             Convert.ToDouble(yaskawaNetDllConfigAppSettings.Settings["TJointLimitMin"].Value),
                             Convert.ToDouble(yaskawaNetDllConfigAppSettings.Settings["TJointLimitMax"].Value )
                         };
 
-                    ActualRobotJointPosition.Limits[6] = DesiredRobotJointPosition.Limits[6] =
+                    jointsLimits[6] =
                         new double[2]
                         {
                             Convert.ToDouble(yaskawaNetDllConfigAppSettings.Settings["TrackLimitMin"].Value),
                             Convert.ToDouble(yaskawaNetDllConfigAppSettings.Settings["TrackLimitMax"].Value )
                         };
 
-                    ActualRobotJointPosition.Limits[7] = DesiredRobotJointPosition.Limits[7] =
+                    jointsLimits[7] =
                         new double[2]
                         {
                             Convert.ToDouble(yaskawaNetDllConfigAppSettings.Settings["TurntableLimitMin"].Value),
@@ -2065,6 +2096,8 @@ namespace YaskawaNet
                         };
                     #endregion
                 }
+
+                ActualRobotPosition.LimitsJointsUnits = DesiredRobotPosition.LimitsJointsUnits = jointsLimits;
 
                 _actualUserCoordinateSystem.UserCoordinateName = "UF1";
 
@@ -2095,6 +2128,9 @@ namespace YaskawaNet
 
                 //StartCaptureTrajectory();
 
+                //IMPORTANT:Vlad:Test UDI
+                //short returnVal = WriteFile(@"D:\Program Files\ScanMaster\IRTUSScanner\YaskawaNet\JobFiles\UDI.JBI");
+
                 #endregion
             }
             catch (Exception ex)
@@ -2122,6 +2158,120 @@ namespace YaskawaNet
             }
             catch (Exception ex)
             {
+                DiagnosticException.ExceptionHandler(ex);
+            }
+
+            return returnValue;
+        }
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <returns></returns>
+        public short SetControlGroup()
+        {
+            short returnValue = 0;
+
+            int taskWaitTimeCounter = 0;
+            Task<short> task = null;
+            int counterSendCommand = 0;
+            int maxSendCommands = 3;
+
+            try
+            {
+                lock (_robotAccessLock)
+                {
+                    #region
+
+                    task = Task<short>.Factory.StartNew(() =>
+                    {
+                        //Return Value
+                        //0 : Normal completion
+                        //Others: Error codes
+                        return Motocom.BscSetCtrlGroupDx(_robotHandler, (int)1, (int)1);
+                    });
+
+                    taskWaitTimeCounter = 0;
+
+                    while (!task.IsCompleted)
+                    {
+                        #region
+                        taskWaitTimeCounter++;
+                        task.Wait(_motocom32FunctionsWaitTime);
+                        if (taskWaitTimeCounter > 10) //wait 500 msec maximum
+                        {
+                            break;
+                        }
+                        #endregion
+                    }
+
+                    if (task.IsCompleted)
+                    {
+                        #region
+                        returnValue = Convert.ToInt16(task.Result);
+                        if (returnValue != 0)
+                        {
+                            #region
+                            counterSendCommand = 0;
+                            while (counterSendCommand < maxSendCommands)
+                            {
+                                #region
+
+                                counterSendCommand++;
+
+                                task = Task<short>.Factory.StartNew(() =>
+                                {
+                                    //Return Value
+                                    //0 : Normal completion
+                                    //Others: Error codes
+                                    return Motocom.BscSetCtrlGroupDx(_robotHandler, (int)1, (int)1);
+                                });
+
+                                taskWaitTimeCounter = 0;
+
+                                while (!task.IsCompleted)
+                                {
+                                    #region
+                                    taskWaitTimeCounter++;
+                                    task.Wait(_motocom32FunctionsWaitTime);
+                                    if (taskWaitTimeCounter > 10) //wait 500 msec maximum
+                                    {
+                                        break;
+                                    }
+                                    #endregion
+                                }
+                                if (task.IsCompleted)
+                                {
+                                    returnValue = Convert.ToInt16(task.Result);
+                                    if (returnValue == 0)
+                                    {
+                                        break;
+                                    }
+                                }
+                                else
+                                {
+                                    returnValue = -1;
+                                }
+                                #endregion
+                            }
+                            if (counterSendCommand == maxSendCommands)
+                            {
+                                Debug.WriteLine("DX200::SetControlGroup()::Error::" + returnValue.ToString());
+                            }
+                            #endregion
+                        }
+                        #endregion
+                    }
+                    else
+                    {
+                        returnValue = -1;
+                    }
+
+                    #endregion
+                }
+            }
+            catch (Exception ex)
+            {
+                returnValue = -1;
                 DiagnosticException.ExceptionHandler(ex);
             }
 
@@ -2170,13 +2320,28 @@ namespace YaskawaNet
 
                         _oldStatusD1 = d1;
                         _oldStatusD2 = d2;
+
+                        if (_previousRobotStatus.IsCommandRemote != _actualRobotStatus.IsCommandRemote)
+                        {
+                            if (_actualRobotStatus.IsCommandRemote == true)
+                            {
+                                returnValue = Motocom.BscSetCtrlGroupDx(_robotHandler, (int)1, (int)3);
+                                if (returnValue != 0)
+                                {
+                                    Debug.WriteLine("DX200::GetStatus()::BscSetCtrlGroupDx()::Error::" + returnValue.ToString());
+                                }
+                            }
+                        }
+
+                        _previousRobotStatus = _actualRobotStatus;
+
                         #endregion
                     }
                     #endregion
                 }
                 else
                 {
-                    Debug.WriteLine("DX200::GetStatus()::Error::" + returnValue.ToString());
+                    Debug.WriteLine("DX200::GetStatus()::BscGetStatus()::Error::" + returnValue.ToString());
                 }
 
                 #endregion
@@ -2236,11 +2401,12 @@ namespace YaskawaNet
 #if DEBUG
                 if (returnValue == 0)
                 {
-                    //_currentRobotTCPPositionReal.CopyTo(ActualRobotTCPPosition.RobotPositions, 0);
-                    //_currentRobotTCPPositionReal.CopyTo(ReportedRobotTCPPosition.RobotPositions, 0);
-                    ActualRobotTCPPosition.RobotPositions = ReportedRobotTCPPosition.RobotPositions = _currentRobotTCPPositionReal;
-                    ActualRobotTCPPosition.ActualSpeed = _actualRobotTCPSpeed;
-                    ReportedRobotTCPPosition.ActualSpeed = _actualRobotTCPSpeed;
+                    _currentRobotTCPPositionReal[7] = ReportedRobotPosition.ActualE8AxisPulsePosition;
+                    _currentRobotTCPPositionReal[8] = -(_currentRobotTCPPositionReal[7]);
+
+                    ActualRobotPosition.ActualTCPPositions = ReportedRobotPosition.ActualTCPPositions = _currentRobotTCPPositionReal;
+                    ActualRobotPosition.ActualSpeed = _actualRobotTCPSpeed;
+                    ReportedRobotPosition.ActualSpeed = _actualRobotTCPSpeed;
                 }
                 // _currentRobotTCPPositionSimulation.CopyTo(ActualRobotTCPPosition.RobotPositions, 0);
                 // _currentRobotTCPPositionSimulation.CopyTo(ReportedRobotTCPPosition.RobotPositions, 0);
@@ -2309,7 +2475,7 @@ namespace YaskawaNet
 #if DEBUG
                 if (returnValue == 0)
                 {
-                    ActualRobotJointPosition.RobotPulsePositions = ReportedRobotJointPosition.RobotPulsePositions = _currentRobotJointsPositionReal;
+                    ActualRobotPosition.ActualJointsPulsePositions = ReportedRobotPosition.ActualJointsPulsePositions = _currentRobotJointsPositionReal;
                     // _currentRobotJointsPositionReal.CopyTo(ActualRobotJointPosition.RobotPositions, 0);
                     // _currentRobotJointsPositionReal.CopyTo(ReportedRobotJointPosition.RobotPositions, 0);
                 }
@@ -2391,6 +2557,7 @@ namespace YaskawaNet
 
             return alarmlist.Count;
         }
+
         #endregion
 
         #region Variables and IO
@@ -2715,7 +2882,7 @@ namespace YaskawaNet
                         #region
                         taskWaitTimeCounter++;
                         task.Wait(_motocom32FunctionsWaitTime);
-                        if (taskWaitTimeCounter > 200) //wait 10000 msec maximum
+                        if (taskWaitTimeCounter > 800) //wait 20000 msec maximum
                         {
                             break;
                         }
@@ -4287,11 +4454,11 @@ namespace YaskawaNet
 
                 if (_actualReferenceFrame == RobotFrameType.Base)
                 {
-                    returnValue = _actualJobFile.CreateJobFileRobotBaseFromTCPTrajectory(_actualTCPTrajectory, 0);
+                    returnValue = _actualJobFile.CreateJobFileRobotBaseStationFromTCPTrajectory(_actualTrajectory, 0);
                 }
                 if (_actualReferenceFrame == RobotFrameType.User1)
                 {
-                    returnValue = _actualJobFile.CreateJobFileRobotBaseFromTCPTrajectory(_actualTCPTrajectory, 1);
+                    returnValue = _actualJobFile.CreateJobFileRobotBaseStationFromTCPTrajectory(_actualTrajectory, 1);
                 }
             }
             catch (Exception ex)
@@ -4318,8 +4485,7 @@ namespace YaskawaNet
 
                 if (returnValue == 0)
                 {
-                    _actualJointsTrajectory = new Trajectory();
-                    _actualTCPTrajectory = new Trajectory();
+                    _actualTrajectory = new Trajectory();
                 }
             }
             catch (Exception ex)
@@ -4712,13 +4878,13 @@ namespace YaskawaNet
                 data[4] = pointData[4];//El origin on surface
                 data[5] = pointData[3];//Rz origin on surface --------- Az origin on surface
 
-                _surfacePosition.X = data[0];// + 4000;
+                _surfacePosition.X = data[0];
                 _surfacePosition.Y = data[1];
                 _surfacePosition.Z = data[2];
                 _surfacePosition.Rx = data[3];
                 _surfacePosition.Ry = data[4];
                 _surfacePosition.Rz = data[5];
-                _surfacePosition.E7Axis = _surfacePosition.X + 1000;// 1600;//3000
+                _surfacePosition.E7Axis = _surfacePosition.X + 1000;
 
                 _surfaceTrajectory[surfaceId].Add(_surfacePosition);
 
@@ -4732,11 +4898,11 @@ namespace YaskawaNet
 
                     if (_actualReferenceFrame == RobotFrameType.Base)
                     {
-                        _actualJobFile.CreateJobFileRobotBaseFromTCPTrajectory(_surfaceTrajectory[surfaceId], 0);
+                        _actualJobFile.CreateJobFileRobotBaseStationFromTCPTrajectory(_surfaceTrajectory[surfaceId], 0);
                     }
                     if (_actualReferenceFrame == RobotFrameType.User1)
                     {
-                        _actualJobFile.CreateJobFileRobotBaseFromTCPTrajectory(_surfaceTrajectory[surfaceId], 1);
+                        _actualJobFile.CreateJobFileRobotBaseStationFromTCPTrajectory(_surfaceTrajectory[surfaceId], 1);
                     }
 
                     DownloadJobFile(fileName);
@@ -4751,6 +4917,177 @@ namespace YaskawaNet
             }
 
             return returnValue;
+        }
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="file"></param>
+        public void ParseXYZToJobFile(string file)
+        {
+            string[] lines = null;
+            StreamWriter _fileStreamWriter = new StreamWriter("D:\\Program Files\\ScanMaster\\IRTUSScanner\\YaskawaNet\\JobFiles\\UDICHECK.JBI");
+            List<string> stringLinesList = new List<string>();
+            StringBuilder currectStringValue = new StringBuilder();
+            StringBuilder sb = new StringBuilder();
+            int i = 0;
+
+            try
+            {
+                currectStringValue.Clear();
+
+                lines = File.ReadAllLines(file);
+
+                _fileStreamWriter.WriteLine("/JOB");
+                _fileStreamWriter.Write("//NAME ");
+                _fileStreamWriter.WriteLine("UDICHECK.JBI");
+                _fileStreamWriter.WriteLine("//POS");
+
+                _fileStreamWriter.Write("///NPOS ");
+                _fileStreamWriter.Write(lines.Length); _fileStreamWriter.Write(",");
+                _fileStreamWriter.Write(lines.Length); _fileStreamWriter.Write(",");
+                _fileStreamWriter.Write(lines.Length); _fileStreamWriter.Write(",");
+                _fileStreamWriter.WriteLine("0,0,0");
+
+                _fileStreamWriter.WriteLine("///TOOL 0");
+                _fileStreamWriter.WriteLine("///POSTYPE BASE");
+
+                _fileStreamWriter.WriteLine("///RECTAN");
+                _fileStreamWriter.WriteLine("///RCONF 1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0");
+
+                foreach (string line in lines)
+                {
+                    #region
+                    string[] values = line.Split(',');
+
+                    currectStringValue.Append("C");
+                    currectStringValue.Append(i.ToString("D" + 5));
+                    currectStringValue.Append("=");
+                    currectStringValue.Append(Convert.ToDouble(values[0]).ToString("0.0000"));
+                    currectStringValue.Append(",");
+                    currectStringValue.Append(Convert.ToDouble(values[1]).ToString("0.0000"));
+                    currectStringValue.Append(",");
+                    currectStringValue.Append(Convert.ToDouble(values[2]).ToString("0.0000"));
+                    currectStringValue.Append(",");
+                    currectStringValue.Append(Convert.ToDouble(values[3]).ToString("0.0000"));
+                    currectStringValue.Append(",");
+                    currectStringValue.Append(Convert.ToDouble(values[4]).ToString("0.0000"));
+                    currectStringValue.Append(",");
+                    currectStringValue.Append("0.0000");
+                    //currectStringValue.Append(",");
+                    i++;
+
+                    stringLinesList.Add(currectStringValue.ToString());
+
+                    currectStringValue.Clear();
+
+                    #endregion
+                }
+
+                foreach (string lineString in stringLinesList)
+                {
+                    _fileStreamWriter.WriteLine(lineString);
+                }
+
+                _fileStreamWriter.WriteLine("///RCONF 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0");
+
+                stringLinesList = new List<string>();
+
+                i = 0;
+                foreach (string line in lines)
+                {
+                    #region
+
+                    string[] values = line.Split(',');
+                    currectStringValue.Append("BC");
+                    currectStringValue.Append(i.ToString("D" + 5));
+                    currectStringValue.Append("=");
+                    currectStringValue.Append(Convert.ToDouble(values[0]).ToString("0.0000"));
+
+                    i++;
+
+                    stringLinesList.Add(currectStringValue.ToString());
+
+                    currectStringValue.Clear();
+
+                    #endregion
+                }
+
+                foreach (string lineString in stringLinesList)
+                {
+                    _fileStreamWriter.WriteLine(lineString);
+                }
+
+                stringLinesList = new List<string>();
+
+                _fileStreamWriter.WriteLine("///POSTYPE PULSE");
+                _fileStreamWriter.WriteLine("///PULSE");
+
+                i = 0;
+                //setting all the points for the robot.
+                foreach (string line in lines)
+                {
+                    #region
+                    currectStringValue.Append("EC");
+                    currectStringValue.Append(i.ToString("D" + 5));
+                    currectStringValue.Append("=");
+                    currectStringValue.Append("0000");
+                    i++;
+                    stringLinesList.Add(currectStringValue.ToString());
+                    currectStringValue.Clear();
+                    #endregion
+                }
+
+                foreach (string lineString in stringLinesList)
+                {
+                    _fileStreamWriter.WriteLine(lineString);
+                }
+
+                _fileStreamWriter.WriteLine("//INST");
+                _fileStreamWriter.WriteLine("///DATE 2019/01/31 09:00");
+
+                _fileStreamWriter.WriteLine("///ATTR SC,RW,RJ");
+
+                _fileStreamWriter.WriteLine("////FRAME BASE");
+
+                _fileStreamWriter.WriteLine("///GROUP1 RB1,BS1");
+
+                _fileStreamWriter.WriteLine("///GROUP2 ST1");
+
+                _fileStreamWriter.WriteLine("NOP");
+
+                i = 0;
+                for (i = 0; i < lines.Length; i++)
+                {
+                    #region
+                    //decode the velocity for the selected robot (if only one of then) or the first robot (r1) if both of them.
+                    sb.Append("MOVJ ");
+                    sb.Append("C");
+                    sb.Append((i).ToString("D" + 5));
+                    sb.Append(" BC");
+                    sb.Append((i).ToString("D" + 5));
+                    double velocity = 10.0;
+                    sb.Append(" VJ=");
+                    sb.Append(velocity.ToString("00.00"));
+
+                    sb.Append(" +MOVJ ");
+                    sb.Append("EC");
+                    sb.Append((i).ToString("D" + 5));
+                    sb.Append(" VJ=");
+                    sb.Append(velocity.ToString("00.00"));
+
+                    _fileStreamWriter.WriteLine(sb.ToString());
+                    sb.Clear();
+                    #endregion
+                }
+
+                _fileStreamWriter.WriteLine("END");
+
+                _fileStreamWriter.Close();
+            }
+            catch (Exception ex)
+            {
+                DiagnosticException.ExceptionHandler(ex);
+            }
         }
         #endregion
 
@@ -4782,6 +5119,8 @@ namespace YaskawaNet
         #endregion
 
         #region Movement
+
+        //TODO:Vlad:Implement procedure for trajectory line running
 
         /// <summary>
         /// 
@@ -5041,7 +5380,7 @@ namespace YaskawaNet
             {
                 lock (_robotAccessLock)
                 {
-                    if (speed != 0 && !_actualRobotStatus.IsOperating)
+                    if ((jointIndex >= 0 && jointIndex <= 5) && !_actualRobotStatus.IsOperating)
                     {
                         #region
                         if (_actualRobotStatus.IsCommandHold == true)
@@ -5051,9 +5390,9 @@ namespace YaskawaNet
 
                         simulatorSpeed = speed;
 
-                        ReportedRobotJointPosition.RobotPulsePositions.CopyTo(jointsPositionsReal, 0);
+                        ReportedRobotPosition.ActualJointsPulsePositions.CopyTo(jointsPositionsReal, 0);
 
-                        jointsPositionsReal[jointIndex] = (speed >= 0) ? DesiredRobotJointPosition.LimitsPulse[jointIndex][1] : DesiredRobotJointPosition.LimitsPulse[jointIndex][0];
+                        jointsPositionsReal[jointIndex] = (speed >= 0) ? DesiredRobotPosition.LimitsJointsPulse[jointIndex][1] : DesiredRobotPosition.LimitsJointsPulse[jointIndex][0];
 
                         if (jointIndex == 0)
                         {
@@ -5172,6 +5511,7 @@ namespace YaskawaNet
                         {
                             Debug.WriteLine("DX200::JointJogMove()::Error::" + returnValue.ToString());
                         }
+
                         Debug.WriteLine("DX200::JointJogMove:" + jointIndex.ToString() + "::" + "desired position: " + jointsPositionsReal[jointIndex].ToString());
 
                         #endregion
@@ -5228,7 +5568,6 @@ namespace YaskawaNet
                     if (!_actualRobotStatus.IsOperating)
                     {
                         #region
-                        Debug.WriteLine("DX200::JointsJogMove:" + jointMask.ToString());
 
                         if (_actualRobotStatus.IsCommandHold == true)
                         {
@@ -5237,32 +5576,32 @@ namespace YaskawaNet
 
                         realRobotSpeed = simulatorSpeed = speed;
 
-                        realRobotSpeed = (realRobotSpeed > 100) ? 100 : realRobotSpeed;
-                        realRobotSpeed = (realRobotSpeed < -100) ? -100 : realRobotSpeed;
+                        realRobotSpeed = (realRobotSpeed > _maxJointSpeed) ? _maxJointSpeed : realRobotSpeed;
+                        realRobotSpeed = (realRobotSpeed < -_maxJointSpeed) ? -_maxJointSpeed : realRobotSpeed;
 
-                        ReportedRobotJointPosition.RobotPulsePositions.CopyTo(jointsPositionsReal, 0);
+                        ReportedRobotPosition.ActualJointsPulsePositions.CopyTo(jointsPositionsReal, 0);
 
                         for (int i = 0; i < jointsPositionsReal.Length; i++)
                         {
                             #region
                             if ((jointMask & (1 << i)) > 0)
                             {
-                                jointsPositionsReal[i] = (realRobotSpeed > 0) ? DesiredRobotJointPosition.LimitsPulse[i][1] : DesiredRobotJointPosition.LimitsPulse[i][0];
+                                jointsPositionsReal[i] = (realRobotSpeed > 0) ? DesiredRobotPosition.LimitsJointsPulse[i][1] : DesiredRobotPosition.LimitsJointsPulse[i][0];
                             }
                             #endregion
                         }
 
                         if ((jointMask & (1 << 12)) > 0)
                         {
-                            jointsPositionsReal[6] = (realRobotSpeed > 0) ? DesiredRobotJointPosition.LimitsPulse[6][1] : DesiredRobotJointPosition.LimitsPulse[6][0];
+                            jointsPositionsReal[6] = (realRobotSpeed > 0) ? DesiredRobotPosition.LimitsJointsPulse[6][1] : DesiredRobotPosition.LimitsJointsPulse[6][0];
                         }
                         if ((jointMask & (1 << 13)) > 0)
                         {
-                            jointsPositionsReal[7] = (realRobotSpeed > 0) ? DesiredRobotJointPosition.LimitsPulse[7][1] : DesiredRobotJointPosition.LimitsPulse[7][0];
+                            jointsPositionsReal[7] = (realRobotSpeed > 0) ? DesiredRobotPosition.LimitsJointsPulse[7][1] : DesiredRobotPosition.LimitsJointsPulse[7][0];
                         }
 
                         //TODO:Vlad:Set to configuration file
-                        _actualRobotJointSpeed = realRobotSpeed = 10;
+                        _actualRobotJointSpeed = realRobotSpeed = Math.Abs(realRobotSpeed);
 
                         task = Task<short>.Factory.StartNew(() =>
                         {
@@ -5296,41 +5635,44 @@ namespace YaskawaNet
                             returnValue = -1;
                         }
 
-                        #region Not in use
-                        //if (_useRoboDKSimulator)
-                        //{
-                        //    #region
+                        Debug.WriteLine("DX200::JointsJogMove:" + jointMask.ToString() + " Result=" + returnValue.ToString());
 
-                        //    jointsPositionsSimulator = _roboDKRobot.Joints();
-
-                        //    if (jointsPositionsSimulator != null)
-                        //    {
-                        //        #region
-                        //        //get actual robot position
-                        //        for (int i = 0; i < jointsPositionsSimulator.Length; i++)
-                        //        {
-                        //            jointsPositionsSimulator[i] = ReportedRobotJointPositionSimulator.RobotPositions[i];
-                        //        }
-
-                        //        _roboDKRobot.SetSpeed(-1, Math.Abs(speed));
-
-                        //        for (int i = 0; i < jointsPositionsSimulator.Length; i++)
-                        //        {
-                        //            if ((jointMask & (1 << i)) > 0)
-                        //            {
-                        //                jointsPositionsSimulator[i] = (speed > 0) ? DesiredRobotJointPosition.Limits[i][1] : DesiredRobotJointPosition.Limits[i][0];
-                        //            }
-                        //        }
-
-                        //        _roboDKRobot.MoveJ(jointsPositionsSimulator, MOVE_BLOCKING);
-                        //        #endregion
-                        //    }
-
-                        //    #endregion
-                        //} 
-                        #endregion
                         #endregion
                     }
+
+                    #region Not in use
+                    //if (_useRoboDKSimulator)
+                    //{
+                    //    #region
+
+                    //    jointsPositionsSimulator = _roboDKRobot.Joints();
+
+                    //    if (jointsPositionsSimulator != null)
+                    //    {
+                    //        #region
+                    //        //get actual robot position
+                    //        for (int i = 0; i < jointsPositionsSimulator.Length; i++)
+                    //        {
+                    //            jointsPositionsSimulator[i] = ReportedRobotJointPositionSimulator.RobotPositions[i];
+                    //        }
+
+                    //        _roboDKRobot.SetSpeed(-1, Math.Abs(speed));
+
+                    //        for (int i = 0; i < jointsPositionsSimulator.Length; i++)
+                    //        {
+                    //            if ((jointMask & (1 << i)) > 0)
+                    //            {
+                    //                jointsPositionsSimulator[i] = (speed > 0) ? DesiredRobotJointPosition.Limits[i][1] : DesiredRobotJointPosition.Limits[i][0];
+                    //            }
+                    //        }
+
+                    //        _roboDKRobot.MoveJ(jointsPositionsSimulator, MOVE_BLOCKING);
+                    //        #endregion
+                    //    }
+
+                    //    #endregion
+                    //} 
+                    #endregion
                 }
             }
             catch (Exception ex)
@@ -5364,7 +5706,7 @@ namespace YaskawaNet
             {
                 lock (_robotAccessLock)
                 {
-                    if (speed != 0 && !_actualRobotStatus.IsOperating)
+                    if ((jointIndex >= 0 && jointIndex <= 5) && !_actualRobotStatus.IsOperating)
                     {
                         #region
 
@@ -5375,8 +5717,8 @@ namespace YaskawaNet
 
                         simulatorSpeed = speed;
 
-                        ReportedRobotJointPosition.RobotPulsePositions.CopyTo(jointsPositionsReal, 0);
-                        jointsPositionsReal[jointIndex] = DesiredRobotJointPosition.RobotPulsePositions[jointIndex];
+                        ReportedRobotPosition.ActualJointsPulsePositions.CopyTo(jointsPositionsReal, 0);
+                        jointsPositionsReal[jointIndex] = DesiredRobotPosition.ActualJointsPulsePositions[jointIndex];
 
                         if (jointIndex == 0)
                         {
@@ -5560,31 +5902,31 @@ namespace YaskawaNet
 
                         realRobotSpeed = simulatorSpeed = speed;
 
-                        realRobotSpeed = (realRobotSpeed > 100) ? 100 : realRobotSpeed;
-                        realRobotSpeed = (realRobotSpeed < -100) ? -100 : realRobotSpeed;
+                        realRobotSpeed = (realRobotSpeed > _maxJointSpeed) ? _maxJointSpeed : realRobotSpeed;
+                        realRobotSpeed = (realRobotSpeed < -_maxJointSpeed) ? -_maxJointSpeed : realRobotSpeed;
 
-                        ReportedRobotJointPosition.RobotPulsePositions.CopyTo(jointsPositionsReal, 0);
+                        ReportedRobotPosition.ActualJointsPulsePositions.CopyTo(jointsPositionsReal, 0);
                         for (int i = 0; i < jointsPositionsReal.Length; i++)
                         {
                             #region
                             if ((jointMask & (1 << i)) > 0)
                             {
-                                jointsPositionsReal[i] = DesiredRobotJointPosition.RobotPulsePositions[i];
+                                jointsPositionsReal[i] = DesiredRobotPosition.ActualJointsPulsePositions[i];
                             }
                             #endregion
                         }
 
                         if ((jointMask & (1 << 12)) > 0)
                         {
-                            jointsPositionsReal[6] = DesiredRobotJointPosition.RobotPulsePositions[6];
+                            jointsPositionsReal[6] = DesiredRobotPosition.ActualJointsPulsePositions[6];
                         }
                         if ((jointMask & (1 << 13)) > 0)
                         {
-                            jointsPositionsReal[7] = DesiredRobotJointPosition.RobotPulsePositions[7];
+                            jointsPositionsReal[7] = DesiredRobotPosition.ActualJointsPulsePositions[7];
                         }
 
                         //TODO:Vlad:Set to configuration file
-                        _actualRobotJointSpeed = realRobotSpeed = 10;
+                        _actualRobotJointSpeed = realRobotSpeed = Math.Abs(realRobotSpeed);
 
                         task = Task<short>.Factory.StartNew(() =>
                         {
@@ -5675,6 +6017,7 @@ namespace YaskawaNet
                     }
                 }
 
+                #region Not in use
                 //if (_useRoboDKSimulator)
                 //{
                 //    #region
@@ -5690,7 +6033,8 @@ namespace YaskawaNet
 
                 //    _roboDKRobot.MoveJ(jointsPositionsSimulator, MOVE_BLOCKING);
                 //    #endregion
-                //}
+                //} 
+                #endregion
 
                 #endregion
             }
@@ -5724,7 +6068,7 @@ namespace YaskawaNet
             {
                 lock (_robotAccessLock)
                 {
-                    if (speed != 0 && !_actualRobotStatus.IsOperating)
+                    if ((jointIndex >= 0 && jointIndex <= 5) && !_actualRobotStatus.IsOperating)
                     {
                         #region
                         if (_actualRobotStatus.IsCommandHold == true)
@@ -5734,13 +6078,13 @@ namespace YaskawaNet
 
                         realRobotSpeed = simulatorSpeed = speed;
 
-                        realRobotSpeed = (realRobotSpeed > 100) ? 100 : realRobotSpeed;
-                        realRobotSpeed = (realRobotSpeed < -100) ? -100 : realRobotSpeed;
+                        realRobotSpeed = (realRobotSpeed > _maxJointSpeed) ? _maxJointSpeed : realRobotSpeed;
+                        realRobotSpeed = (realRobotSpeed < -_maxJointSpeed) ? -_maxJointSpeed : realRobotSpeed;
 
-                        ReportedRobotJointPosition.RobotPulsePositions.CopyTo(jointsPositionsReal, 0);
-                        jointsPositionsReal[jointIndex] = DesiredRobotJointPosition.RobotPulseHomePositions[jointIndex];
+                        ReportedRobotPosition.ActualJointsPulsePositions.CopyTo(jointsPositionsReal, 0);
+                        jointsPositionsReal[jointIndex] = DesiredRobotPosition.JointsUnitsHomePositions[jointIndex];
 
-                        _actualRobotJointSpeed = realRobotSpeed = 10;
+                        _actualRobotJointSpeed = realRobotSpeed = Math.Abs(realRobotSpeed);
 
                         task = Task<short>.Factory.StartNew(() =>
                         {
@@ -5830,6 +6174,7 @@ namespace YaskawaNet
                     }
                 }
 
+                #region Not in use
                 //if (_useRoboDKSimulator)
                 //{
                 //    #region
@@ -5841,7 +6186,8 @@ namespace YaskawaNet
 
                 //    _roboDKRobot.MoveJ(jointsPositionsSimulator, MOVE_BLOCKING);
                 //    #endregion
-                //}
+                //} 
+                #endregion
             }
             catch (Exception ex)
             {
@@ -5890,24 +6236,24 @@ namespace YaskawaNet
                         realRobotSpeed = (realRobotSpeed > 100) ? 100 : realRobotSpeed;
                         realRobotSpeed = (realRobotSpeed < -100) ? -100 : realRobotSpeed;
 
-                        ReportedRobotJointPosition.RobotPulsePositions.CopyTo(jointsPositionsReal, 0);
+                        ReportedRobotPosition.ActualJointsPulsePositions.CopyTo(jointsPositionsReal, 0);
                         for (int i = 0; i < jointsPositionsReal.Length; i++)
                         {
                             #region
                             if ((jointMask & (1 << i)) > 0)
                             {
-                                jointsPositionsReal[i] = DesiredRobotJointPosition.RobotPulseHomePositions[i];
+                                jointsPositionsReal[i] = DesiredRobotPosition.JointsPulseHomePositions[i];
                             }
                             #endregion
                         }
 
                         if ((jointMask & (1 << 12)) > 0)
                         {
-                            jointsPositionsReal[6] = DesiredRobotJointPosition.RobotPulseHomePositions[6];
+                            jointsPositionsReal[6] = DesiredRobotPosition.JointsPulseHomePositions[6];
                         }
                         if ((jointMask & (1 << 13)) > 0)
                         {
-                            jointsPositionsReal[7] = DesiredRobotJointPosition.RobotPulseHomePositions[7];
+                            jointsPositionsReal[7] = DesiredRobotPosition.JointsPulseHomePositions[7];
                         }
 
                         //TODO:Vlad:Set to configuration file
@@ -6051,7 +6397,7 @@ namespace YaskawaNet
             {
                 lock (_robotAccessLock)
                 {
-                    if (speed != 0 && !_actualRobotStatus.IsOperating)
+                    if ((jointIndex >= 0 && jointIndex <= 5) && !_actualRobotStatus.IsOperating)
                     {
                         #region
 
@@ -6062,13 +6408,13 @@ namespace YaskawaNet
 
                         realRobotSpeed = simulatorSpeed = speed;
 
-                        realRobotSpeed = (realRobotSpeed > 100) ? 100 : realRobotSpeed;
-                        realRobotSpeed = (realRobotSpeed < -100) ? -100 : realRobotSpeed;
+                        realRobotSpeed = (realRobotSpeed > _maxJointSpeed) ? _maxJointSpeed : realRobotSpeed;
+                        realRobotSpeed = (realRobotSpeed < -_maxJointSpeed) ? -_maxJointSpeed : realRobotSpeed;
 
-                        ReportedRobotJointPosition.RobotPulsePositions.CopyTo(jointsPositionsReal, 0);
-                        jointsPositionsReal[jointIndex] = DesiredRobotJointPosition.RobotParkPositions[jointIndex];
+                        ReportedRobotPosition.ActualJointsPulsePositions.CopyTo(jointsPositionsReal, 0);
+                        jointsPositionsReal[jointIndex] = DesiredRobotPosition.JointsPulseParkPositions[jointIndex];
 
-                        _actualRobotJointSpeed = realRobotSpeed = 10;//TODO:for safety !!!!!!!!!!!!!!!!!!!! Math.Abs(realRobotSpeed);
+                        _actualRobotJointSpeed = realRobotSpeed = Math.Abs(realRobotSpeed);
 
                         task = Task<short>.Factory.StartNew(() =>
                         {
@@ -6217,24 +6563,24 @@ namespace YaskawaNet
                         realRobotSpeed = (realRobotSpeed > 100) ? 100 : realRobotSpeed;
                         realRobotSpeed = (realRobotSpeed < -100) ? -100 : realRobotSpeed;
 
-                        ReportedRobotJointPosition.RobotPulsePositions.CopyTo(jointsPositionsReal, 0);
+                        ReportedRobotPosition.ActualJointsPulsePositions.CopyTo(jointsPositionsReal, 0);
                         for (int i = 0; i < jointsPositionsReal.Length; i++)
                         {
                             #region
                             if ((jointMask & (1 << i)) > 0)
                             {
-                                jointsPositionsReal[i] = DesiredRobotJointPosition.RobotPulseParkPositions[i];
+                                jointsPositionsReal[i] = DesiredRobotPosition.JointsPulseParkPositions[i];
                             }
                             #endregion
                         }
 
                         if ((jointMask & (1 << 12)) > 0)
                         {
-                            jointsPositionsReal[6] = DesiredRobotJointPosition.RobotPulseParkPositions[6];
+                            jointsPositionsReal[6] = DesiredRobotPosition.JointsPulseParkPositions[6];
                         }
                         if ((jointMask & (1 << 13)) > 0)
                         {
-                            jointsPositionsReal[7] = DesiredRobotJointPosition.RobotPulseParkPositions[7];
+                            jointsPositionsReal[7] = DesiredRobotPosition.JointsPulseParkPositions[7];
                         }
 
                         //TODO:Vlad:Set to configuration file
@@ -6392,8 +6738,8 @@ namespace YaskawaNet
                         realRobotSpeed = (realRobotSpeed > 100) ? 100 : realRobotSpeed;
                         realRobotSpeed = (realRobotSpeed < -100) ? -100 : realRobotSpeed;
 
-                        ReportedRobotJointPosition.RobotPulsePositions.CopyTo(jointsPositionsReal, 0);
-                        jointsPositionsReal[jointIndex] += DesiredRobotJointPosition.RobotPulsePositions[jointIndex];
+                        ReportedRobotPosition.ActualJointsPulsePositions.CopyTo(jointsPositionsReal, 0);
+                        jointsPositionsReal[jointIndex] += DesiredRobotPosition.ActualJointsPulsePositions[jointIndex];
 
                         _actualRobotJointSpeed = realRobotSpeed = 10;//TODO:for safety !!!!!!!!!!!!!!!!!!!! Math.Abs(realRobotSpeed);
 
@@ -6542,24 +6888,24 @@ namespace YaskawaNet
                         realRobotSpeed = (realRobotSpeed > 100) ? 100 : realRobotSpeed;
                         realRobotSpeed = (realRobotSpeed < -100) ? -100 : realRobotSpeed;
 
-                        ReportedRobotJointPosition.RobotPulsePositions.CopyTo(jointsPositionsReal, 0);
+                        ReportedRobotPosition.ActualJointsPulsePositions.CopyTo(jointsPositionsReal, 0);
                         for (int i = 0; i < jointsPositionsReal.Length; i++)
                         {
                             #region
                             if ((jointMask & (1 << i)) > 0)
                             {
-                                jointsPositionsReal[i] += DesiredRobotJointPosition.RobotPulsePositions[i];
+                                jointsPositionsReal[i] += DesiredRobotPosition.ActualJointsPulsePositions[i];
                             }
                             #endregion
                         }
 
                         if ((jointMask & (1 << 12)) > 0)
                         {
-                            jointsPositionsReal[6] += DesiredRobotJointPosition.RobotPulsePositions[6];
+                            jointsPositionsReal[6] += DesiredRobotPosition.ActualJointsPulsePositions[6];
                         }
                         if ((jointMask & (1 << 13)) > 0)
                         {
-                            jointsPositionsReal[7] += DesiredRobotJointPosition.RobotPulsePositions[7];
+                            jointsPositionsReal[7] += DesiredRobotPosition.ActualJointsPulsePositions[7];
                         }
 
                         _actualRobotJointSpeed = realRobotSpeed = 10;//TODO:for safety !!!!!!!!!!!!!!!!!!!! Math.Abs(realRobotSpeed);
@@ -6701,11 +7047,14 @@ namespace YaskawaNet
             int counterSendCommand = 0;
             int maxSendCommands = 3;
 
+            short _getUserFrameReturnValue = -1;
+            double deferenceXandBase = 0.0;
+
             try
             {
                 lock (_robotAccessLock)
                 {
-                    if (speed != 0 && !_actualRobotStatus.IsOperating)
+                    if ((tcpIndex >= 0 && tcpIndex <= 5) && !_actualRobotStatus.IsOperating)
                     {
                         #region
 
@@ -6717,39 +7066,63 @@ namespace YaskawaNet
                         _actualMoveSpeedSelection = (tcpIndex > -1 && tcpIndex < 3) ?
                             RobotMoveSpeedSelectionType.ControlPoint : RobotMoveSpeedSelectionType.PositionAngular;
 
-                        realRobotSpeed = simulatorSpeed = speed;
+                        realRobotSpeed = simulatorSpeed = Math.Abs(speed);
 
-                        realRobotSpeed = (realRobotSpeed > 100) ? 100 : realRobotSpeed;
-                        realRobotSpeed = (realRobotSpeed < -100) ? -100 : realRobotSpeed;
+                        ReportedRobotPosition.ActualTCPPositions.CopyTo(tcpAxesPositionsReal, 0);
 
-                        ReportedRobotTCPPosition.RobotPositions.CopyTo(tcpAxesPositionsReal, 0);
+                        deferenceXandBase = tcpAxesPositionsReal[0] - tcpAxesPositionsReal[6];
+                        tcpAxesPositionsReal[7] = ReportedRobotPosition.ActualE8AxisPulsePosition;
+                        tcpAxesPositionsReal[8] = -(tcpAxesPositionsReal[7]);
 
-                        //TODO:Vlad:Implement for X axes with linear tracker
-                        if (tcpIndex == 0 && _actualReferenceFrame == RobotFrameType.Base)
+                        if (tcpIndex == 0)
                         {
-                            tcpAxesPositionsReal[tcpIndex] = (speed > 0) ?
-                                (ReportedRobotTCPPosition.E7Axis + DesiredRobotTCPPosition.Limits[tcpIndex][1]) :
-                                (ReportedRobotTCPPosition.E7Axis + DesiredRobotTCPPosition.Limits[tcpIndex][0]);
-
-                            if (tcpAxesPositionsReal[tcpIndex] > ReportedRobotTCPPosition.E7Axis)
+                            #region
+                            if (_trackerFollowXAxes)
                             {
-                                tcpAxesPositionsReal[6] = tcpAxesPositionsReal[tcpIndex] - 500.0;
+                                #region
+                                if (_actualReferenceFrame == RobotFrameType.User1)
+                                {
+                                    //IMPORTANT:Vlad:Here is a problem in user frame
+                                    // tcpAxesPositionsReal[tcpIndex] = (speed > 0) ? (1000.0) + deferenceXandBase :
+                                    //(-1000.0) + deferenceXandBase;
+                                    tcpAxesPositionsReal[tcpIndex] = (speed > 0) ? (DesiredRobotPosition.LimitsTCP[6][1] - _reportedUserCoordinateSystem.UserCoordinateData[22]) + deferenceXandBase :
+                                    (DesiredRobotPosition.LimitsTCP[6][0] - _reportedUserCoordinateSystem.UserCoordinateData[22]) + deferenceXandBase;
+                                }
+                                else
+                                {
+                                    tcpAxesPositionsReal[tcpIndex] = (speed > 0) ? DesiredRobotPosition.LimitsTCP[6][1] + deferenceXandBase :
+                                    DesiredRobotPosition.LimitsTCP[6][0] + deferenceXandBase;
+                                }
+
+                                tcpAxesPositionsReal[6] = tcpAxesPositionsReal[tcpIndex] - deferenceXandBase;
+                                #endregion
                             }
                             else
                             {
-                                tcpAxesPositionsReal[6] = tcpAxesPositionsReal[tcpIndex] + 500.0; ;
+                                tcpAxesPositionsReal[tcpIndex] = (speed > 0) ? tcpAxesPositionsReal[6] + DesiredRobotPosition.LimitsTCP[tcpIndex][1] :
+                                 tcpAxesPositionsReal[6] + DesiredRobotPosition.LimitsTCP[tcpIndex][0];
                             }
-
-                            //tcpAxesPositionsReal[6] = (speed > 0) ?
-                            //    (ReportedRobotTCPPosition.E7Axis - DesiredRobotTCPPosition.Limits[tcpIndex][1]) :
-                            //    (ReportedRobotTCPPosition.E7Axis + DesiredRobotTCPPosition.Limits[tcpIndex][0]);
+                            #endregion
                         }
                         else
                         {
-                            tcpAxesPositionsReal[tcpIndex] = (speed > 0) ? DesiredRobotTCPPosition.Limits[tcpIndex][1] : DesiredRobotTCPPosition.Limits[tcpIndex][0];
+                            tcpAxesPositionsReal[tcpIndex] = (speed > 0) ? DesiredRobotPosition.LimitsTCP[tcpIndex][1] : DesiredRobotPosition.LimitsTCP[tcpIndex][0];
+                            if (_trackerFollowXAxes)
+                            {
+                                tcpAxesPositionsReal[6] = tcpAxesPositionsReal[0] - deferenceXandBase;
+                            }
                         }
 
-                        realRobotSpeed = 100;//TODO:for safety !!!!!!!!!!!!!!!!!!!! Math.Abs(realRobotSpeed);
+                        if (_actualReferenceFrame == RobotFrameType.User1)
+                        {
+                            #region
+                            _getUserFrameReturnValue = GetUserFrame();
+                            if (_getUserFrameReturnValue == 0)
+                            {
+                                tcpAxesPositionsReal[6] += _reportedUserCoordinateSystem.UserCoordinateData[22];
+                            }
+                            #endregion
+                        }
 
                         task = Task<short>.Factory.StartNew(() =>
                         {
@@ -6892,11 +7265,14 @@ namespace YaskawaNet
             int counterSendCommand = 0;
             int maxSendCommands = 3;
 
+            short _getUserFrameReturnValue = -1;
+            double deferenceXandBase = 0.0;
+
             try
             {
                 lock (_robotAccessLock)
                 {
-                    if (speed != 0 && !_actualRobotStatus.IsOperating)
+                    if (!_actualRobotStatus.IsOperating)
                     {
                         #region
 
@@ -6907,20 +7283,45 @@ namespace YaskawaNet
 
                         realRobotSpeed = simulatorSpeed = speed;
 
-                        realRobotSpeed = (realRobotSpeed > 100) ? 100 : realRobotSpeed;
-                        realRobotSpeed = (realRobotSpeed < -100) ? -100 : realRobotSpeed;
+                        ReportedRobotPosition.ActualTCPPositions.CopyTo(tcpAxesPositionsReal, 0);
 
-                        ReportedRobotTCPPosition.RobotPositions.CopyTo(tcpAxesPositionsReal, 0);
+                        deferenceXandBase = tcpAxesPositionsReal[0] - tcpAxesPositionsReal[6];
+                        tcpAxesPositionsReal[7] = ReportedRobotPosition.ActualE8AxisPulsePosition;
+                        tcpAxesPositionsReal[8] = -(tcpAxesPositionsReal[7]);
 
                         for (int i = 0; i < tcpAxesPositionsReal.Length; i++)
                         {
+                            #region
                             if ((tcpMask & (1 << i)) > 0)
                             {
-                                tcpAxesPositionsReal[i] = (speed > 0) ? DesiredRobotTCPPosition.Limits[i][1] : DesiredRobotTCPPosition.Limits[i][0];
+                                if (i == 0)
+                                {
+                                    tcpAxesPositionsReal[i] = (speed > 0) ? tcpAxesPositionsReal[i] + DesiredRobotPosition.LimitsTCP[i][1] :
+                                         tcpAxesPositionsReal[i] + DesiredRobotPosition.LimitsTCP[i][0];
+                                }
+                                else
+                                {
+                                    tcpAxesPositionsReal[i] = (speed > 0) ? DesiredRobotPosition.LimitsTCP[i][1] : DesiredRobotPosition.LimitsTCP[i][0];
+                                }
                             }
+                            #endregion
                         }
 
-                        realRobotSpeed = 10;//TODO:for safety !!!!!!!!!!!!!!!!!!!! Math.Abs(realRobotSpeed);
+                        if (_trackerFollowXAxes)
+                        {
+                            tcpAxesPositionsReal[6] = tcpAxesPositionsReal[0] - deferenceXandBase;
+                        }
+
+                        if (_actualReferenceFrame == RobotFrameType.User1)
+                        {
+                            #region
+                            _getUserFrameReturnValue = GetUserFrame();
+                            if (_getUserFrameReturnValue == 0)
+                            {
+                                tcpAxesPositionsReal[6] += _reportedUserCoordinateSystem.UserCoordinateData[22];
+                            }
+                            #endregion
+                        }
 
                         task = Task<short>.Factory.StartNew(() =>
                         {
@@ -7062,17 +7463,17 @@ namespace YaskawaNet
             int taskWaitTimeCounter = 0;
             int counterSendCommand = 0;
             int maxSendCommands = 3;
+
             short _getUserFrameReturnValue = -1;
+            double deferenceXandBase = 0.0;
 
             try
             {
                 lock (_robotAccessLock)
                 {
-                    if (speed != 0 && !_actualRobotStatus.IsOperating)
+                    if ((tcpIndex >= 0 && tcpIndex <= 5) && !_actualRobotStatus.IsOperating)
                     {
                         #region
-
-                        Debug.WriteLine("DX200::TCPAbsoluteMove()::Warning::Running");
 
                         if (_actualRobotStatus.IsCommandHold == true)
                         {
@@ -7081,8 +7482,13 @@ namespace YaskawaNet
 
                         realRobotSpeed = simulatorSpeed = speed;
 
-                        ReportedRobotTCPPosition.RobotPositions.CopyTo(tcpAxesPositionsReal, 0);
-                        tcpAxesPositionsReal[tcpIndex] = DesiredRobotTCPPosition.RobotPositions[tcpIndex];
+                        //TODO:Vlad:difference between axes [0] and [6]
+                        ReportedRobotPosition.ActualTCPPositions.CopyTo(tcpAxesPositionsReal, 0);
+
+                        deferenceXandBase = tcpAxesPositionsReal[0] - tcpAxesPositionsReal[6];
+                        tcpAxesPositionsReal[7] = ReportedRobotPosition.ActualE8AxisPulsePosition;
+                        tcpAxesPositionsReal[8] = -(tcpAxesPositionsReal[7]);
+                        tcpAxesPositionsReal[tcpIndex] = DesiredRobotPosition.ActualTCPPositions[tcpIndex];
 
                         _actualMoveSpeedSelection = (tcpIndex > -1 && tcpIndex < 3) ? RobotMoveSpeedSelectionType.ControlPoint :
                             RobotMoveSpeedSelectionType.PositionAngular;
@@ -7106,15 +7512,9 @@ namespace YaskawaNet
                             #endregion
                         }
 
-                        if (_actualRobotTCPSpeed == 0)
-                        {
-                            int debug = 1;
-                            debug = debug + 1;
-                        }
-
                         if (_trackerFollowXAxes)
                         {
-                            tcpAxesPositionsReal[6] = tcpAxesPositionsReal[0];
+                            tcpAxesPositionsReal[6] = tcpAxesPositionsReal[0] - deferenceXandBase;
                         }
 
                         if (_actualReferenceFrame == RobotFrameType.User1)
@@ -7128,6 +7528,8 @@ namespace YaskawaNet
                             #endregion
                         }
 
+                        Debug.WriteLine("DX200::TCPAbsoluteMove()::Warning::Running" + "Index:" + tcpIndex.ToString() + " Desired position:" + tcpAxesPositionsReal[tcpIndex].ToString());
+                     
                         task = Task<short>.Factory.StartNew(() =>
                        {
                            //Return Value
@@ -7268,29 +7670,37 @@ namespace YaskawaNet
             int counterSendCommand = 0;
             int maxSendCommands = 3;
 
+            short _getUserFrameReturnValue = -1;
+            double deferenceXandBase = 0.0;
+
             try
             {
                 lock (_robotAccessLock)
                 {
-                    if (speed != 0 && !_actualRobotStatus.IsOperating)
+                    if (!_actualRobotStatus.IsOperating)
                     {
                         #region
-                        ReportedRobotTCPPosition.RobotPositions.CopyTo(tcpAxesPositionsReal, 0);
-
-                        for (int i = 0; i < tcpAxesPositionsReal.Length; i++)
-                        {
-                            if ((tcpMask & (1 << i)) > 0)
-                            {
-                                tcpAxesPositionsReal[i] = DesiredRobotTCPPosition.RobotPositions[i];
-                            }
-                        }
 
                         if (_actualRobotStatus.IsCommandHold == true)
                         {
                             HoldOff();
                         }
 
+                        speed = (speed / 100.0) * 1000.0;
                         realRobotSpeed = simulatorSpeed = speed;
+
+                        ReportedRobotPosition.ActualTCPPositions.CopyTo(tcpAxesPositionsReal, 0);
+                        deferenceXandBase = tcpAxesPositionsReal[0] - tcpAxesPositionsReal[6];
+                        tcpAxesPositionsReal[7] = ReportedRobotPosition.ActualE8AxisPulsePosition;
+                        tcpAxesPositionsReal[8] = -(tcpAxesPositionsReal[7]);
+
+                        for (int i = 0; i < tcpAxesPositionsReal.Length; i++)
+                        {
+                            if ((tcpMask & (1 << i)) > 0)
+                            {
+                                tcpAxesPositionsReal[i] = DesiredRobotPosition.ActualTCPPositions[i];
+                            }
+                        }
 
                         _actualMoveSpeedSelection = RobotMoveSpeedSelectionType.ControlPoint;
 
@@ -7301,6 +7711,22 @@ namespace YaskawaNet
                         if (_actualMoveSpeedSelection == RobotMoveSpeedSelectionType.PositionAngular)
                         {
                             realRobotSpeed = Math.Abs(realRobotSpeed) < _maxPositionAngularSpeed ? Math.Abs(realRobotSpeed) : _maxPositionAngularSpeed;
+                        }
+
+                        if (_trackerFollowXAxes)
+                        {
+                            tcpAxesPositionsReal[6] = tcpAxesPositionsReal[0] - deferenceXandBase;
+                        }
+
+                        if (_actualReferenceFrame == RobotFrameType.User1)
+                        {
+                            #region
+                            _getUserFrameReturnValue = GetUserFrame();
+                            if (_getUserFrameReturnValue == 0)
+                            {
+                                tcpAxesPositionsReal[6] += _reportedUserCoordinateSystem.UserCoordinateData[22];
+                            }
+                            #endregion
                         }
 
                         task = Task<short>.Factory.StartNew(() =>
@@ -7444,12 +7870,13 @@ namespace YaskawaNet
             int maxSendCommands = 3;
 
             short _getUserFrameReturnValue = -1;
+            double deferenceXandBase = 0.0;
 
             try
             {
                 lock (_robotAccessLock)
                 {
-                    if (speed != 0 && !_actualRobotStatus.IsOperating)
+                    if (!_actualRobotStatus.IsOperating)
                     {
                         #region
 
@@ -7463,8 +7890,11 @@ namespace YaskawaNet
 
                         realRobotSpeed = simulatorSpeed = speed;
 
-                        ReportedRobotTCPPosition.RobotPositions.CopyTo(tcpAxesPositionsReal, 0);
-                        tcpAxesPositionsReal[tcpIndex] += DesiredRobotTCPPosition.RobotPositions[tcpIndex];
+                        ReportedRobotPosition.ActualTCPPositions.CopyTo(tcpAxesPositionsReal, 0);
+                        deferenceXandBase = tcpAxesPositionsReal[0] - tcpAxesPositionsReal[6];
+                        tcpAxesPositionsReal[7] = ReportedRobotPosition.ActualE8AxisPulsePosition;
+                        tcpAxesPositionsReal[8] = -(tcpAxesPositionsReal[7]);
+                        tcpAxesPositionsReal[tcpIndex] += DesiredRobotPosition.ActualTCPPositions[tcpIndex];
 
                         _actualMoveSpeedSelection = (tcpIndex > -1 && tcpIndex < 3) ? RobotMoveSpeedSelectionType.ControlPoint : RobotMoveSpeedSelectionType.PositionAngular;
 
@@ -7475,6 +7905,11 @@ namespace YaskawaNet
                         if (_actualMoveSpeedSelection == RobotMoveSpeedSelectionType.PositionAngular)
                         {
                             realRobotSpeed = Math.Abs(realRobotSpeed) < _maxPositionAngularSpeed ? Math.Abs(realRobotSpeed) : _maxPositionAngularSpeed;
+                        }
+
+                        if (_trackerFollowXAxes)
+                        {
+                            tcpAxesPositionsReal[6] = tcpAxesPositionsReal[0] - deferenceXandBase;
                         }
 
                         if (_actualReferenceFrame == RobotFrameType.User1)
@@ -7621,11 +8056,14 @@ namespace YaskawaNet
             int counterSendCommand = 0;
             int maxSendCommands = 3;
 
+            short _getUserFrameReturnValue = -1;
+            double deferenceXandBase = 0.0;
+
             try
             {
                 lock (_robotAccessLock)
                 {
-                    if (speed != 0 && !_actualRobotStatus.IsOperating)
+                    if (!_actualRobotStatus.IsOperating)
                     {
                         #region
 
@@ -7634,22 +8072,36 @@ namespace YaskawaNet
                             HoldOff();
                         }
 
-                        realRobotSpeed = simulatorSpeed = speed;
+                        realRobotSpeed = simulatorSpeed = Math.Abs(speed);
 
-                        realRobotSpeed = (realRobotSpeed > 100) ? 100 : realRobotSpeed;
-                        realRobotSpeed = (realRobotSpeed < -100) ? -100 : realRobotSpeed;
-
-                        ReportedRobotTCPPosition.RobotPositions.CopyTo(tcpAxesPositionsReal, 0);
+                        ReportedRobotPosition.ActualTCPPositions.CopyTo(tcpAxesPositionsReal, 0);
+                        deferenceXandBase = tcpAxesPositionsReal[0] - tcpAxesPositionsReal[6];
+                        tcpAxesPositionsReal[7] = ReportedRobotPosition.ActualE8AxisPulsePosition;
+                        tcpAxesPositionsReal[8] = -(tcpAxesPositionsReal[7]);
 
                         for (int i = 0; i < tcpAxesPositionsReal.Length; i++)
                         {
                             if ((tcpMask & (1 << i)) > 0)
                             {
-                                tcpAxesPositionsReal[i] += DesiredRobotTCPPosition.RobotPositions[i];
+                                tcpAxesPositionsReal[i] += DesiredRobotPosition.ActualTCPPositions[i];
                             }
                         }
 
-                        realRobotSpeed = 100;//TODO:for safety !!!!!!!!!!!!!!!!!!!! Math.Abs(realRobotSpeed);
+                        if (_trackerFollowXAxes)
+                        {
+                            tcpAxesPositionsReal[6] = tcpAxesPositionsReal[0] - deferenceXandBase;
+                        }
+
+                        if (_actualReferenceFrame == RobotFrameType.User1)
+                        {
+                            #region
+                            _getUserFrameReturnValue = GetUserFrame();
+                            if (_getUserFrameReturnValue == 0)
+                            {
+                                tcpAxesPositionsReal[6] += _reportedUserCoordinateSystem.UserCoordinateData[22];
+                            }
+                            #endregion
+                        }
 
                         task = Task<short>.Factory.StartNew(() =>
                         {
@@ -7798,7 +8250,7 @@ namespace YaskawaNet
             {
                 lock (_robotAccessLock)
                 {
-                    if (speed != 0 && !_actualRobotStatus.IsOperating)
+                    if (!_actualRobotStatus.IsOperating)
                     {
                         #region
 
@@ -7814,8 +8266,10 @@ namespace YaskawaNet
 
                         realRobotSpeed = simulatorSpeed = speed;
 
-                        ReportedRobotTCPPosition.RobotPositions.CopyTo(tcpAxesPositionsReal, 0);
-                        tcpAxesPositionsReal[tcpIndex] = DesiredRobotTCPPosition.RobotPositions[tcpIndex];
+                        ReportedRobotPosition.ActualTCPPositions.CopyTo(tcpAxesPositionsReal, 0);
+                        tcpAxesPositionsReal[7] = ReportedRobotPosition.ActualE8AxisPulsePosition;
+                        tcpAxesPositionsReal[8] = -(tcpAxesPositionsReal[7]);
+                        tcpAxesPositionsReal[tcpIndex] = DesiredRobotPosition.ActualTCPPositions[tcpIndex];
 
                         _actualMoveSpeedSelection = (tcpIndex > -1 && tcpIndex < 3) ? RobotMoveSpeedSelectionType.ControlPoint : RobotMoveSpeedSelectionType.PositionAngular;
 
@@ -7967,7 +8421,7 @@ namespace YaskawaNet
             {
                 lock (_robotAccessLock)
                 {
-                    if (speed != 0 && !_actualRobotStatus.IsOperating)
+                    if (!_actualRobotStatus.IsOperating)
                     {
                         #region
 
@@ -7980,8 +8434,11 @@ namespace YaskawaNet
 
                         realRobotSpeed = simulatorSpeed = speed;
 
-                        ReportedRobotTCPPosition.RobotPositions.CopyTo(tcpAxesPositionsReal, 0);
-                        tcpAxesPositionsReal[tcpIndex] = DesiredRobotTCPPosition.RobotPositions[tcpIndex];
+                        ReportedRobotPosition.ActualTCPPositions.CopyTo(tcpAxesPositionsReal, 0);
+
+                        tcpAxesPositionsReal[7] = ReportedRobotPosition.ActualE8AxisPulsePosition;
+                        tcpAxesPositionsReal[8] = -(tcpAxesPositionsReal[7]);
+                        tcpAxesPositionsReal[tcpIndex] = DesiredRobotPosition.ActualTCPPositions[tcpIndex];
 
                         _actualMoveSpeedSelection = (tcpIndex > -1 && tcpIndex < 3) ? RobotMoveSpeedSelectionType.ControlPoint : RobotMoveSpeedSelectionType.PositionAngular;
 
@@ -8133,7 +8590,7 @@ namespace YaskawaNet
             {
                 lock (_robotAccessLock)
                 {
-                    if (speed != 0 && !_actualRobotStatus.IsOperating)
+                    if (!_actualRobotStatus.IsOperating)
                     {
                         #region
 
@@ -8149,8 +8606,11 @@ namespace YaskawaNet
 
                         realRobotSpeed = simulatorSpeed = speed;
 
-                        ReportedRobotTCPPosition.RobotPositions.CopyTo(tcpAxesPositionsReal, 0);
-                        tcpAxesPositionsReal[tcpIndex] = DesiredRobotTCPPosition.RobotPositions[tcpIndex];
+                        ReportedRobotPosition.ActualTCPPositions.CopyTo(tcpAxesPositionsReal, 0);
+
+                        tcpAxesPositionsReal[7] = ReportedRobotPosition.ActualE8AxisPulsePosition;
+                        tcpAxesPositionsReal[8] = -(tcpAxesPositionsReal[7]);
+                        tcpAxesPositionsReal[tcpIndex] = DesiredRobotPosition.ActualTCPPositions[tcpIndex];
 
                         _actualMoveSpeedSelection = (tcpIndex > -1 && tcpIndex < 3) ? RobotMoveSpeedSelectionType.ControlPoint : RobotMoveSpeedSelectionType.PositionAngular;
 
@@ -8302,7 +8762,7 @@ namespace YaskawaNet
             {
                 lock (_robotAccessLock)
                 {
-                    if (speed != 0 && !_actualRobotStatus.IsOperating)
+                    if (!_actualRobotStatus.IsOperating)
                     {
                         #region
 
@@ -8315,8 +8775,11 @@ namespace YaskawaNet
 
                         realRobotSpeed = simulatorSpeed = speed;
 
-                        ReportedRobotTCPPosition.RobotPositions.CopyTo(tcpAxesPositionsReal, 0);
-                        tcpAxesPositionsReal[tcpIndex] = DesiredRobotTCPPosition.RobotPositions[tcpIndex];
+                        ReportedRobotPosition.ActualTCPPositions.CopyTo(tcpAxesPositionsReal, 0);
+
+                        tcpAxesPositionsReal[7] = ReportedRobotPosition.ActualE8AxisPulsePosition;
+                        tcpAxesPositionsReal[8] = -(tcpAxesPositionsReal[7]);
+                        tcpAxesPositionsReal[tcpIndex] = DesiredRobotPosition.ActualTCPPositions[tcpIndex];
 
                         _actualMoveSpeedSelection = (tcpIndex > -1 && tcpIndex < 3) ? RobotMoveSpeedSelectionType.ControlPoint : RobotMoveSpeedSelectionType.PositionAngular;
 
@@ -8467,7 +8930,7 @@ namespace YaskawaNet
             {
                 lock (_robotAccessLock)
                 {
-                    if (speed != 0 && !_actualRobotStatus.IsOperating)
+                    if ((jointIndex == 6) && !_actualRobotStatus.IsOperating)
                     {
                         #region
                         if (_actualRobotStatus.IsCommandHold == true)
@@ -8480,11 +8943,11 @@ namespace YaskawaNet
                         speed = (Math.Abs(speed) > _trackMaxSpeed) ? (speed / Math.Abs(speed)) * _trackMaxSpeed : speed;
                         realRobotSpeed = Math.Abs(speed / (_trackMaxSpeed / 100.0));
 
-                        ReportedRobotJointPosition.RobotPulsePositions.CopyTo(jointsPositionsReal, 0);
+                        ReportedRobotPosition.ActualJointsPulsePositions.CopyTo(jointsPositionsReal, 0);
 
-                        jointsPositionsReal[jointIndex] = (speed > 0) ? DesiredRobotJointPosition.LimitsPulse[jointIndex][1] : DesiredRobotJointPosition.LimitsPulse[jointIndex][0];
+                        jointsPositionsReal[jointIndex] = (speed > 0) ? DesiredRobotPosition.LimitsJointsPulse[jointIndex][1] : DesiredRobotPosition.LimitsJointsPulse[jointIndex][0];
 
-                        realRobotSpeed = Math.Abs(realRobotSpeed);
+                        realRobotSpeed = (realRobotSpeed > _maxJointSpeed) ? _maxJointSpeed : realRobotSpeed;
 
                         task = Task<short>.Factory.StartNew(() =>
                         {
@@ -8575,6 +9038,7 @@ namespace YaskawaNet
                     }
                 }
 
+                #region Not in use
                 //if (_useRoboDKSimulator)
                 //{
                 //    #region
@@ -8595,7 +9059,8 @@ namespace YaskawaNet
                 //    }
 
                 //    #endregion
-                //}
+                //} 
+                #endregion
             }
             catch (Exception ex)
             {
@@ -8627,7 +9092,7 @@ namespace YaskawaNet
             {
                 lock (_robotAccessLock)
                 {
-                    if (speed != 0 && !_actualRobotStatus.IsOperating)
+                    if ((jointIndex == 6) && !_actualRobotStatus.IsOperating)
                     {
                         #region
 
@@ -8636,15 +9101,15 @@ namespace YaskawaNet
                             HoldOff();
                         }
 
-                        realRobotSpeed = simulatorSpeed = speed;
+                        simulatorSpeed = speed;
 
-                        realRobotSpeed = (realRobotSpeed > 100) ? 100 : realRobotSpeed;
-                        realRobotSpeed = (realRobotSpeed < -100) ? -100 : realRobotSpeed;
+                        speed = (speed > _trackMaxSpeed) ? _trackMaxSpeed : speed;
+                        realRobotSpeed = Math.Abs(speed / (_trackMaxSpeed / 100.0));
 
-                        ReportedRobotJointPosition.RobotPulsePositions.CopyTo(jointsPositionsReal, 0);
-                        jointsPositionsReal[jointIndex] = DesiredRobotJointPosition.RobotPulsePositions[jointIndex];
+                        ReportedRobotPosition.ActualJointsPulsePositions.CopyTo(jointsPositionsReal, 0);
+                        jointsPositionsReal[jointIndex] = DesiredRobotPosition.ActualJointsPulsePositions[jointIndex];
 
-                        realRobotSpeed = 10;//TODO:for safety !!!!!!!!!!!!!!!!!!!! Math.Abs(realRobotSpeed);
+                        realRobotSpeed = (realRobotSpeed > _maxJointSpeed) ? _maxJointSpeed : realRobotSpeed;
 
                         task = Task<short>.Factory.StartNew(() =>
                         {
@@ -8735,6 +9200,7 @@ namespace YaskawaNet
                     }
                 }
 
+                #region Not in use
                 //if (_useRoboDKSimulator)
                 //{
                 //    #region
@@ -8746,7 +9212,8 @@ namespace YaskawaNet
 
                 //    _roboDKRobot.MoveJ(jointsPositionsSimulator, MOVE_BLOCKING); 
                 //    #endregion
-                //}
+                //} 
+                #endregion
             }
             catch (Exception ex)
             {
@@ -8778,7 +9245,7 @@ namespace YaskawaNet
             {
                 lock (_robotAccessLock)
                 {
-                    if (speed != 0 && !_actualRobotStatus.IsOperating)
+                    if ((jointIndex == 6) && !_actualRobotStatus.IsOperating)
                     {
                         #region
 
@@ -8787,15 +9254,15 @@ namespace YaskawaNet
                             HoldOff();
                         }
 
-                        realRobotSpeed = simulatorSpeed = speed;
+                        simulatorSpeed = speed;
 
-                        realRobotSpeed = (realRobotSpeed > 100) ? 100 : realRobotSpeed;
-                        realRobotSpeed = (realRobotSpeed < -100) ? -100 : realRobotSpeed;
+                        speed = (speed > _trackMaxSpeed) ? _trackMaxSpeed : speed;
+                        realRobotSpeed = Math.Abs(speed / (_trackMaxSpeed / 100.0));
 
-                        ReportedRobotJointPosition.RobotPulsePositions.CopyTo(jointsPositionsReal, 0);
-                        jointsPositionsReal[jointIndex] += DesiredRobotJointPosition.RobotPulsePositions[jointIndex];
+                        ReportedRobotPosition.ActualJointsPulsePositions.CopyTo(jointsPositionsReal, 0);
+                        jointsPositionsReal[jointIndex] += DesiredRobotPosition.ActualJointsPulsePositions[jointIndex];
 
-                        realRobotSpeed = Math.Abs(realRobotSpeed);
+                        realRobotSpeed = (realRobotSpeed > _maxJointSpeed) ? _maxJointSpeed : realRobotSpeed;
 
                         task = Task<short>.Factory.StartNew(() =>
                         {
@@ -8929,7 +9396,7 @@ namespace YaskawaNet
             {
                 lock (_robotAccessLock)
                 {
-                    if (speed != 0 && !_actualRobotStatus.IsOperating)
+                    if ((jointIndex == 6) && !_actualRobotStatus.IsOperating)
                     {
                         #region
                         if (_actualRobotStatus.IsCommandHold == true)
@@ -8937,15 +9404,15 @@ namespace YaskawaNet
                             HoldOff();
                         }
 
-                        realRobotSpeed = simulatorSpeed = speed;
+                        simulatorSpeed = speed;
 
-                        realRobotSpeed = (realRobotSpeed > 100) ? 100 : realRobotSpeed;
-                        realRobotSpeed = (realRobotSpeed < -100) ? -100 : realRobotSpeed;
+                        speed = (speed > _trackMaxSpeed) ? _trackMaxSpeed : speed;
+                        realRobotSpeed = Math.Abs(speed / (_trackMaxSpeed / 100.0));
 
-                        ReportedRobotJointPosition.RobotPulsePositions.CopyTo(jointsPositionsReal, 0);
-                        jointsPositionsReal[jointIndex] = DesiredRobotJointPosition.RobotHomePositions[jointIndex];
+                        ReportedRobotPosition.ActualJointsPulsePositions.CopyTo(jointsPositionsReal, 0);
+                        jointsPositionsReal[jointIndex] = DesiredRobotPosition.JointsPulseHomePositions[jointIndex];
 
-                        _actualRobotJointSpeed = realRobotSpeed = 10;//TODO:for safety !!!!!!!!!!!!!!!!!!!! Math.Abs(realRobotSpeed);
+                        realRobotSpeed = (realRobotSpeed > _maxJointSpeed) ? _maxJointSpeed : realRobotSpeed;
 
                         task = Task<short>.Factory.StartNew(() =>
                         {
@@ -9078,7 +9545,7 @@ namespace YaskawaNet
             {
                 lock (_robotAccessLock)
                 {
-                    if (speed != 0 && !_actualRobotStatus.IsOperating)
+                    if ((jointIndex == 6) && !_actualRobotStatus.IsOperating)
                     {
                         #region
 
@@ -9087,15 +9554,13 @@ namespace YaskawaNet
                             HoldOff();
                         }
 
-                        realRobotSpeed = simulatorSpeed = speed;
+                        speed = (speed > _trackMaxSpeed) ? _trackMaxSpeed : speed;
+                        realRobotSpeed = Math.Abs(speed / (_trackMaxSpeed / 100.0));
 
-                        realRobotSpeed = (realRobotSpeed > 100) ? 100 : realRobotSpeed;
-                        realRobotSpeed = (realRobotSpeed < -100) ? -100 : realRobotSpeed;
+                        ReportedRobotPosition.ActualJointsPulsePositions.CopyTo(jointsPositionsReal, 0);
+                        jointsPositionsReal[jointIndex] = DesiredRobotPosition.JointsPulseParkPositions[jointIndex];
 
-                        ReportedRobotJointPosition.RobotPulsePositions.CopyTo(jointsPositionsReal, 0);
-                        jointsPositionsReal[jointIndex] = DesiredRobotJointPosition.RobotParkPositions[jointIndex];
-
-                        _actualRobotJointSpeed = realRobotSpeed = 10;//TODO:for safety !!!!!!!!!!!!!!!!!!!! Math.Abs(realRobotSpeed);
+                        _actualRobotJointSpeed = realRobotSpeed = (realRobotSpeed > _maxJointSpeed) ? _maxJointSpeed : realRobotSpeed;
 
                         task = Task<short>.Factory.StartNew(() =>
                         {
@@ -9186,6 +9651,7 @@ namespace YaskawaNet
                     }
                 }
 
+                #region Not in use
                 //if (_useRoboDKSimulator)
                 //{
                 //    _roboDKRobot.SetSpeed(-1, Math.Abs(speed));
@@ -9195,7 +9661,8 @@ namespace YaskawaNet
                 //    jointsPositionsSimulator[jointIndex] = DesiredRobotJointPosition.RobotParkPositions[jointIndex];
 
                 //    _roboDKRobot.MoveJ(jointsPositionsSimulator, MOVE_BLOCKING);
-                //}
+                //} 
+                #endregion
             }
             catch (Exception ex)
             {
@@ -9228,7 +9695,7 @@ namespace YaskawaNet
             {
                 lock (_robotAccessLock)
                 {
-                    if (speed != 0 && !_actualRobotStatus.IsOperating)
+                    if (!_actualRobotStatus.IsOperating)
                     {
                         #region
                         if (_actualRobotStatus.IsCommandHold == true)
@@ -9241,11 +9708,12 @@ namespace YaskawaNet
                         speed = (Math.Abs(speed) > _turnTableMaxSpeed) ? (speed / Math.Abs(speed)) * _turnTableMaxSpeed : speed;
                         realRobotSpeed = Math.Abs(speed / (_turnTableMaxSpeed / 100.0));
 
-                        ReportedRobotJointPosition.RobotPulsePositions.CopyTo(jointsPositionsReal, 0);
+                        ReportedRobotPosition.ActualJointsPulsePositions.CopyTo(jointsPositionsReal, 0);
 
-                        jointsPositionsReal[jointIndex] = (speed > 0) ? DesiredRobotJointPosition.LimitsPulse[jointIndex][1] : DesiredRobotJointPosition.LimitsPulse[jointIndex][0];
+                        jointsPositionsReal[jointIndex] = (speed > 0) ? DesiredRobotPosition.LimitsJointsPulse[jointIndex][1] : DesiredRobotPosition.LimitsJointsPulse[jointIndex][0];
+                        jointsPositionsReal[jointIndex + 1] = -(jointsPositionsReal[jointIndex]);
 
-                        realRobotSpeed = Math.Abs(realRobotSpeed);
+                        realRobotSpeed = (realRobotSpeed > _maxJointSpeed) ? _maxJointSpeed : realRobotSpeed;
 
                         task = Task<short>.Factory.StartNew(() =>
                         {
@@ -9388,7 +9856,7 @@ namespace YaskawaNet
             {
                 lock (_robotAccessLock)
                 {
-                    if (speed != 0 && !_actualRobotStatus.IsOperating)
+                    if (!_actualRobotStatus.IsOperating)
                     {
                         #region
 
@@ -9397,15 +9865,16 @@ namespace YaskawaNet
                             HoldOff();
                         }
 
-                        realRobotSpeed = simulatorSpeed = speed;
+                        simulatorSpeed = speed;
 
-                        realRobotSpeed = (realRobotSpeed > 100) ? 100 : realRobotSpeed;
-                        realRobotSpeed = (realRobotSpeed < -100) ? -100 : realRobotSpeed;
+                        speed = (speed > _turnTableMaxSpeed) ? _turnTableMaxSpeed : speed;
+                        realRobotSpeed = Math.Abs(speed / (_turnTableMaxSpeed / 100.0));
 
-                        ReportedRobotJointPosition.RobotPulsePositions.CopyTo(jointsPositionsReal, 0);
-                        jointsPositionsReal[jointIndex] = DesiredRobotJointPosition.RobotPulsePositions[jointIndex];
+                        ReportedRobotPosition.ActualJointsPulsePositions.CopyTo(jointsPositionsReal, 0);
+                        jointsPositionsReal[jointIndex] = DesiredRobotPosition.ActualJointsPulsePositions[jointIndex];
+                        jointsPositionsReal[jointIndex + 1] = -(jointsPositionsReal[jointIndex]);// DesiredRobotJointPosition.RobotPulsePositions[jointIndex + 1];
 
-                        realRobotSpeed = 10;//TODO:for safety !!!!!!!!!!!!!!!!!!!! Math.Abs(realRobotSpeed);
+                        realRobotSpeed = (realRobotSpeed > _maxJointSpeed) ? _maxJointSpeed : realRobotSpeed;
 
                         task = Task<short>.Factory.StartNew(() =>
                         {
@@ -9539,7 +10008,7 @@ namespace YaskawaNet
             {
                 lock (_robotAccessLock)
                 {
-                    if (speed != 0 && !_actualRobotStatus.IsOperating)
+                    if (!_actualRobotStatus.IsOperating)
                     {
                         #region
 
@@ -9548,15 +10017,15 @@ namespace YaskawaNet
                             HoldOff();
                         }
 
-                        realRobotSpeed = simulatorSpeed = speed;
+                        simulatorSpeed = speed;
 
-                        realRobotSpeed = (realRobotSpeed > 100) ? 100 : realRobotSpeed;
-                        realRobotSpeed = (realRobotSpeed < -100) ? -100 : realRobotSpeed;
+                        speed = (Math.Abs(speed) > _turnTableMaxSpeed) ? (speed / Math.Abs(speed)) * _turnTableMaxSpeed : speed;
+                        realRobotSpeed = Math.Abs(speed / (_turnTableMaxSpeed / 100.0));
 
-                        ReportedRobotJointPosition.RobotPulsePositions.CopyTo(jointsPositionsReal, 0);
-                        jointsPositionsReal[jointIndex] += DesiredRobotJointPosition.RobotPulsePositions[jointIndex];
+                        ReportedRobotPosition.ActualJointsPulsePositions.CopyTo(jointsPositionsReal, 0);
+                        jointsPositionsReal[jointIndex] += DesiredRobotPosition.ActualJointsPulsePositions[jointIndex];
 
-                        realRobotSpeed = Math.Abs(realRobotSpeed);
+                        realRobotSpeed = (realRobotSpeed > _maxJointSpeed) ? _maxJointSpeed : realRobotSpeed;
 
                         task = Task<short>.Factory.StartNew(() =>
                         {
@@ -9703,8 +10172,8 @@ namespace YaskawaNet
                         realRobotSpeed = (realRobotSpeed > 100) ? 100 : realRobotSpeed;
                         realRobotSpeed = (realRobotSpeed < -100) ? -100 : realRobotSpeed;
 
-                        ReportedRobotJointPosition.RobotPulsePositions.CopyTo(jointsPositionsReal, 0);
-                        jointsPositionsReal[jointIndex] = DesiredRobotJointPosition.RobotHomePositions[jointIndex];
+                        ReportedRobotPosition.ActualJointsPulsePositions.CopyTo(jointsPositionsReal, 0);
+                        jointsPositionsReal[jointIndex] = DesiredRobotPosition.JointsPulseHomePositions[jointIndex];
 
                         _actualRobotJointSpeed = realRobotSpeed = 10;//TODO:for safety !!!!!!!!!!!!!!!!!!!! Math.Abs(realRobotSpeed);
 
@@ -9853,8 +10322,8 @@ namespace YaskawaNet
                         realRobotSpeed = (realRobotSpeed > 100) ? 100 : realRobotSpeed;
                         realRobotSpeed = (realRobotSpeed < -100) ? -100 : realRobotSpeed;
 
-                        ReportedRobotJointPosition.RobotPulsePositions.CopyTo(jointsPositionsReal, 0);
-                        jointsPositionsReal[jointIndex] = DesiredRobotJointPosition.RobotParkPositions[jointIndex];
+                        ReportedRobotPosition.ActualJointsPulsePositions.CopyTo(jointsPositionsReal, 0);
+                        jointsPositionsReal[jointIndex] = DesiredRobotPosition.JointsPulseParkPositions[jointIndex];
 
                         _actualRobotJointSpeed = realRobotSpeed = 10;//TODO:for safety !!!!!!!!!!!!!!!!!!!! Math.Abs(realRobotSpeed);
 
@@ -9978,7 +10447,7 @@ namespace YaskawaNet
 
             try
             {
-                returnValue = (frame == 0) ? ActualRobotJointPosition.InMotionArray[axis] : ActualRobotTCPPosition.InMotionArray[axis];
+                returnValue = (frame == 0) ? ActualRobotPosition.JointsInMotionArray[axis] : ActualRobotPosition.TCPInMotionArray[axis];
             }
             catch (Exception ex)
             {
@@ -10097,6 +10566,11 @@ namespace YaskawaNet
                     }
 
                     #endregion
+
+                    if (OnServoOn != null)
+                    {
+                        OnServoOn();
+                    }
                 }
             }
             catch (Exception ex)
@@ -10453,7 +10927,7 @@ namespace YaskawaNet
                 {
                     #region
 
-                    ReportedRobotJointPosition.RobotPositions.CopyTo(jointsPositionsSimulator, 0);
+                    ReportedRobotPosition.ActualJointsUnitsPositions.CopyTo(jointsPositionsSimulator, 0);
 
                     jointsPositionsSimulator[6] = (jointsPositionsSimulator[6] > 3500) ? 3500 : jointsPositionsSimulator[6];
 
@@ -10594,10 +11068,9 @@ namespace YaskawaNet
 
             try
             {
-                _actualJointsTrajectory.Add(ReportedRobotJointPosition);
-                _actualTCPTrajectory.Add(ReportedRobotTCPPosition);
+                _actualTrajectory.Add(ReportedRobotPosition);
 
-                RDK.AddTarget(_actualTCPTrajectory.Count.ToString(), _roboDKLinearTrack, _roboDKRobot);
+                RDK.AddTarget(_actualTrajectory.Count.ToString(), _roboDKLinearTrack, _roboDKRobot);
             }
             catch (Exception ex)
             {
@@ -11038,7 +11511,11 @@ namespace YaskawaNet
 
             return returnValue;
         }
-
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="source"></param>
+        /// <param name="argEvent"></param>
         private void CheckConnection(object source, System.Timers.ElapsedEventArgs argEvent)
         {
             try
@@ -11058,6 +11535,20 @@ namespace YaskawaNet
             {
                 DiagnosticException.ExceptionHandler(ex);
             }
+        }
+        /// <summary>
+        /// 
+        /// </summary>
+        private void StartScanLine()
+        {
+
+        }
+        /// <summary>
+        /// 
+        /// </summary>
+        private void StopScanLine()
+        {
+
         }
 
         #endregion
@@ -11115,8 +11606,8 @@ namespace YaskawaNet
                         {
                             if (_communicationStatus.connected == true)
                             {
-                                GetCurrentRobotTCPPosition();
                                 GetCurrentRobotJointsPosition();
+                                GetCurrentRobotTCPPosition();
                             }
                         }
                         catch (Exception ex)
@@ -11271,7 +11762,7 @@ namespace YaskawaNet
 
                                 for (int i = 0; i < jointsPositionsSimulator.Length; i++)
                                 {
-                                    if (jointsPositionsSimulator[i] != ReportedRobotJointPosition.RobotPositions[i])
+                                    if (jointsPositionsSimulator[i] != ReportedRobotPosition.ActualJointsUnitsPositions[i])
                                     {
                                         if (i == 6) continue;
                                         equal = false;
@@ -11281,7 +11772,7 @@ namespace YaskawaNet
 
                                 if (!equal)
                                 {
-                                    ReportedRobotJointPosition.RobotPositions.CopyTo(jointsPositionsSimulator, 0);
+                                    ReportedRobotPosition.ActualJointsUnitsPositions.CopyTo(jointsPositionsSimulator, 0);
 
                                     jointsPositionsSimulator[6] = (jointsPositionsSimulator[6] > 3500) ? 3500 : jointsPositionsSimulator[6];
 
@@ -11321,12 +11812,11 @@ namespace YaskawaNet
                         {
                             if (_actualRobotStatus.IsOperating)
                             {
-                                ReportedRobotTCPPosition.ActualSpeed = _actualRobotTCPSpeed;
+                                ReportedRobotPosition.ActualSpeed = _actualRobotTCPSpeed;
 
-                                _actualJointsTrajectory.Add(ReportedRobotJointPosition);
-                                _actualTCPTrajectory.Add(ReportedRobotTCPPosition);
+                                _actualTrajectory.Add(ReportedRobotPosition);
 
-                                Debug.WriteLine("Count:" + _actualTCPTrajectory.Count.ToString() + ":TCP x position:" + ReportedRobotTCPPosition.X.ToString() + " mm");
+                                Debug.WriteLine("Count:" + _actualTrajectory.Count.ToString() + ":TCP x position:" + ReportedRobotPosition.X.ToString() + " mm");
                             }
                         }
                         catch (Exception ex)
@@ -11337,6 +11827,31 @@ namespace YaskawaNet
                     }
 
                     Thread.Sleep(_captureTrajectoryTime);
+                }
+            }
+            catch (Exception ex)
+            {
+                DiagnosticException.ExceptionHandler(ex);
+            }
+        }
+        /// <summary>
+        /// 
+        /// </summary>
+        private void ScanLineThread()
+        {
+            try
+            {
+                while (_scanLineThreadRun)
+                {
+                    lock (_robotAccessLock)
+                    {
+                        if (!_actualRobotStatus.IsOperating)
+                        {
+
+                        }
+                    }
+
+                    Thread.Sleep(_scanLineTime);
                 }
             }
             catch (Exception ex)
@@ -11502,7 +12017,7 @@ namespace YaskawaNet
 
                 for (int index = 0; index < joints.Length; index++)
                 {
-                    joints[index] = DesiredRobotJointPosition.RobotPositions[index];
+                    joints[index] = DesiredRobotPosition.ActualJointsUnitsPositions[index];
                 }
 
                 _roboDKRobot.MoveJ(joints, MOVE_BLOCKING);
@@ -11526,7 +12041,7 @@ namespace YaskawaNet
 
                 for (int index = 0; index < move_xyzwpr.Length; index++)
                 {
-                    move_xyzwpr[index] = _desiredRobotTCPPosition.RobotPositions[index];
+                    move_xyzwpr[index] = _desiredRobotPosition.ActualTCPPositions[index];
                 }
 
                 Mat movement_pose = Mat.FromTxyzRxyz(move_xyzwpr);
