@@ -290,6 +290,8 @@ namespace YaskawaNet
 
         short SetCycleMode(int mode);
 
+        short PushMotionPointsBlock(int dwAxesMask, [In, Out][MarshalAs(UnmanagedType.SafeArray, SafeArraySubType = VarEnum.VT_R8)] ref double[] ppPointsBlock);
+
         #endregion
     }
     /// <summary>
@@ -837,7 +839,22 @@ namespace YaskawaNet
                 lock (_desiredRobotPositionLocker)
                 {
                     _desiredRobotPosition = value;
-                    Debug.WriteLine("DX200:: desired set:position= " + _desiredRobotPosition.ActualJointsUnitsPositions[0].ToString());
+
+                    Debug.WriteLine("DX200:: desired robot position= " +
+                        _desiredRobotPosition.ActualJointsUnitsPositions[0].ToString() + "::" +
+                        _desiredRobotPosition.ActualJointsUnitsPositions[0].ToString() + "::" +
+                        _desiredRobotPosition.ActualJointsUnitsPositions[0].ToString() + "::" +
+                        _desiredRobotPosition.ActualJointsUnitsPositions[0].ToString() + "::" +
+                        _desiredRobotPosition.ActualJointsUnitsPositions[0].ToString() + "::" +
+                        _desiredRobotPosition.ActualJointsUnitsPositions[0].ToString() + "::" +
+                        _desiredRobotPosition.ActualJointsUnitsPositions[0].ToString() + "::" +
+                        _desiredRobotPosition.ActualJointsUnitsPositions[0].ToString() + "::" +
+                        _desiredRobotPosition.ActualJointsUnitsPositions[0].ToString() + "::" +
+                        _desiredRobotPosition.ActualJointsUnitsPositions[0].ToString() + "::" +
+                        _desiredRobotPosition.ActualJointsUnitsPositions[0].ToString() + "::" +
+                        _desiredRobotPosition.ActualJointsUnitsPositions[0].ToString()
+                        );
+
                     OnNotifyPropertyChanged();
                 }
             }
@@ -7529,7 +7546,7 @@ namespace YaskawaNet
                         }
 
                         Debug.WriteLine("DX200::TCPAbsoluteMove()::Warning::Running" + "Index:" + tcpIndex.ToString() + " Desired position:" + tcpAxesPositionsReal[tcpIndex].ToString());
-                     
+
                         task = Task<short>.Factory.StartNew(() =>
                        {
                            //Return Value
@@ -10024,6 +10041,7 @@ namespace YaskawaNet
 
                         ReportedRobotPosition.ActualJointsPulsePositions.CopyTo(jointsPositionsReal, 0);
                         jointsPositionsReal[jointIndex] += DesiredRobotPosition.ActualJointsPulsePositions[jointIndex];
+                        jointsPositionsReal[jointIndex + 1] = -(jointsPositionsReal[jointIndex]);
 
                         realRobotSpeed = (realRobotSpeed > _maxJointSpeed) ? _maxJointSpeed : realRobotSpeed;
 
@@ -10159,7 +10177,7 @@ namespace YaskawaNet
             {
                 lock (_robotAccessLock)
                 {
-                    if (speed != 0 && !_actualRobotStatus.IsOperating)
+                    if (!_actualRobotStatus.IsOperating)
                     {
                         #region
                         if (_actualRobotStatus.IsCommandHold == true)
@@ -10167,15 +10185,16 @@ namespace YaskawaNet
                             HoldOff();
                         }
 
-                        realRobotSpeed = simulatorSpeed = speed;
+                        simulatorSpeed = speed;
 
-                        realRobotSpeed = (realRobotSpeed > 100) ? 100 : realRobotSpeed;
-                        realRobotSpeed = (realRobotSpeed < -100) ? -100 : realRobotSpeed;
+                        speed = (speed > _turnTableMaxSpeed) ? _turnTableMaxSpeed : speed;
+                        realRobotSpeed = Math.Abs(speed / (_turnTableMaxSpeed / 100.0));
 
                         ReportedRobotPosition.ActualJointsPulsePositions.CopyTo(jointsPositionsReal, 0);
                         jointsPositionsReal[jointIndex] = DesiredRobotPosition.JointsPulseHomePositions[jointIndex];
+                        jointsPositionsReal[jointIndex + 1] = -(jointsPositionsReal[jointIndex]);
 
-                        _actualRobotJointSpeed = realRobotSpeed = 10;//TODO:for safety !!!!!!!!!!!!!!!!!!!! Math.Abs(realRobotSpeed);
+                        realRobotSpeed = (realRobotSpeed > _maxJointSpeed) ? _maxJointSpeed : realRobotSpeed;
 
                         task = Task<short>.Factory.StartNew(() =>
                         {
@@ -10308,7 +10327,7 @@ namespace YaskawaNet
             {
                 lock (_robotAccessLock)
                 {
-                    if (speed != 0 && !_actualRobotStatus.IsOperating)
+                    if (!_actualRobotStatus.IsOperating)
                     {
                         #region
 
@@ -10317,15 +10336,16 @@ namespace YaskawaNet
                             HoldOff();
                         }
 
-                        realRobotSpeed = simulatorSpeed = speed;
+                        simulatorSpeed = speed;
 
-                        realRobotSpeed = (realRobotSpeed > 100) ? 100 : realRobotSpeed;
-                        realRobotSpeed = (realRobotSpeed < -100) ? -100 : realRobotSpeed;
+                        speed = (speed > _turnTableMaxSpeed) ? _turnTableMaxSpeed : speed;
+                        realRobotSpeed = Math.Abs(speed / (_turnTableMaxSpeed / 100.0));
 
                         ReportedRobotPosition.ActualJointsPulsePositions.CopyTo(jointsPositionsReal, 0);
                         jointsPositionsReal[jointIndex] = DesiredRobotPosition.JointsPulseParkPositions[jointIndex];
+                        jointsPositionsReal[jointIndex + 1] = -(jointsPositionsReal[jointIndex]);
 
-                        _actualRobotJointSpeed = realRobotSpeed = 10;//TODO:for safety !!!!!!!!!!!!!!!!!!!! Math.Abs(realRobotSpeed);
+                        realRobotSpeed = (realRobotSpeed > _maxJointSpeed) ? _maxJointSpeed : realRobotSpeed;
 
                         task = Task<short>.Factory.StartNew(() =>
                         {
@@ -11549,6 +11569,25 @@ namespace YaskawaNet
         private void StopScanLine()
         {
 
+        }
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="dwAxesMask"></param>
+        /// <param name="ppPointsBuffer"></param>
+        /// <param name="buffer"></param>
+        /// <param name="run"></param>
+        /// <returns></returns>
+        public short PushMotionPointsBlock(int dwAxesMask, ref double[] ppPointsBuffer)
+        {
+            short returnValue = 1;
+
+            for (int i = 0; i < ppPointsBuffer.Length; i++)
+            {
+
+            }
+
+            return returnValue;
         }
 
         #endregion
